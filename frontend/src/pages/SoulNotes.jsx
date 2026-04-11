@@ -8,11 +8,12 @@ export default function SoulNotes() {
     const [newNote, setNewNote] = useState('');
     const [type, setType] = useState('note');
     const navigate = useNavigate();
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
     const fetchNotes = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get('http://localhost:5000/api/notes', {
+            const res = await axios.get(`${API_URL}/api/notes`, {
                 headers: { 'x-auth-token': token }
             });
             setNotes(res.data);
@@ -30,7 +31,7 @@ export default function SoulNotes() {
         if (!newNote.trim()) return;
         try {
             const token = localStorage.getItem('token');
-            await axios.post('http://localhost:5000/api/notes', 
+            await axios.post(`${API_URL}/api/notes`, 
                 { content: newNote, type }, 
                 { headers: { 'x-auth-token': token } }
             );
@@ -44,7 +45,7 @@ export default function SoulNotes() {
     const deleteNote = async (id) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.delete(`http://localhost:5000/api/notes/${id}`, {
+            await axios.delete(`${API_URL}/api/notes/${id}`, {
                 headers: { 'x-auth-token': token }
             });
             fetchNotes();
@@ -56,7 +57,7 @@ export default function SoulNotes() {
     const toggleTodo = async (note) => {
         try {
             const token = localStorage.getItem('token');
-            await axios.put(`http://localhost:5000/api/notes/${note._id}`, 
+            await axios.put(`${API_URL}/api/notes/${note._id}`, 
                 { completed: !note.completed }, 
                 { headers: { 'x-auth-token': token } }
             );
