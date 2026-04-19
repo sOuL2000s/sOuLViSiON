@@ -35,6 +35,19 @@ export default async function handler(req, res) {
             }
         }
 
+        if (query.route === 'feedback') {
+            const col = db.collection('feedback');
+            if (method === 'GET') {
+                const list = await col.find().sort({_id: -1}).limit(20).toArray();
+                return res.status(200).json(list);
+            }
+            if (method === 'POST') {
+                const item = typeof body === 'string' ? JSON.parse(body) : body;
+                await col.insertOne(item);
+                return res.status(201).json({ success: true });
+            }
+        }
+
         res.status(404).json({ error: "Route not found" });
     } catch (e) {
         res.status(500).json({ error: e.message });

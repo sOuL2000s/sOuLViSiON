@@ -14,93 +14,260 @@
     <!-- Navigation -->
     <nav class="glass sticky top-0 z-50 p-4 flex justify-between items-center px-8">
         <h1 class="text-2xl font-bold tracking-tighter text-cyan-400">sOuLViSiON</h1>
-        <div class="space-x-4 hidden md:flex">
+        <div class="space-x-4 hidden lg:flex overflow-x-auto">
             <button onclick="showPage('home')">Home</button>
             <button onclick="showPage('notes')">Notes</button>
-            <button onclick="showPage('ai')">AI</button>
+            <button onclick="showPage('random')">Random</button>
             <button onclick="showPage('play')">Music</button>
+            <button onclick="showPage('ai')">AI</button>
+            <button onclick="showPage('fun')">Fun</button>
             <button onclick="showPage('cricket')">Cricket</button>
+            <button onclick="showPage('support')">Support</button>
+            <button onclick="showPage('who')">Who?</button>
             <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400">Admin</button>
         </div>
-        <button onclick="showPage('login')" class="bg-cyan-600 px-4 py-1 rounded">Login</button>
+        <div id="userProfile" class="flex items-center gap-2">
+            <span id="userNameDisplay" class="text-sm hidden md:block"></span>
+            <button id="authBtn" onclick="showPage('login')" class="bg-cyan-600 px-4 py-1 rounded">Login</button>
+        </div>
     </nav>
 
     <main class="p-6 max-w-6xl mx-auto">
         
+        <!-- Login/Reg Page -->
+        <section id="login" class="page">
+            <div class="max-w-md mx-auto glass p-8 mt-10">
+                <h2 id="authTitle" class="text-2xl font-bold mb-6 text-center">Login to sOuLViSiON</h2>
+                <input id="authEmail" type="email" placeholder="Email" class="w-full bg-gray-800 p-3 rounded mb-4">
+                <input id="authPass" type="password" placeholder="Password" class="w-full bg-gray-800 p-3 rounded mb-6">
+                <button onclick="handleAuth()" class="w-full bg-cyan-600 py-3 rounded font-bold mb-4">Continue</button>
+                <p class="text-center text-sm text-gray-400">
+                    <button onclick="toggleAuthMode()" id="authToggle">Don't have an account? Register</button>
+                </p>
+            </div>
+        </section>
+
         <!-- Home Page -->
-        <section id="home" class="page active text-center py-20">
-            <h2 class="text-6xl font-black mb-4">Everything in <span class="text-cyan-500">One Place.</span></h2>
-            <p class="text-gray-400 mb-8">Notes, AI, Music, Games, and more. All client-side, all fast.</p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="glass p-6 rounded-xl hover:scale-105 transition cursor-pointer" onclick="showPage('notes')">
+        <section id="home" class="page active text-center py-10">
+            <h2 class="text-5xl md:text-7xl font-black mb-4">Everything in <span class="text-cyan-500">One Place.</span></h2>
+            <p class="text-gray-400 mb-12 max-w-2xl mx-auto text-lg">Your ultimate multi-tool workspace. Notes, AI, Music, Games, and Utilities all built to be fast, secure, and client-side.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 home-grid">
+                <div class="glass p-6 hover:scale-105 transition cursor-pointer" onclick="showPage('notes')">
                     <i class="fas fa-sticky-note text-3xl mb-4 text-yellow-400"></i>
                     <h3 class="text-xl font-bold">sOuLNOTES</h3>
-                    <p>Secure, fast CRUD note taking.</p>
+                    <p class="text-sm text-gray-400">Secure note taking.</p>
                 </div>
-                <div class="glass p-6 rounded-xl hover:scale-105 transition cursor-pointer" onclick="showPage('ai')">
+                <div class="glass p-6 hover:scale-105 transition cursor-pointer" onclick="showPage('ai')">
                     <i class="fas fa-robot text-3xl mb-4 text-purple-400"></i>
                     <h3 class="text-xl font-bold">sOuLAI</h3>
-                    <p>Next-gen AI with model switching.</p>
+                    <p class="text-sm text-gray-400">Multi-model AI Chat.</p>
                 </div>
-                <div class="glass p-6 rounded-xl hover:scale-105 transition cursor-pointer" onclick="showPage('play')">
-                    <i class="fas fa-music text-3xl mb-4 text-green-400"></i>
+                <div class="glass p-6 hover:scale-105 transition cursor-pointer" onclick="showPage('random')">
+                    <i class="fas fa-random text-3xl mb-4 text-blue-400"></i>
+                    <h3 class="text-xl font-bold">sOuLRANDOM</h3>
+                    <p class="text-sm text-gray-400">Randomize anything.</p>
+                </div>
+                <div class="glass p-6 hover:scale-105 transition cursor-pointer" onclick="showPage('play')">
+                    <i class="fas fa-play text-3xl mb-4 text-green-400"></i>
                     <h3 class="text-xl font-bold">sOuLPLAY</h3>
-                    <p>Stream your favorite beats.</p>
+                    <p class="text-sm text-gray-400">Offline Music Experience.</p>
                 </div>
             </div>
         </section>
 
         <!-- Notes Page -->
         <section id="notes" class="page">
-            <h2 class="text-3xl font-bold mb-6">Your Notes</h2>
-            <div class="flex gap-2 mb-6">
-                <input id="noteInput" type="text" class="bg-gray-800 p-2 rounded flex-grow" placeholder="What's on your mind?">
-                <button onclick="addNote()" class="bg-cyan-500 px-6 py-2 rounded">Add</button>
+            <div class="flex justify-between items-end mb-6">
+                <h2 class="text-3xl font-bold">Your sOuLNOTES</h2>
+                <button onclick="syncNotes()" class="text-cyan-400 text-sm"><i class="fas fa-sync"></i> Sync with Cloud</button>
             </div>
-            <div id="notesList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            <div class="flex gap-2 mb-8">
+                <input id="noteInput" type="text" class="bg-gray-800 p-3 rounded-l flex-grow" placeholder="Write a note...">
+                <button onclick="addNote()" class="bg-cyan-500 px-8 py-3 rounded-r font-bold">Save</button>
+            </div>
+            <div id="notesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </section>
+
+        <!-- Randomizer Page -->
+        <section id="random" class="page text-center">
+            <h2 class="text-3xl font-bold mb-10">sOuLRANDOM</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass p-6">
+                    <h3 class="mb-4 font-bold">Number Range</h3>
+                    <div class="flex gap-2 mb-4">
+                        <input id="randMin" type="number" value="1" class="w-full bg-gray-800 p-2 rounded">
+                        <input id="randMax" type="number" value="100" class="w-full bg-gray-800 p-2 rounded">
+                    </div>
+                    <div id="numResult" class="text-4xl font-bold mb-4">-</div>
+                    <button onclick="genRandomNum()" class="w-full bg-blue-600 py-2 rounded">Generate</button>
+                </div>
+                <div class="glass p-6">
+                    <h3 class="mb-4 font-bold">Color Picker</h3>
+                    <div id="colorPreview" class="h-20 rounded mb-4 bg-gray-700"></div>
+                    <div id="colorHex" class="mb-4 font-mono">#000000</div>
+                    <button onclick="genRandomColor()" class="w-full bg-green-600 py-2 rounded">Generate</button>
+                </div>
+                <div class="glass p-6">
+                    <h3 class="mb-4 font-bold">Choice Picker</h3>
+                    <textarea id="randChoices" placeholder="Options separated by comma" class="w-full bg-gray-800 p-2 rounded h-20 mb-4 text-xs"></textarea>
+                    <div id="choiceResult" class="text-xl font-bold mb-4">-</div>
+                    <button onclick="pickRandom()" class="w-full bg-purple-600 py-2 rounded">Pick One</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Music Page -->
+        <section id="play" class="page text-center">
+            <h2 class="text-3xl font-bold mb-10">sOuLPLAY</h2>
+            <div class="max-w-md mx-auto glass p-10 music-card">
+                <div id="vinylDisk" class="vinyl-disk"></div>
+                <h3 id="trackName" class="text-2xl font-bold mb-2">No Track Loaded</h3>
+                <p id="artistName" class="text-gray-400 mb-6">Select a file below</p>
+                <div class="flex justify-center gap-6 text-3xl mb-8">
+                    <button onclick="musicPrev()"><i class="fas fa-step-backward"></i></button>
+                    <button onclick="toggleMusic()" id="playPauseBtn"><i class="fas fa-play-circle text-5xl"></i></button>
+                    <button onclick="musicNext()"><i class="fas fa-step-forward"></i></button>
+                </div>
+                <input type="file" id="musicUpload" class="hidden" multiple accept="audio/*" onchange="loadMusic(event)">
+                <button onclick="document.getElementById('musicUpload').click()" class="bg-white/10 px-6 py-2 rounded-full text-sm">Upload Tracks</button>
+            </div>
         </section>
 
         <!-- AI Page -->
         <section id="ai" class="page">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-3xl font-bold">sOuLAI Chat</h2>
-                <select id="modelSelect" class="bg-gray-800 p-2 rounded"></select>
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                <div>
+                    <h2 class="text-3xl font-bold">sOuLAI Dedicated</h2>
+                    <p class="text-sm text-gray-500">Intelligent Assistant • Model Switching Enabled</p>
+                </div>
+                <div class="flex gap-2">
+                    <select id="modelSelect" class="bg-gray-800 p-3 rounded-lg text-sm"></select>
+                    <button onclick="clearChat()" class="bg-gray-700 p-3 rounded-lg"><i class="fas fa-trash"></i></button>
+                </div>
             </div>
-            <div id="chatBox" class="glass h-96 overflow-y-auto p-4 mb-4 rounded-xl flex flex-col gap-2"></div>
-            <div class="flex gap-2">
-                <input id="chatInput" type="text" class="bg-gray-800 p-2 rounded flex-grow" placeholder="Ask anything...">
-                <button onclick="askAI()" class="bg-purple-600 px-6 py-2 rounded">Send</button>
+            <div id="chatBox" class="glass h-[500px] overflow-y-auto p-6 mb-4 rounded-2xl flex flex-col gap-4"></div>
+            <div class="flex gap-3">
+                <input id="chatInput" type="text" class="bg-gray-800 p-4 rounded-xl flex-grow border border-gray-700 focus:border-purple-500" placeholder="Type your prompt here...">
+                <button onclick="askAI()" class="bg-purple-600 px-8 rounded-xl font-bold hover:bg-purple-700 transition"><i class="fas fa-paper-plane"></i></button>
+            </div>
+        </section>
+
+        <!-- Fun Page -->
+        <section id="fun" class="page text-center">
+            <h2 class="text-3xl font-bold mb-4">sOuLFUN</h2>
+            <p class="mb-10 text-gray-400">Simple joys to kill some time.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div class="glass p-8">
+                    <h3 class="text-xl font-bold mb-4">Clicker Speed Test</h3>
+                    <div id="clickCounter" class="text-6xl font-black text-cyan-400 mb-4">0</div>
+                    <div id="clickTimer" class="mb-6 text-gray-500">10s remaining</div>
+                    <button id="clickBtn" onclick="startClicker()" class="bg-cyan-500 w-full py-4 rounded-xl font-bold text-2xl">CLICK!</button>
+                </div>
+                <div class="glass p-8">
+                    <h3 class="text-xl font-bold mb-4">Magic 8-Ball</h3>
+                    <div id="ballResponse" class="h-24 flex items-center justify-center italic text-xl text-purple-300">Ask a question and shake...</div>
+                    <button onclick="shakeBall()" class="bg-purple-600 w-full py-4 rounded-xl font-bold">SHAKE</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Cricket Page -->
+        <section id="cricket" class="page">
+            <div class="text-center max-w-2xl mx-auto">
+                <h2 class="text-3xl font-bold mb-4">sOuL Cricket League</h2>
+                <div class="glass p-10 rounded-3xl mb-6">
+                    <div class="flex justify-between mb-8">
+                        <div class="text-left">
+                            <p class="text-xs text-gray-400 uppercase">Current Score</p>
+                            <div class="text-5xl font-black" id="score">0/0</div>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-xs text-gray-400 uppercase">Overs</p>
+                            <div class="text-2xl" id="overs">0.0 (1.0)</div>
+                        </div>
+                    </div>
+                    <div id="status" class="bg-black/20 p-4 rounded-xl mb-8 text-lg font-medium text-cyan-400">Ready to Bat!</div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button onclick="playCricket()" id="hitBtn" class="bg-orange-500 text-white p-6 rounded-2xl font-black text-3xl hover:bg-orange-600 shadow-lg shadow-orange-900/40">HIT!</button>
+                        <button onclick="resetCricket()" class="bg-gray-800 text-gray-400 p-6 rounded-2xl font-bold">New Game</button>
+                    </div>
+                </div>
+                <div id="cricketHistory" class="flex gap-2 justify-center flex-wrap"></div>
+            </div>
+        </section>
+
+        <!-- Support Page -->
+        <section id="support" class="page">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div class="glass p-8">
+                    <h2 class="text-3xl font-bold mb-6">Donate & Support</h2>
+                    <p class="text-gray-400 mb-8 text-lg">Help us maintain servers and keep sOuLViSiON free for everyone. Every contribution counts!</p>
+                    <div class="mb-6">
+                        <label class="block mb-2 text-sm">Amount (INR)</label>
+                        <input id="donAmount" type="number" value="100" class="w-full bg-gray-800 p-4 rounded-xl text-2xl font-bold">
+                    </div>
+                    <div class="mb-8">
+                        <label class="block mb-2 text-sm">Remark (Will show on wall)</label>
+                        <input id="donRemark" type="text" placeholder="You are awesome!" class="w-full bg-gray-800 p-3 rounded-xl">
+                    </div>
+                    <button onclick="payNow()" class="w-full bg-blue-600 py-4 rounded-xl font-bold text-xl flex items-center justify-center gap-3">
+                        <i class="fas fa-heart text-red-400"></i> Donate via Razorpay
+                    </button>
+                </div>
+                <div class="glass p-8">
+                    <h2 class="text-3xl font-bold mb-6">Wall of Gratitude</h2>
+                    <div id="feedbackWall" class="h-96 overflow-y-auto flex flex-col gap-4 pr-2">
+                        <!-- Feedbacks injected here -->
+                        <p class="text-gray-500 italic">No donations yet. Be the first!</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- About/Who? Page -->
+        <section id="who" class="page text-center max-w-3xl mx-auto py-10">
+            <h2 class="text-5xl font-black mb-8 text-cyan-400 italic">sOuLViSiON</h2>
+            <div class="glass p-10 text-left leading-relaxed space-y-6">
+                <p>Born from the desire to consolidate the digital experience, <span class="font-bold">sOuLViSiON</span> is more than just a website; it's a client-side ecosystem.</p>
+                <p>We believe that tools should be fast, accessible, and privacy-focused. By utilizing client-side processing, we ensure that your data stays closer to you while providing heavy-lifting features like AI chat and music streaming.</p>
+                <div class="border-l-4 border-cyan-500 pl-6 my-8 italic">
+                    "Our vision is to provide a single soul-ful interface for every digital need."
+                </div>
+                <h3 class="text-2xl font-bold pt-4">Core Values</h3>
+                <ul class="list-disc list-inside space-y-2 text-gray-300">
+                    <li>Speed over Complexity</li>
+                    <li>Privacy by Design</li>
+                    <li>Community Driven Growth</li>
+                </ul>
             </div>
         </section>
 
         <!-- Admin Page -->
         <section id="manage" class="page">
-            <h2 class="text-3xl font-bold text-red-500 mb-6">Admin Panel</h2>
-            <div class="glass p-6 rounded-xl">
-                <h3 class="text-xl mb-4">Gemini API Keys (Comma Separated)</h3>
-                <textarea id="apiKeys" class="w-full bg-gray-900 p-2 rounded h-20 mb-4"></textarea>
-                <h3 class="text-xl mb-4">Models (JSON format: [{"name":"User Name", "id":"raw_id"}])</h3>
-                <textarea id="modelList" class="w-full bg-gray-900 p-2 rounded h-20 mb-4"></textarea>
-                <button onclick="saveAdminConfig()" class="bg-red-600 px-6 py-2 rounded">Save Configuration</button>
-            </div>
-        </section>
-
-        <!-- Support Page -->
-        <section id="support" class="page text-center">
-            <h2 class="text-3xl font-bold mb-6">Support Us</h2>
-            <p class="mb-8">Help sOuLViSiON grow with a small donation.</p>
-            <input id="donAmount" type="number" value="100" class="bg-gray-800 p-2 rounded mb-4">
-            <button onclick="payNow()" class="block mx-auto bg-blue-600 px-10 py-3 rounded-full font-bold">Donate via Razorpay</button>
-        </section>
-
-        <!-- Cricket Page -->
-        <section id="cricket" class="page">
-            <div class="text-center">
-                <h2 class="text-3xl font-bold mb-4">sOuL Cricket</h2>
-                <div class="glass p-10 rounded-3xl inline-block">
-                    <div class="text-6xl mb-4" id="score">0</div>
-                    <div class="text-xl text-gray-400 mb-6" id="status">Click HIT to start!</div>
-                    <button onclick="playCricket()" class="bg-orange-500 text-white px-10 py-4 rounded-full font-bold text-2xl hover:bg-orange-600">HIT!</button>
+            <h2 class="text-3xl font-bold text-red-500 mb-8">System Control Panel</h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="glass p-8 rounded-xl">
+                    <h3 class="text-xl mb-4 font-bold flex items-center gap-2"><i class="fas fa-key"></i> Gemini API Rotation</h3>
+                    <p class="text-sm text-gray-400 mb-4">Paste multiple keys separated by commas. The system will auto-switch when quota hits.</p>
+                    <textarea id="apiKeys" class="w-full bg-gray-900 p-4 rounded-xl h-32 mb-6 border border-gray-800 focus:border-red-500" placeholder="AI_KEY_1, AI_KEY_2..."></textarea>
+                    
+                    <h3 class="text-xl mb-4 font-bold flex items-center gap-2"><i class="fas fa-cubes"></i> Model Configuration</h3>
+                    <p class="text-sm text-gray-400 mb-4">JSON array of objects: <code>{"name": "Display Name", "id": "model-id"}</code></p>
+                    <textarea id="modelList" class="w-full bg-gray-900 p-4 rounded-xl h-32 mb-6 border border-gray-800 font-mono text-xs" placeholder='[{"name":"Pro 1.5", "id":"gemini-1.5-pro"}]'></textarea>
+                    <button onclick="saveAdminConfig()" class="bg-red-600 w-full py-4 rounded-xl font-bold hover:bg-red-700 transition">Apply Global Config</button>
+                </div>
+                <div class="glass p-8 rounded-xl">
+                    <h3 class="text-xl mb-4 font-bold">Site Statistics</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-black/20 p-4 rounded-xl">
+                            <p class="text-xs text-gray-500">Active Keys</p>
+                            <p id="statKeys" class="text-2xl font-bold">0</p>
+                        </div>
+                        <div class="bg-black/20 p-4 rounded-xl">
+                            <p class="text-xs text-gray-500">Models Loaded</p>
+                            <p id="statModels" class="text-2xl font-bold">0</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>
