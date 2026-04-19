@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>sOuLViSiON | Multi-Tool Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav class="glass sticky top-0 z-50 p-4 flex justify-between items-center px-8">
+        <h1 class="text-2xl font-bold tracking-tighter text-cyan-400">sOuLViSiON</h1>
+        <div class="space-x-4 hidden md:flex">
+            <button onclick="showPage('home')">Home</button>
+            <button onclick="showPage('notes')">Notes</button>
+            <button onclick="showPage('ai')">AI</button>
+            <button onclick="showPage('play')">Music</button>
+            <button onclick="showPage('cricket')">Cricket</button>
+            <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400">Admin</button>
+        </div>
+        <button onclick="showPage('login')" class="bg-cyan-600 px-4 py-1 rounded">Login</button>
+    </nav>
+
+    <main class="p-6 max-w-6xl mx-auto">
+        
+        <!-- Home Page -->
+        <section id="home" class="page active text-center py-20">
+            <h2 class="text-6xl font-black mb-4">Everything in <span class="text-cyan-500">One Place.</span></h2>
+            <p class="text-gray-400 mb-8">Notes, AI, Music, Games, and more. All client-side, all fast.</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="glass p-6 rounded-xl hover:scale-105 transition cursor-pointer" onclick="showPage('notes')">
+                    <i class="fas fa-sticky-note text-3xl mb-4 text-yellow-400"></i>
+                    <h3 class="text-xl font-bold">sOuLNOTES</h3>
+                    <p>Secure, fast CRUD note taking.</p>
+                </div>
+                <div class="glass p-6 rounded-xl hover:scale-105 transition cursor-pointer" onclick="showPage('ai')">
+                    <i class="fas fa-robot text-3xl mb-4 text-purple-400"></i>
+                    <h3 class="text-xl font-bold">sOuLAI</h3>
+                    <p>Next-gen AI with model switching.</p>
+                </div>
+                <div class="glass p-6 rounded-xl hover:scale-105 transition cursor-pointer" onclick="showPage('play')">
+                    <i class="fas fa-music text-3xl mb-4 text-green-400"></i>
+                    <h3 class="text-xl font-bold">sOuLPLAY</h3>
+                    <p>Stream your favorite beats.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Notes Page -->
+        <section id="notes" class="page">
+            <h2 class="text-3xl font-bold mb-6">Your Notes</h2>
+            <div class="flex gap-2 mb-6">
+                <input id="noteInput" type="text" class="bg-gray-800 p-2 rounded flex-grow" placeholder="What's on your mind?">
+                <button onclick="addNote()" class="bg-cyan-500 px-6 py-2 rounded">Add</button>
+            </div>
+            <div id="notesList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        </section>
+
+        <!-- AI Page -->
+        <section id="ai" class="page">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-3xl font-bold">sOuLAI Chat</h2>
+                <select id="modelSelect" class="bg-gray-800 p-2 rounded"></select>
+            </div>
+            <div id="chatBox" class="glass h-96 overflow-y-auto p-4 mb-4 rounded-xl flex flex-col gap-2"></div>
+            <div class="flex gap-2">
+                <input id="chatInput" type="text" class="bg-gray-800 p-2 rounded flex-grow" placeholder="Ask anything...">
+                <button onclick="askAI()" class="bg-purple-600 px-6 py-2 rounded">Send</button>
+            </div>
+        </section>
+
+        <!-- Admin Page -->
+        <section id="manage" class="page">
+            <h2 class="text-3xl font-bold text-red-500 mb-6">Admin Panel</h2>
+            <div class="glass p-6 rounded-xl">
+                <h3 class="text-xl mb-4">Gemini API Keys (Comma Separated)</h3>
+                <textarea id="apiKeys" class="w-full bg-gray-900 p-2 rounded h-20 mb-4"></textarea>
+                <h3 class="text-xl mb-4">Models (JSON format: [{"name":"User Name", "id":"raw_id"}])</h3>
+                <textarea id="modelList" class="w-full bg-gray-900 p-2 rounded h-20 mb-4"></textarea>
+                <button onclick="saveAdminConfig()" class="bg-red-600 px-6 py-2 rounded">Save Configuration</button>
+            </div>
+        </section>
+
+        <!-- Support Page -->
+        <section id="support" class="page text-center">
+            <h2 class="text-3xl font-bold mb-6">Support Us</h2>
+            <p class="mb-8">Help sOuLViSiON grow with a small donation.</p>
+            <input id="donAmount" type="number" value="100" class="bg-gray-800 p-2 rounded mb-4">
+            <button onclick="payNow()" class="block mx-auto bg-blue-600 px-10 py-3 rounded-full font-bold">Donate via Razorpay</button>
+        </section>
+
+        <!-- Cricket Page -->
+        <section id="cricket" class="page">
+            <div class="text-center">
+                <h2 class="text-3xl font-bold mb-4">sOuL Cricket</h2>
+                <div class="glass p-10 rounded-3xl inline-block">
+                    <div class="text-6xl mb-4" id="score">0</div>
+                    <div class="text-xl text-gray-400 mb-6" id="status">Click HIT to start!</div>
+                    <button onclick="playCricket()" class="bg-orange-500 text-white px-10 py-4 rounded-full font-bold text-2xl hover:bg-orange-600">HIT!</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Floating AI Widget -->
+    <div id="aiWidget" class="fixed bottom-5 right-5 w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 transition">
+        <i class="fas fa-comment-dots text-xl"></i>
+    </div>
+
+    <!-- Floating Mini Chat -->
+    <div id="miniChat" class="mini-chat glass p-4">
+        <div class="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
+            <span class="font-bold">sOuLAI Mini</span>
+            <button onclick="toggleMiniChat()"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="miniChatBox" class="flex-grow overflow-y-auto flex flex-col gap-2 mb-2 p-2"></div>
+        <div class="flex gap-1">
+            <input id="miniChatInput" type="text" class="bg-gray-900 text-sm p-2 rounded flex-grow" placeholder="Quick ask...">
+            <button onclick="askMiniAI()" class="bg-purple-600 px-2 rounded"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

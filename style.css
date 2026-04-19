@@ -1,0 +1,210 @@
+/* --- Global Styles --- */
+:root {
+    --primary: #06b6d4; /* Cyan 500 */
+    --secondary: #8b5cf6; /* Violet 500 */
+    --bg-dark: #0f172a;
+    --glass: rgba(255, 255, 255, 0.05);
+    --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: #f8fafc;
+    overflow-x: hidden;
+    min-height: 100vh;
+}
+
+/* --- Custom Scrollbar --- */
+::-webkit-scrollbar {
+    width: 6px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-dark);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--primary);
+    border-radius: 10px;
+}
+
+/* --- Glassmorphism Effect --- */
+.glass {
+    background: var(--glass);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+}
+
+/* --- Page Transitions --- */
+.page {
+    display: none;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.page.active {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Navigation --- */
+nav {
+    border-bottom: 1px solid var(--glass-border);
+}
+
+nav button {
+    transition: all 0.3s ease;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+}
+
+nav button:hover {
+    color: var(--primary);
+    background: var(--glass);
+}
+
+/* --- sOuLAI Chat Bubbles --- */
+#chatBox {
+    scrollbar-width: thin;
+}
+
+.message {
+    max-width: 80%;
+    padding: 0.8rem 1.2rem;
+    border-radius: 1rem;
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+.user-msg {
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--primary), #0891b2);
+    color: white;
+    border-bottom-right-radius: 0;
+}
+
+.ai-msg {
+    align-self: flex-start;
+    background: var(--glass);
+    border: 1px solid var(--glass-border);
+    border-bottom-left-radius: 0;
+}
+
+/* --- sOuLPLAY (Music Player) --- */
+.music-card {
+    text-align: center;
+    padding: 2rem;
+}
+
+.vinyl-disk {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    background: linear-gradient(45deg, #1e293b, #334155);
+    margin: 0 auto 2rem;
+    border: 8px solid #000;
+    position: relative;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+.vinyl-disk::after {
+    content: '';
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px; height: 40px;
+    background: var(--bg-dark);
+    border-radius: 50%;
+    border: 4px solid var(--primary);
+}
+
+.rotating {
+    animation: spin 3s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* --- sOuLCRICKET Board --- */
+.cricket-score {
+    font-family: 'Courier New', monospace;
+    text-shadow: 0 0 10px var(--primary);
+}
+
+.hit-btn {
+    transition: all 0.2s;
+    box-shadow: 0 0 15px rgba(249, 115, 22, 0.4);
+}
+
+.hit-btn:active {
+    transform: scale(0.9);
+}
+
+/* --- Floating AI Widget --- */
+#aiWidget {
+    z-index: 999;
+    background: linear-gradient(135deg, var(--secondary), #7c3aed);
+    box-shadow: 0 4px 20px rgba(139, 92, 246, 0.5);
+}
+
+.mini-chat {
+    position: fixed;
+    bottom: 80px;
+    right: 20px;
+    width: 300px;
+    height: 400px;
+    display: none;
+    flex-direction: column;
+    z-index: 1000;
+}
+
+.mini-chat.show {
+    display: flex;
+}
+
+/* --- Support/Donation Progress --- */
+.progress-bar {
+    width: 100%;
+    height: 10px;
+    background: var(--glass);
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 1rem 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background: var(--primary);
+    width: 45%; /* Example width */
+    box-shadow: 0 0 10px var(--primary);
+}
+
+/* --- Admin Panel Inputs --- */
+textarea, input[type="text"], input[type="number"], select {
+    border: 1px solid var(--glass-border);
+    outline: none;
+    transition: border 0.3s;
+}
+
+textarea:focus, input:focus {
+    border-color: var(--primary);
+}
+
+/* --- Grid Layouts --- */
+.home-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+}

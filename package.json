@@ -1,0 +1,13 @@
+{
+  "name": "soulvision",
+  "version": "1.0.0",
+  "description": "Multi-tool client-side web app",
+  "main": "api/main.js",
+  "dependencies": {
+    "mongodb": "^7.1.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "start": "echo 'Open index.html in your browser'"
+  }
+}
