@@ -524,9 +524,19 @@ function parsePlayers(raw) {
 function selectBowler() {
     const bowlingTeam = match.teams[match.currentInnings === 0 ? 1 : 0];
     const priorities = { 'Bowler': 1, 'Bowling AR': 2, 'Batting AR': 3, 'Wicketkeeper': 4, 'Batsman': 5 };
+    // Max overs a single bowler can bowl (Standard rule: 1/5th of total innings overs)
+    const maxPerBowler = Math.ceil(match.maxOvers / 5);
     
     const playersWithIdx = bowlingTeam.players.map((p, idx) => ({ ...p, idx }));
-    let available = playersWithIdx.filter(p => (priorities[p.type] || 5) <= 3);
+    let available = playersWithIdx.filter(p => {
+        const hasNotExhaustedLimit = (p.ballsBowled / 6) < maxPerBowler;
+        const isEligibleType = (priorities[p.type] || 5) <= 3;
+        return hasNotExhaustedLimit && isEligibleType;
+    });
+    
+    if (available.length === 0) {
+        available = playersWithIdx.filter(p => (p.ballsBowled / 6) < maxPerBowler);
+    }
     
     if (available.length === 0) available = playersWithIdx;
 
@@ -636,8 +646,19 @@ function updateCricketUI() {
     document.getElementById('battingTeamName').innerText = team.name;
     document.getElementById('score').innerText = `${team.score}/${team.wickets}`;
     document.getElementById('overs').innerText = `${Math.floor(team.balls/6)}.${team.balls%6}`;
-    document.getElementById('battingPartnership').innerText = `CRR: ${crr}`;
-    document.getElementById('targetDisplay').innerText = match.target ? `Target: ${match.target}` : '';
+    
+    let statsText = `CRR: ${crr}`;
+    if (match.target) {
+        const remainingBalls = (match.maxOvers * 6) - team.balls;
+        const runsNeeded = match.target - team.score;
+        const rrr = remainingBalls > 0 ? ((runsNeeded / remainingBalls) * 6).toFixed(2) : '0.00';
+        statsText += ` | RRR: ${rrr}`;
+        document.getElementById('targetDisplay').innerText = `Target: ${match.target} (Need ${runsNeeded} off ${remainingBalls} balls)`;
+    } else {
+        document.getElementById('targetDisplay').innerText = '';
+    }
+    
+    document.getElementById('battingPartnership').innerText = statsText;
     
     const hist = document.getElementById('cricketHistory');
     hist.innerHTML = team.history.slice(-12).map(r => `<span class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${r === 'W' ? 'bg-red-600' : 'bg-gray-700'}">${r}</span>`).join('');
