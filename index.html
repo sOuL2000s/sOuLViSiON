@@ -355,9 +355,13 @@
                     </div>
                     <div id="chatBox" class="flex-grow overflow-y-auto p-4 md:p-6 flex flex-col gap-6 scroll-smooth custom-scrollbar">
                     </div>
-                    <div class="p-4 border-t border-white/10 bg-black/20 flex gap-3">
+                    <div id="aiStatus" class="px-4 py-2 text-[10px] text-gray-500 font-mono hidden"></div>
+                    <div id="aiAttachmentPreview" class="px-4 py-2 flex gap-2 flex-wrap empty:hidden"></div>
+                    <div class="p-4 border-t border-white/10 bg-black/20 flex gap-3 items-center">
+                        <input type="file" id="aiFileInput" class="hidden" multiple onchange="handleAIFile(event)">
+                        <button onclick="document.getElementById('aiFileInput').click()" class="text-gray-400 hover:text-purple-400 p-2"><i class="fas fa-paperclip"></i></button>
                         <input id="chatInput" type="text" class="bg-gray-800 p-4 rounded-xl flex-grow border border-gray-700 focus:border-purple-500" placeholder="Type your prompt here..." autocomplete="off">
-                        <button onclick="askAI()" class="bg-purple-600 px-8 rounded-xl font-bold hover:bg-purple-700 transition"><i class="fas fa-paper-plane"></i></button>
+                        <button onclick="askAI()" class="bg-purple-600 px-8 py-4 rounded-xl font-bold hover:bg-purple-700 transition shadow-lg shadow-purple-600/20"><i class="fas fa-paper-plane"></i></button>
                     </div>
                 </div>
             </div>
@@ -549,9 +553,12 @@
             <button onclick="toggleMiniChat()"><i class="fas fa-times"></i></button>
         </div>
         <div id="miniChatBox" class="flex-grow overflow-y-auto flex flex-col gap-2 mb-2 p-2"></div>
-        <div class="flex gap-1">
+        <div id="miniAttachmentPreview" class="px-2 pb-1 flex gap-1 overflow-x-auto empty:hidden"></div>
+        <div class="flex gap-1 items-center">
+            <input type="file" id="miniFileInput" class="hidden" multiple onchange="handleAIFile(event, true)">
+            <button onclick="document.getElementById('miniFileInput').click()" class="text-gray-500 hover:text-purple-400 p-1"><i class="fas fa-paperclip text-xs"></i></button>
             <input id="miniChatInput" type="text" class="bg-gray-900 text-sm p-2 rounded flex-grow" placeholder="Quick ask...">
-            <button onclick="askMiniAI()" class="bg-purple-600 px-2 rounded"><i class="fas fa-paper-plane"></i></button>
+            <button onclick="askMiniAI()" class="bg-purple-600 px-2 py-2 rounded"><i class="fas fa-paper-plane text-xs"></i></button>
         </div>
     </div>
 

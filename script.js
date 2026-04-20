@@ -2,6 +2,7 @@
 let currentUser = JSON.parse(localStorage.getItem('soulUser')) || null;
 let aiConfig = { keys: [], models: [] };
 let currentKeyIndex = 0;
+let pendingFiles = [];
 let notes = [];
 let aiConversations = [];
 let currentChatId = null;
@@ -659,57 +660,128 @@ async function deleteConversation(id) {
     renderAIHistory();
 }
 
-function appendAIMessage(role, content, targetBoxId = 'chatBox') {
+function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = false) {
     const box = document.getElementById(targetBoxId);
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${role === 'user' ? 'user-msg' : 'ai-msg'} relative group`;
+    let msgDiv = isStreaming ? box.querySelector('.streaming-msg') : null;
     
-    const contentDiv = document.createElement('div');
-    contentDiv.className = "markdown-body";
-    contentDiv.innerHTML = renderMD(content);
-    
-    if (role === 'ai') {
-        const copyBtn = document.createElement('button');
-        copyBtn.className = "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-xs bg-white/10 p-1 rounded hover:bg-white/20";
-        copyBtn.innerHTML = '<i class="far fa-copy"></i>';
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(content);
-            copyBtn.innerHTML = '<i class="fas fa-check"></i>';
-            setTimeout(() => copyBtn.innerHTML = '<i class="far fa-copy"></i>', 2000);
-        };
-        msgDiv.appendChild(copyBtn);
+    if (!msgDiv) {
+        msgDiv = document.createElement('div');
+        msgDiv.className = `message ${role === 'user' ? 'user-msg' : 'ai-msg'} relative group ${isStreaming ? 'streaming-msg' : ''}`;
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = "markdown-body";
+        msgDiv.appendChild(contentDiv);
+        
+        if (role === 'ai' && !isStreaming) {
+            const copyBtn = document.createElement('button');
+            copyBtn.className = "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-xs bg-white/10 p-1 rounded hover:bg-white/20";
+            copyBtn.innerHTML = '<i class="far fa-copy"></i>';
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(content);
+                copyBtn.innerHTML = '<i class="fas fa-check"></i>';
+                setTimeout(() => copyBtn.innerHTML = '<i class="far fa-copy"></i>', 2000);
+            };
+            msgDiv.appendChild(copyBtn);
+        }
+        
+        box.appendChild(msgDiv);
     }
 
-    msgDiv.appendChild(contentDiv);
-    box.appendChild(msgDiv);
+    const contentDiv = msgDiv.querySelector('.markdown-body');
+    contentDiv.innerHTML = renderMD(content);
+    
+    // Add Copy Buttons to Code Blocks
+    contentDiv.querySelectorAll('pre').forEach(pre => {
+        if (pre.querySelector('.code-copy-btn')) return;
+        const code = pre.querySelector('code');
+        const btn = document.createElement('button');
+        btn.className = 'code-copy-btn';
+        btn.innerHTML = '<i class="far fa-copy"></i>';
+        btn.onclick = () => {
+            navigator.clipboard.writeText(code.innerText);
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            setTimeout(() => btn.innerHTML = '<i class="far fa-copy"></i>', 2000);
+        };
+        pre.appendChild(btn);
+    });
+
     box.scrollTop = box.scrollHeight;
+    return msgDiv;
+}
+
+async function handleAIFile(e, isMini = false) {
+    const files = Array.from(e.target.files);
+    const previewId = isMini ? 'miniAttachmentPreview' : 'aiAttachmentPreview';
+    const preview = document.getElementById(previewId);
+    
+    for (const file of files) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const base64 = event.target.result.split(',')[1];
+            pendingFiles.push({ mime_type: file.type, data: base64, name: file.name });
+            
+            const chip = document.createElement('div');
+            chip.className = "bg-purple-600/20 text-purple-400 text-[10px] px-2 py-1 rounded flex items-center gap-2 border border-purple-500/30";
+            chip.innerHTML = `<span>${file.name}</span><button class="hover:text-red-400">&times;</button>`;
+            chip.querySelector('button').onclick = () => {
+                pendingFiles = pendingFiles.filter(p => p.data !== base64);
+                chip.remove();
+            };
+            preview.appendChild(chip);
+        };
+        reader.readAsDataURL(file);
+    }
 }
 
 async function askAI() {
     const inputEl = document.getElementById('chatInput');
     const input = inputEl.value;
-    if(!input.trim()) return;
+    if(!input.trim() && pendingFiles.length === 0) return;
     
     if(!currentChatId) newConversation();
-    
     const conv = aiConversations.find(c => c.id === currentChatId);
-    if (!conv) return;
-
-    appendAIMessage('user', input, 'chatBox');
+    
+    const userMsg = input + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
+    appendAIMessage('user', userMsg, 'chatBox');
     inputEl.value = '';
+    document.getElementById('aiAttachmentPreview').innerHTML = '';
 
-    if(conv.messages.length === 0) {
-        conv.name = input.substring(0, 25) + (input.length > 25 ? "..." : "");
+    if(conv && conv.messages.length === 0) {
+        conv.name = input.substring(0, 25) || "New Conversation";
     }
-    conv.messages.push({ role: 'user', content: input });
+    
+    const parts = [{ text: input }];
+    pendingFiles.forEach(f => parts.push({ inline_data: { mime_type: f.mime_type, data: f.data } }));
+    
+    const messageObj = { role: 'user', content: userMsg, parts };
+    if(conv) conv.messages.push(messageObj);
 
-    await callGeminiAPI(input, 'chatBox', conv.messages);
+    const attachmentsForApi = [...pendingFiles];
+    pendingFiles = [];
+    
+    await callGeminiAPI(input, 'chatBox', conv ? conv.messages : [], attachmentsForApi);
 }
 
-async function callGeminiAPI(text, targetBoxId = 'chatBox', history = []) {
+async function askMiniAI() {
+    const inputEl = document.getElementById('miniChatInput');
+    const box = document.getElementById('miniChatBox');
+    if(!inputEl.value.trim() && pendingFiles.length === 0) return;
+    
+    const txt = inputEl.value;
+    appendAIMessage('user', txt + (pendingFiles.length ? " [Files attached]" : ""), 'miniChatBox');
+    inputEl.value = '';
+    document.getElementById('miniAttachmentPreview').innerHTML = '';
+    
+    const attachmentsForApi = [...pendingFiles];
+    pendingFiles = [];
+    
+    await callGeminiAPI(txt, 'miniChatBox', [], attachmentsForApi);
+}
+
+async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attachments = []) {
     let model = "gemini-1.5-flash";
     if (targetBoxId === 'miniChatBox') {
-        model = aiConfig.miniChatModel || (aiConfig.models[0]?.id || "gemini-1.5-flash");
+        model = aiConfig.miniChatModel || "gemini-1.5-flash";
     } else {
         const modelSelect = document.getElementById('modelSelect');
         model = (modelSelect && modelSelect.value) ? modelSelect.value : (aiConfig.models[0]?.id || "gemini-1.5-flash");
@@ -717,67 +789,122 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = []) {
     
     if(!aiConfig.keys.length) return alert("Please configure API Keys in Admin panel.");
 
-    // Format history for Gemini API (user -> user, ai -> model)
-    const contents = history.length > 0 
-        ? history.map(m => ({
-            role: m.role === 'user' ? 'user' : 'model',
-            parts: [{ text: m.content }]
-          }))
-        : [{ role: 'user', parts: [{ text: text }] }];
+    const statusEl = document.getElementById(targetBoxId === 'chatBox' ? 'aiStatus' : null);
+    if(statusEl) { statusEl.innerText = "Connecting to Neural Link..."; statusEl.classList.remove('hidden'); }
+
+    // Map history to Gemini format
+    const contents = history.map(m => ({
+        role: m.role === 'user' ? 'user' : 'model',
+        parts: m.parts || [{ text: m.content }]
+    }));
+
+    // Add current prompt if history doesn't already contain it
+    if (contents.length === 0 || contents[contents.length-1].role === 'model') {
+        const currentParts = [{ text: text }];
+        attachments.forEach(a => currentParts.push({ inline_data: { mime_type: a.mime_type, data: a.data } }));
+        contents.push({ role: 'user', parts: currentParts });
+    }
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiConfig.keys[currentKeyIndex]}`, {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${aiConfig.keys[currentKeyIndex]}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents })
         });
         
-        const data = await response.json();
-        if (data.error) throw new Error(data.error.message);
+        if (!response.ok) {
+            const errData = await response.json();
+            throw new Error(errData.error?.message || "API Error");
+        }
 
-        const aiText = data.candidates[0].content.parts[0].text;
-        appendAIMessage('ai', aiText, targetBoxId);
+        if(statusEl) statusEl.innerText = "Streaming Response...";
         
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let fullContent = "";
+        let streamingDiv = appendAIMessage('ai', '...', targetBoxId, true);
+        
+        let buffer = "";
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            
+            buffer += decoder.decode(value, { stream: true });
+            
+            let braceCount = 0;
+            let inString = false;
+            let startIdx = -1;
+
+            for (let i = 0; i < buffer.length; i++) {
+                const char = buffer[i];
+                
+                // Handle strings to ignore braces inside them
+                if (char === '"' && (i === 0 || buffer[i - 1] !== '\\')) {
+                    inString = !inString;
+                }
+
+                if (!inString) {
+                    if (char === '{') {
+                        if (braceCount === 0) startIdx = i;
+                        braceCount++;
+                    } else if (char === '}') {
+                        braceCount--;
+                        
+                        if (braceCount === 0 && startIdx !== -1) {
+                            const chunkStr = buffer.substring(startIdx, i + 1);
+                            try {
+                                const chunk = JSON.parse(chunkStr);
+                                const textPart = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                                if (textPart) {
+                                    fullContent += textPart;
+                                    appendAIMessage('ai', fullContent, targetBoxId, true);
+                                }
+                            } catch (e) {
+                                console.error("Stream parse error", e);
+                            }
+                            
+                            // Remove processed object and any trailing comma/whitespace
+                            buffer = buffer.substring(i + 1).replace(/^[\s,]+/, '');
+                            // Reset search indices for the new buffer
+                            i = -1; 
+                            startIdx = -1;
+                            braceCount = 0;
+                            inString = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        streamingDiv.classList.remove('streaming-msg');
+        if(statusEl) statusEl.classList.add('hidden');
+
         if (targetBoxId === 'chatBox' && currentChatId) {
             const conv = aiConversations.find(c => c.id === currentChatId);
             if (conv) {
-                conv.messages.push({ role: 'ai', content: aiText });
+                conv.messages.push({ role: 'ai', content: fullContent });
                 await saveAIHistory(conv);
             }
         }
     } catch (err) {
-        console.warn(`Key Index ${currentKeyIndex} failed: ${err.message}. Rotating...`);
-        currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
-        if(currentKeyIndex === 0) {
-            appendAIMessage('ai', "SYSTEM ERROR: All neural links (API keys) are currently unresponsive. Please check your admin configuration.", targetBoxId);
-            return;
+        console.warn(`Key ${currentKeyIndex} error: ${err.message}.`);
+        if (aiConfig.keys.length > 1) {
+            currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            if(statusEl) statusEl.innerText = `Retrying with Key ${currentKeyIndex}...`;
+            return await callGeminiAPI(text, targetBoxId, history, attachments);
         }
-        await callGeminiAPI(text, targetBoxId, history);
+        if(statusEl) statusEl.classList.add('hidden');
+        appendAIMessage('ai', `**System Failure:** ${err.message}`, targetBoxId);
     }
 }
 
-// Syncing now handled via saveAIHistory(conversation) to MongoDB
-
+// AI logic replaced by unified streaming/file functions above
 function clearChat() { document.getElementById('chatBox').innerHTML = ''; }
-
 function toggleAIHistory() {
     const sidebar = document.getElementById('aiSidebar');
     sidebar.classList.toggle('hidden');
 }
-
-// --- MINI CHAT ---
 function toggleMiniChat() { document.getElementById('miniChat').classList.toggle('show'); }
-async function askMiniAI() {
-    const inputEl = document.getElementById('miniChatInput');
-    const box = document.getElementById('miniChatBox');
-    if(!inputEl.value.trim()) return;
-    
-    const txt = inputEl.value;
-    appendAIMessage('user', txt, 'miniChatBox');
-    inputEl.value = '';
-    
-    await callGeminiAPI(txt, 'miniChatBox');
-}
 
 // --- FUN PAGE LOGIC ---
 let clickCount = 0;
