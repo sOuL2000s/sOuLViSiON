@@ -38,6 +38,21 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// Toggle Password Visibility
+function togglePasswordVisibility(id, btn) {
+    const input = document.getElementById(id);
+    const icon = btn.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.classList.remove('fa-eye');
+        icon.classList.add('fa-eye-slash');
+    } else {
+        input.type = 'password';
+        icon.classList.remove('fa-eye-slash');
+        icon.classList.add('fa-eye');
+    }
+}
+
 // Markdown Helper
 function wrapText(elId, before, after) {
     const el = document.getElementById(elId);
@@ -81,11 +96,51 @@ function showPage(pageId) {
     const page = document.getElementById(pageId);
     if(page) page.classList.add('active');
     
+    if (pageId === 'dashboard') loadDashboard();
+    
     // Close sidebar on navigation (mobile)
     const sidebar = document.getElementById('mobileSidebar');
     if (sidebar && sidebar.classList.contains('translate-x-0')) toggleSidebar();
     
     window.scrollTo(0, 0);
+}
+
+function loadDashboard() {
+    if (!currentUser) return showPage('login');
+    document.getElementById('dashWelcome').innerText = `Hello, ${currentUser.name}`;
+    document.getElementById('dashAvatar').innerText = currentUser.name.charAt(0).toUpperCase();
+    document.getElementById('dashName').value = currentUser.name;
+    document.getElementById('dashEmail').value = currentUser.email;
+    document.getElementById('dashStatNotes').innerText = notes.length;
+    document.getElementById('dashStatAI').innerText = aiConversations.length;
+}
+
+async function updateUserProfile() {
+    const name = document.getElementById('dashName').value;
+    const password = document.getElementById('dashPass').value;
+    
+    if (!name) return alert("Name cannot be empty");
+
+    try {
+        const res = await fetch(`/api/main?route=auth&email=${currentUser.email}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, password: password || undefined })
+        });
+        
+        if (res.ok) {
+            currentUser.name = name;
+            localStorage.setItem('soulUser', JSON.stringify(currentUser));
+            updateAuthUI();
+            alert("Profile updated successfully!");
+            document.getElementById('dashPass').value = '';
+        } else {
+            const data = await res.json();
+            throw new Error(data.error || "Failed to update profile");
+        }
+    } catch (e) {
+        alert(e.message);
+    }
 }
 
 function toggleSidebar() {
@@ -108,17 +163,37 @@ function toggleSidebar() {
 let isLoginMode = true;
 function toggleAuthMode() {
     isLoginMode = !isLoginMode;
-    document.getElementById('authTitle').innerText = isLoginMode ? 'Login to sOuLViSiON' : 'Register for sOuLViSiON';
-    document.getElementById('authToggle').innerText = isLoginMode ? "Don't have an account? Register" : "Already have an account? Login";
+    const title = document.getElementById('authTitle');
+    const subtitle = document.getElementById('authSubtitle');
+    const btn = document.getElementById('authMainBtn');
+    const toggle = document.getElementById('authToggle');
+    const regFields = document.getElementById('regFields');
+
+    if (isLoginMode) {
+        title.innerText = 'Welcome Back';
+        subtitle.innerText = 'Please enter your details to sign in.';
+        btn.innerText = 'Sign In';
+        toggle.innerText = "Don't have an account? Create one";
+        regFields.classList.add('hidden');
+    } else {
+        title.innerText = 'Create Account';
+        subtitle.innerText = 'Join the vision. It only takes a minute.';
+        btn.innerText = 'Register Now';
+        toggle.innerText = "Already have an account? Sign In";
+        regFields.classList.remove('hidden');
+    }
 }
 
 async function handleAuth() {
     const email = document.getElementById('authEmail').value;
     const pass = document.getElementById('authPass').value;
+    const nameInput = document.getElementById('authName').value;
+    
     if (!email || !pass) return alert("Fill all fields");
+    if (!isLoginMode && !nameInput) return alert("Name is required for registration");
 
     const mode = isLoginMode ? 'login' : 'register';
-    const name = email.split('@')[0];
+    const name = isLoginMode ? email.split('@')[0] : nameInput;
 
     try {
         const response = await fetch(`/api/main?route=auth`, {
@@ -153,15 +228,22 @@ async function syncAllData() {
 function updateAuthUI() {
     const adminBtn = document.getElementById('adminBtn');
     const adminBtnSide = document.getElementById('adminBtnSide');
+    const dashBtn = document.getElementById('dashboardBtn');
+    const dashBtnSide = document.getElementById('dashboardBtnSide');
+    
     if (currentUser) {
         document.getElementById('userNameDisplay').innerText = `Hey, ${currentUser.name}`;
         document.getElementById('authBtn').innerText = 'Logout';
         document.getElementById('authBtn').onclick = logout;
+        dashBtn?.classList.remove('hidden');
+        dashBtnSide?.classList.remove('hidden');
         if(currentUser.isAdmin) {
             adminBtn?.classList.remove('hidden');
             adminBtnSide?.classList.remove('hidden');
         }
     } else {
+        dashBtn?.classList.add('hidden');
+        dashBtnSide?.classList.add('hidden');
         document.getElementById('userNameDisplay').innerText = '';
         document.getElementById('authBtn').innerText = 'Login';
         document.getElementById('authBtn').onclick = () => showPage('login');

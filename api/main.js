@@ -15,6 +15,14 @@ export default async function handler(req, res) {
             const col = db.collection('users');
             const { email, password, name, mode } = body;
             
+            if (method === 'PATCH') {
+                const userEmail = query.email;
+                const update = { name };
+                if (password) update.password = password;
+                await col.updateOne({ email: userEmail }, { $set: update });
+                return res.status(200).json({ success: true });
+            }
+
             if (mode === 'register') {
                 const existing = await col.findOne({ email });
                 if (existing) return res.status(400).json({ error: "User already exists" });
