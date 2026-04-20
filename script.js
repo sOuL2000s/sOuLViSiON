@@ -373,18 +373,60 @@ function renderPlaylist() {
     const shuffleTag = isShuffle ? '<span class="text-[8px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded ml-2 font-bold tracking-widest animate-pulse">SHUFFLE ON</span>' : '';
     const repeatTag = isRepeat ? '<span class="text-[8px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded ml-2 font-bold tracking-widest animate-pulse">REPEAT ON</span>' : '';
     
+    if (musicList.length === 0) {
+        container.innerHTML = `<p class="text-[10px] text-gray-500 italic">No tracks added yet.</p>`;
+        return;
+    }
+
     container.innerHTML = `
         <div class="flex gap-1 mb-3">${shuffleTag}${repeatTag}</div>
         ${musicList.map((t, i) => `
-            <div onclick="playTrack(${i})" class="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-white/5 transition ${i === currentTrackIndex ? 'bg-cyan-500/10 border border-cyan-500/20' : ''}">
-                <div class="w-6 h-6 flex items-center justify-center bg-black/20 rounded text-[10px] font-mono">${i + 1}</div>
-                <div class="flex flex-col flex-grow overflow-hidden">
+            <div class="flex items-center gap-3 p-2 rounded-lg group hover:bg-white/5 transition ${i === currentTrackIndex ? 'bg-cyan-500/10 border border-cyan-500/20' : ''}">
+                <div onclick="playTrack(${i})" class="w-6 h-6 flex items-center justify-center bg-black/20 rounded text-[10px] font-mono cursor-pointer">${i + 1}</div>
+                <div onclick="playTrack(${i})" class="flex flex-col flex-grow overflow-hidden cursor-pointer">
                     <span class="text-xs truncate ${i === currentTrackIndex ? 'text-cyan-400 font-bold' : 'text-gray-300'}">${t.name}</span>
                 </div>
-                ${i === currentTrackIndex && isMusicPlaying ? '<div class="playing-bars"><span></span><span></span><span></span></div>' : ''}
+                <div class="flex items-center gap-2">
+                    ${i === currentTrackIndex && isMusicPlaying ? '<div class="playing-bars"><span></span><span></span><span></span></div>' : ''}
+                    <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                        <button onclick="renameTrack(${i})" class="text-[10px] text-gray-500 hover:text-cyan-400"><i class="fas fa-edit"></i></button>
+                        <button onclick="deleteTrack(${i})" class="text-[10px] text-gray-500 hover:text-red-400"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
             </div>
         `).join('')}
     `;
+}
+
+function deleteTrack(index) {
+    const isCurrent = (index === currentTrackIndex);
+    URL.revokeObjectURL(musicList[index].url);
+    musicList.splice(index, 1);
+    
+    if (musicList.length === 0) {
+        audioPlayer.pause();
+        audioPlayer.src = '';
+        isMusicPlaying = false;
+        document.getElementById('trackName').innerText = "No Track Loaded";
+        document.getElementById('artistName').innerText = "Upload local tracks to begin";
+        updateMusicUI();
+    } else if (isCurrent) {
+        playTrack(currentTrackIndex % musicList.length);
+    } else if (index < currentTrackIndex) {
+        currentTrackIndex--;
+    }
+    renderPlaylist();
+}
+
+function renameTrack(index) {
+    const newName = prompt("Rename track:", musicList[index].name);
+    if (newName && newName.trim()) {
+        musicList[index].name = newName.trim();
+        if (index === currentTrackIndex) {
+            document.getElementById('trackName').innerText = newName.trim();
+        }
+        renderPlaylist();
+    }
 }
 
 function playTrack(index) {
@@ -522,26 +564,39 @@ function updateAIUI() {
 // --- AI LOGIC (Key Rotation + History) ---
 async function syncAIHistory() {
     if (!currentUser) return;
-    const res = await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}`);
-    const data = await res.json();
-    if (Array.isArray(data)) {
-        aiConversations = data;
-        renderAIHistory();
+    try {
+        const res = await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            aiConversations = data;
+            renderAIHistory();
+        }
+    } catch (e) {
+        console.warn("Failed to sync AI history", e);
     }
 }
 
 async function saveAIHistory(conversation) {
-    if (!currentUser) return;
     const idx = aiConversations.findIndex(c => c.id === conversation.id);
     if (idx > -1) aiConversations[idx] = conversation;
     else aiConversations.unshift(conversation);
 
-    await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(conversation)
-    });
     renderAIHistory();
+
+    if (!currentUser) return;
+
+    // Ensure ID is a number for DB consistency
+    const payload = { ...conversation, id: Number(conversation.id) };
+
+    try {
+        await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (e) {
+        console.warn("Could not sync AI history to cloud", e);
+    }
 }
 
 function newConversation() {
@@ -554,6 +609,8 @@ function newConversation() {
 function loadConversation(id) {
     currentChatId = id;
     const conv = aiConversations.find(c => c.id === id);
+    if (!conv) return;
+
     document.getElementById('chatBox').innerHTML = '';
     document.getElementById('currentConvName').innerText = conv.name;
     conv.messages.forEach(m => appendAIMessage(m.role, m.content));
@@ -632,19 +689,24 @@ async function askAI() {
     const inputEl = document.getElementById('chatInput');
     const input = inputEl.value;
     if(!input.trim()) return;
+    
     if(!currentChatId) newConversation();
     
+    const conv = aiConversations.find(c => c.id === currentChatId);
+    if (!conv) return;
+
     appendAIMessage('user', input, 'chatBox');
     inputEl.value = '';
 
-    const conv = aiConversations.find(c => c.id === currentChatId);
-    if(conv.messages.length === 0) conv.name = input.substring(0, 20) + "...";
+    if(conv.messages.length === 0) {
+        conv.name = input.substring(0, 25) + (input.length > 25 ? "..." : "");
+    }
     conv.messages.push({ role: 'user', content: input });
 
-    await callGeminiAPI(input, 'chatBox');
+    await callGeminiAPI(input, 'chatBox', conv.messages);
 }
 
-async function callGeminiAPI(text, targetBoxId = 'chatBox') {
+async function callGeminiAPI(text, targetBoxId = 'chatBox', history = []) {
     let model = "gemini-1.5-flash";
     if (targetBoxId === 'miniChatBox') {
         model = aiConfig.miniChatModel || (aiConfig.models[0]?.id || "gemini-1.5-flash");
@@ -655,11 +717,19 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox') {
     
     if(!aiConfig.keys.length) return alert("Please configure API Keys in Admin panel.");
 
+    // Format history for Gemini API (user -> user, ai -> model)
+    const contents = history.length > 0 
+        ? history.map(m => ({
+            role: m.role === 'user' ? 'user' : 'model',
+            parts: [{ text: m.content }]
+          }))
+        : [{ role: 'user', parts: [{ text: text }] }];
+
     try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiConfig.keys[currentKeyIndex]}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: text }] }] })
+            body: JSON.stringify({ contents })
         });
         
         const data = await response.json();
@@ -678,8 +748,11 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox') {
     } catch (err) {
         console.warn(`Key Index ${currentKeyIndex} failed: ${err.message}. Rotating...`);
         currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
-        if(currentKeyIndex === 0) return alert("All API keys exhausted.");
-        await callGeminiAPI(text, targetBoxId);
+        if(currentKeyIndex === 0) {
+            appendAIMessage('ai', "SYSTEM ERROR: All neural links (API keys) are currently unresponsive. Please check your admin configuration.", targetBoxId);
+            return;
+        }
+        await callGeminiAPI(text, targetBoxId, history);
     }
 }
 
@@ -882,6 +955,7 @@ async function endInnings() {
         const t2 = match.teams[1];
         let winMsg = t2.score >= match.target ? `${t2.name} Wins!` : t2.score === match.target - 1 ? "Match Tied!" : `${t1.name} Wins!`;
         document.getElementById('status').innerText = winMsg;
+        document.getElementById('newMatchBtn').classList.remove('hidden');
         
         if (currentUser) {
             await fetch(`/api/main?route=cricket_history&userId=${currentUser.email}`, {
@@ -895,6 +969,44 @@ async function endInnings() {
             });
         }
     }
+}
+
+async function saveCricketSetup() {
+    if (!currentUser) return alert("Login to save your teams!");
+    const setup = {
+        tA: document.getElementById('teamAName').value,
+        tB: document.getElementById('teamBName').value,
+        overs: document.getElementById('cricketOversSelect').value,
+        pA: document.getElementById('teamAPlayers').value,
+        pB: document.getElementById('teamBPlayers').value
+    };
+    await fetch(`/api/main?route=cricket_setup&userId=${currentUser.email}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(setup)
+    });
+    alert("Match setup saved to cloud!");
+}
+
+async function loadCricketSetup() {
+    if (!currentUser) return;
+    const res = await fetch(`/api/main?route=cricket_setup&userId=${currentUser.email}`);
+    const data = await res.json();
+    if (data && data.length > 0) {
+        const latest = data[data.length - 1];
+        document.getElementById('teamAName').value = latest.tA;
+        document.getElementById('teamBName').value = latest.tB;
+        document.getElementById('cricketOversSelect').value = latest.overs;
+        document.getElementById('teamAPlayers').value = latest.pA;
+        document.getElementById('teamBPlayers').value = latest.pB;
+    }
+}
+
+function resetCricketMatch() {
+    document.getElementById('cricketGround').classList.add('hidden');
+    document.getElementById('cricketSetup').classList.remove('hidden');
+    document.getElementById('newMatchBtn').classList.add('hidden');
+    document.getElementById('status').innerText = "Wait for Bowler...";
 }
 
 async function syncCricketHistory() {
@@ -1018,10 +1130,19 @@ async function saveAdminConfig() {
 // --- INIT ---
 window.onload = async () => {
     updateAuthUI();
-    if (currentUser) await syncAllData();
+    if (currentUser) {
+        await syncAllData();
+        await loadCricketSetup();
+    }
     loadConfig();
     loadFeedbacks();
     renderAIHistory();
+
+    // Init Greetings
+    const aiWelcome = "### Greetings.\nI am the **sOuLAI** interface. How can I assist your vision today?";
+    appendAIMessage('ai', aiWelcome, 'chatBox');
+    appendAIMessage('ai', "Hello! I am your quick AI assistant. Ask me anything.", 'miniChatBox');
+
     document.getElementById('aiWidget').onclick = toggleMiniChat;
     
     // Marked.js options
