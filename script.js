@@ -3,7 +3,7 @@ let currentUser = JSON.parse(localStorage.getItem('soulUser')) || null;
 let aiConfig = { keys: [], models: [] };
 let currentKeyIndex = 0;
 let notes = [];
-let aiConversations = JSON.parse(localStorage.getItem('soulAI_convs')) || [];
+let aiConversations = [];
 let currentChatId = null;
 let musicList = [];
 let currentTrackIndex = 0;
@@ -244,8 +244,11 @@ async function deleteNote(id) {
     await fetch(`/api/main?route=notes&id=${id}`, { method: 'DELETE' });
 }
 
-async function syncNotes() {
-    if(!currentUser) return alert("Login to sync notes!");
+async function syncNotes(silent = true) {
+    if(!currentUser) {
+        if(!silent) alert("Login to sync notes!");
+        return;
+    }
     const res = await fetch(`/api/main?route=notes&userId=${currentUser.email}`);
     const data = await res.json();
     if(Array.isArray(data)) {
@@ -270,56 +273,152 @@ async function saveNotesToDB(note) {
 }
 
 // --- RANDOMIZER LOGIC ---
-function genRandomNum() {
+async function saveRandomHistory(type, value) {
+    if (!currentUser) return;
+    await fetch(`/api/main?route=random_history&userId=${currentUser.email}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, value })
+    });
+}
+
+async function genRandomNum() {
     const min = parseInt(document.getElementById('randMin').value);
     const max = parseInt(document.getElementById('randMax').value);
     const res = Math.floor(Math.random() * (max - min + 1)) + min;
     document.getElementById('numResult').innerText = res;
+    await saveRandomHistory('number', res);
 }
 
-function genRandomColor() {
+async function genRandomColor() {
     const color = '#' + Math.floor(Math.random()*16777215).toString(16);
     document.getElementById('colorPreview').style.backgroundColor = color;
     document.getElementById('colorHex').innerText = color.toUpperCase();
+    await saveRandomHistory('color', color.toUpperCase());
 }
 
-function pickRandom() {
+async function pickRandom() {
     const raw = document.getElementById('randChoices').value;
     const choices = raw.split(',').map(c => c.trim()).filter(c => c);
     if(!choices.length) return;
     const res = choices[Math.floor(Math.random() * choices.length)];
     document.getElementById('choiceResult').innerText = res;
+    await saveRandomHistory('choice', res);
 }
 
 // --- MUSIC PLAYER LOGIC ---
+let isShuffle = false;
+let isRepeat = false;
+let audioContext, analyser, dataArray, source;
+let eqBands = {};
+
+function initAudioContext() {
+    if (audioContext) return;
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioContext.createAnalyser();
+    source = audioContext.createMediaElementSource(audioPlayer);
+    
+    // Equalizer Bands
+    const freqs = [60, 170, 310, 600, 1000, 3000, 6000, 12000, 14000, 16000];
+    let lastNode = source;
+    freqs.forEach(freq => {
+        const filter = audioContext.createBiquadFilter();
+        filter.type = 'peaking';
+        filter.frequency.value = freq;
+        filter.Q.value = 1;
+        filter.gain.value = 0;
+        lastNode.connect(filter);
+        lastNode = filter;
+        eqBands[freq] = filter;
+    });
+
+    lastNode.connect(analyser);
+    analyser.connect(audioContext.destination);
+    analyser.fftSize = 64;
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    drawVisualizer();
+}
+
+function drawVisualizer() {
+    const canvas = document.getElementById('musicVisualizer');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const render = () => {
+        requestAnimationFrame(render);
+        if (!analyser) return;
+        analyser.getByteFrequencyData(dataArray);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const barWidth = (canvas.width / dataArray.length) * 2.5;
+        let x = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            const barHeight = (dataArray[i] / 255) * canvas.height;
+            ctx.fillStyle = `rgba(6, 182, 212, ${dataArray[i]/255})`;
+            ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+            x += barWidth + 1;
+        }
+    };
+    render();
+}
+
 function loadMusic(e) {
     const files = Array.from(e.target.files);
-    musicList = files.map(f => ({ name: f.name, url: URL.createObjectURL(f) }));
-    if(musicList.length > 0) playTrack(0);
+    const newTracks = files.map(f => ({ name: f.name.replace(/\.[^/.]+$/, ""), url: URL.createObjectURL(f) }));
+    musicList = [...musicList, ...newTracks];
+    renderPlaylist();
+    if(musicList.length > 0 && !audioPlayer.src) playTrack(0);
+}
+
+function renderPlaylist() {
+    const container = document.getElementById('playlistContainer');
+    const shuffleTag = isShuffle ? '<span class="text-[8px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded ml-2 font-bold tracking-widest animate-pulse">SHUFFLE ON</span>' : '';
+    const repeatTag = isRepeat ? '<span class="text-[8px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded ml-2 font-bold tracking-widest animate-pulse">REPEAT ON</span>' : '';
+    
+    container.innerHTML = `
+        <div class="flex gap-1 mb-3">${shuffleTag}${repeatTag}</div>
+        ${musicList.map((t, i) => `
+            <div onclick="playTrack(${i})" class="flex items-center gap-3 p-2 rounded-lg cursor-pointer hover:bg-white/5 transition ${i === currentTrackIndex ? 'bg-cyan-500/10 border border-cyan-500/20' : ''}">
+                <div class="w-6 h-6 flex items-center justify-center bg-black/20 rounded text-[10px] font-mono">${i + 1}</div>
+                <div class="flex flex-col flex-grow overflow-hidden">
+                    <span class="text-xs truncate ${i === currentTrackIndex ? 'text-cyan-400 font-bold' : 'text-gray-300'}">${t.name}</span>
+                </div>
+                ${i === currentTrackIndex && isMusicPlaying ? '<div class="playing-bars"><span></span><span></span><span></span></div>' : ''}
+            </div>
+        `).join('')}
+    `;
 }
 
 function playTrack(index) {
+    initAudioContext();
+    if (audioContext.state === 'suspended') audioContext.resume();
+    
     currentTrackIndex = index;
     const track = musicList[index];
     audioPlayer.src = track.url;
     document.getElementById('trackName').innerText = track.name;
-    document.getElementById('artistName').innerText = "Local Track";
-    audioPlayer.play();
+    document.getElementById('artistName').innerText = "Local Storage Track";
+    audioPlayer.play().catch(e => console.log("Playback blocked"));
     isMusicPlaying = true;
     updateMusicUI();
+    renderPlaylist();
 }
 
 function toggleMusic() {
     if(!audioPlayer.src) return;
+    if (audioContext && audioContext.state === 'suspended') audioContext.resume();
     if(isMusicPlaying) audioPlayer.pause();
     else audioPlayer.play();
     isMusicPlaying = !isMusicPlaying;
     updateMusicUI();
+    renderPlaylist();
 }
 
 function musicNext() {
     if(musicList.length === 0) return;
-    playTrack((currentTrackIndex + 1) % musicList.length);
+    if(isShuffle) {
+        playTrack(Math.floor(Math.random() * musicList.length));
+    } else {
+        playTrack((currentTrackIndex + 1) % musicList.length);
+    }
 }
 
 function musicPrev() {
@@ -327,10 +426,74 @@ function musicPrev() {
     playTrack((currentTrackIndex - 1 + musicList.length) % musicList.length);
 }
 
+function musicSkip(seconds) {
+    audioPlayer.currentTime += seconds;
+}
+
+function toggleShuffle() {
+    isShuffle = !isShuffle;
+    document.getElementById('shuffleBtn').classList.toggle('control-active', isShuffle);
+    renderPlaylist();
+}
+
+function toggleRepeat() {
+    isRepeat = !isRepeat;
+    audioPlayer.loop = isRepeat;
+    document.getElementById('repeatBtn').classList.toggle('control-active', isRepeat);
+    renderPlaylist();
+}
+
+function setEQ(preset) {
+    document.querySelectorAll('.eq-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    
+    const settings = {
+        normal: { 60:0, 170:0, 310:0, 600:0, 1000:0, 3000:0, 6000:0, 12000:0, 14000:0, 16000:0 },
+        bass: { 60:10, 170:8, 310:4, 600:0, 1000:0, 3000:0, 6000:0, 12000:0, 14000:0, 16000:0 },
+        pop: { 60:-2, 170:-1, 310:0, 600:2, 1000:4, 3000:4, 6000:2, 12000:0, 14000:-1, 16000:-2 },
+        rock: { 60:6, 170:4, 310:2, 600:0, 1000:-1, 3000:-1, 6000:2, 12000:4, 14000:6, 16000:6 }
+    }[preset];
+
+    Object.keys(settings).forEach(freq => {
+        if(eqBands[freq]) eqBands[freq].gain.value = settings[freq];
+    });
+}
+
+function formatTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+}
+
+// Event Listeners for Player
+audioPlayer.addEventListener('timeupdate', () => {
+    const prog = document.getElementById('musicProgress');
+    const cur = document.getElementById('currentTime');
+    const dur = document.getElementById('durationTime');
+    if (!isNaN(audioPlayer.duration)) {
+        prog.value = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+        cur.innerText = formatTime(audioPlayer.currentTime);
+        dur.innerText = formatTime(audioPlayer.duration);
+    }
+});
+
+audioPlayer.addEventListener('ended', () => {
+    if (!isRepeat) musicNext();
+});
+
+document.getElementById('musicProgress').addEventListener('input', (e) => {
+    const seekTime = (e.target.value / 100) * audioPlayer.duration;
+    audioPlayer.currentTime = seekTime;
+});
+
+document.getElementById('volumeControl').addEventListener('input', (e) => {
+    audioPlayer.volume = e.target.value;
+});
+
 function updateMusicUI() {
     const btn = document.getElementById('playPauseBtn');
     const disk = document.getElementById('vinylDisk');
-    btn.innerHTML = isMusicPlaying ? '<i class="fas fa-pause-circle text-5xl text-cyan-400"></i>' : '<i class="fas fa-play-circle text-5xl"></i>';
+    btn.innerHTML = isMusicPlaying ? '<i class="fas fa-pause-circle"></i>' : '<i class="fas fa-play-circle"></i>';
     isMusicPlaying ? disk.classList.add('rotating') : disk.classList.remove('rotating');
 }
 
@@ -368,20 +531,23 @@ async function syncAIHistory() {
 }
 
 async function saveAIHistory(conversation) {
-    if (!currentUser || !conversation) return;
+    if (!currentUser) return;
+    const idx = aiConversations.findIndex(c => c.id === conversation.id);
+    if (idx > -1) aiConversations[idx] = conversation;
+    else aiConversations.unshift(conversation);
+
     await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(conversation)
     });
+    renderAIHistory();
 }
 
 function newConversation() {
     currentChatId = Date.now();
     const conv = { id: currentChatId, name: "New Conversation", messages: [] };
-    aiConversations.unshift(conv);
     saveAIHistory(conv);
-    renderAIHistory();
     loadConversation(currentChatId);
 }
 
@@ -410,21 +576,24 @@ function renderAIHistory() {
     `).join('');
 }
 
-function renameConversation(id) {
+async function renameConversation(id) {
     const conv = aiConversations.find(c => c.id === id);
     const newName = prompt("Enter new name for conversation:", conv.name);
     if (newName) {
         conv.name = newName;
-        saveAIHistory();
-        renderAIHistory();
+        await saveAIHistory(conv);
         if (id === currentChatId) document.getElementById('currentConvName').innerText = newName;
     }
 }
 
-function deleteConversation(id) {
+async function deleteConversation(id) {
     if (!confirm("Are you sure you want to delete this conversation?")) return;
     aiConversations = aiConversations.filter(c => c.id !== id);
-    saveAIHistory();
+    if (currentUser) {
+        await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}&id=${id}`, {
+            method: 'DELETE'
+        });
+    }
     if (currentChatId === id) {
         currentChatId = null;
         document.getElementById('chatBox').innerHTML = '';
@@ -501,8 +670,10 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox') {
         
         if (targetBoxId === 'chatBox' && currentChatId) {
             const conv = aiConversations.find(c => c.id === currentChatId);
-            conv.messages.push({ role: 'ai', content: aiText });
-            await saveAIHistory(conv);
+            if (conv) {
+                conv.messages.push({ role: 'ai', content: aiText });
+                await saveAIHistory(conv);
+            }
         }
     } catch (err) {
         console.warn(`Key Index ${currentKeyIndex} failed: ${err.message}. Rotating...`);
@@ -512,9 +683,7 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox') {
     }
 }
 
-function saveAIHistory() {
-    localStorage.setItem('soulAI_convs', JSON.stringify(aiConversations.slice(0, 50)));
-}
+// Syncing now handled via saveAIHistory(conversation) to MongoDB
 
 function clearChat() { document.getElementById('chatBox').innerHTML = ''; }
 

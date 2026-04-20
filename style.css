@@ -182,6 +182,48 @@ nav button:hover {
     to { transform: rotate(360deg); }
 }
 
+.eq-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 10px;
+    text-transform: uppercase;
+    transition: all 0.3s;
+}
+.eq-btn:hover, .eq-btn.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
+.control-active {
+    color: var(--primary) !important;
+    text-shadow: 0 0 10px var(--primary);
+    transform: scale(1.2);
+}
+
+/* Playing Bars Animation */
+.playing-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 12px;
+}
+.playing-bars span {
+    width: 2px;
+    background: var(--primary);
+    animation: barGrow 0.5s ease-in-out infinite alternate;
+}
+.playing-bars span:nth-child(1) { height: 60%; animation-delay: 0.1s; }
+.playing-bars span:nth-child(2) { height: 100%; animation-delay: 0.2s; }
+.playing-bars span:nth-child(3) { height: 40%; animation-delay: 0s; }
+
+@keyframes barGrow {
+    from { height: 20%; }
+    to { height: 100%; }
+}
+
 /* --- sOuLCRICKET Board --- */
 .cricket-score {
     font-family: 'Courier New', monospace;

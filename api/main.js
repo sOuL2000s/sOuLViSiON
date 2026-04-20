@@ -94,7 +94,11 @@ export default async function handler(req, res) {
                 return res.status(200).json({ success: true });
             }
             if (method === 'DELETE') {
-                await col.deleteMany({ userId });
+                if (query.id) {
+                    await col.deleteOne({ userId, id: parseInt(query.id) });
+                } else {
+                    await col.deleteMany({ userId });
+                }
                 return res.status(200).json({ success: true });
             }
         }
