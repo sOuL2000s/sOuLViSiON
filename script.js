@@ -28,12 +28,27 @@ async function handleAuth() {
     const pass = document.getElementById('authPass').value;
     if (!email || !pass) return alert("Fill all fields");
 
-    // Simplified auth for demo, usually hits /api/main?route=auth
-    currentUser = { email, name: email.split('@')[0], isAdmin: email.includes('admin@soulvision.com') };
-    localStorage.setItem('soulUser', JSON.stringify(currentUser));
-    updateAuthUI();
-    showPage('home');
-    if(currentUser.isAdmin) document.getElementById('adminBtn').classList.remove('hidden');
+    const mode = isLoginMode ? 'login' : 'register';
+    const name = email.split('@')[0];
+
+    try {
+        const response = await fetch(`/api/main?route=auth`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password: pass, name, mode })
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Authentication failed");
+
+        currentUser = data;
+        localStorage.setItem('soulUser', JSON.stringify(currentUser));
+        updateAuthUI();
+        syncNotes(); // Fetch user's notes immediately after login
+        showPage('home');
+    } catch (err) {
+        alert(err.message);
+    }
 }
 
 function updateAuthUI() {
@@ -41,31 +56,37 @@ function updateAuthUI() {
         document.getElementById('userNameDisplay').innerText = `Hey, ${currentUser.name}`;
         document.getElementById('authBtn').innerText = 'Logout';
         document.getElementById('authBtn').onclick = logout;
+        if(currentUser.isAdmin) document.getElementById('adminBtn').classList.remove('hidden');
     } else {
         document.getElementById('userNameDisplay').innerText = '';
         document.getElementById('authBtn').innerText = 'Login';
         document.getElementById('authBtn').onclick = () => showPage('login');
+        document.getElementById('adminBtn').classList.add('hidden');
     }
 }
 
 function logout() {
     currentUser = null;
+    notes = [];
+    renderNotes();
     localStorage.removeItem('soulUser');
-    localStorage.removeItem('isAdmin');
     updateAuthUI();
-    document.getElementById('adminBtn').classList.add('hidden');
     showPage('login');
 }
 
 // --- NOTES LOGIC ---
 async function addNote() {
+    if (!currentUser) return alert("Login to save notes!");
     const input = document.getElementById('noteInput');
     if (!input.value) return;
-    const note = { id: Date.now(), text: input.value, userId: currentUser?.email || 'guest' };
-    notes.push(note);
-    renderNotes();
-    input.value = '';
-    saveNotesToDB(note);
+    const note = { id: Date.now(), text: input.value, userId: currentUser.email };
+    
+    const success = await saveNotesToDB(note);
+    if (success) {
+        notes.push(note);
+        renderNotes();
+        input.value = '';
+    }
 }
 
 function renderNotes() {
@@ -97,12 +118,18 @@ async function syncNotes() {
 }
 
 async function saveNotesToDB(note) {
-    if(!currentUser) return;
-    await fetch('/api/main?route=notes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(note)
-    });
+    if(!currentUser) return false;
+    try {
+        const res = await fetch('/api/main?route=notes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(note)
+        });
+        return res.ok;
+    } catch (e) {
+        console.error("Failed to save note", e);
+        return false;
+    }
 }
 
 // --- RANDOMIZER LOGIC ---
@@ -346,6 +373,7 @@ async function saveAdminConfig() {
 // --- INIT ---
 window.onload = () => {
     updateAuthUI();
+    if (currentUser) syncNotes();
     loadConfig();
     loadFeedbacks();
     document.getElementById('aiWidget').onclick = toggleMiniChat;

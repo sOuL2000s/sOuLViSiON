@@ -11,6 +11,23 @@ export default async function handler(req, res) {
         const db = client.db('soulvision');
         
         // Basic Route Handler
+        if (query.route === 'auth') {
+            const col = db.collection('users');
+            const { email, password, name, mode } = body;
+            
+            if (mode === 'register') {
+                const existing = await col.findOne({ email });
+                if (existing) return res.status(400).json({ error: "User already exists" });
+                const newUser = { email, password, name, isAdmin: email.includes('admin@soulvision.com') };
+                await col.insertOne(newUser);
+                return res.status(201).json(newUser);
+            } else {
+                const user = await col.findOne({ email, password });
+                if (!user) return res.status(401).json({ error: "Invalid credentials" });
+                return res.status(200).json(user);
+            }
+        }
+
         if (query.route === 'notes') {
             const col = db.collection('notes');
             if (method === 'GET') {
