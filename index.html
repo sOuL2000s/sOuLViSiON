@@ -7,6 +7,12 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -32,7 +38,7 @@
         </div>
     </nav>
 
-    <main class="p-6 max-w-6xl mx-auto">
+    <main class="p-6 max-w-7xl mx-auto">
         
         <!-- Login/Reg Page -->
         <section id="login" class="page">
@@ -81,12 +87,54 @@
                 <h2 class="text-3xl font-bold">Your sOuLNOTES</h2>
                 <button onclick="syncNotes()" class="text-cyan-400 text-sm"><i class="fas fa-sync"></i> Sync with Cloud</button>
             </div>
-            <div class="flex gap-2 mb-8">
-                <input id="noteInput" type="text" class="bg-gray-800 p-3 rounded-l flex-grow" placeholder="Write a note...">
-                <button onclick="addNote()" class="bg-cyan-500 px-8 py-3 rounded-r font-bold">Save</button>
+            <div class="glass p-4 mb-8">
+                <div class="flex gap-2 mb-2 pb-2 border-b border-white/10 overflow-x-auto text-xs">
+                    <button onclick="wrapText('noteInput', '**', '**')" title="Bold" class="hover:text-cyan-400 p-1"><i class="fas fa-bold"></i></button>
+                    <button onclick="wrapText('noteInput', '*', '*')" title="Italic" class="hover:text-cyan-400 p-1"><i class="fas fa-italic"></i></button>
+                    <button onclick="wrapText('noteInput', '# ', '')" title="H1" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>1</button>
+                    <button onclick="wrapText('noteInput', '## ', '')" title="H2" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>2</button>
+                    <button onclick="wrapText('noteInput', '### ', '')" title="H3" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>3</button>
+                    <button onclick="wrapText('noteInput', '- ', '')" title="List" class="hover:text-cyan-400 p-1"><i class="fas fa-list"></i></button>
+                    <button onclick="wrapText('noteInput', '[', '](url)')" title="Link" class="hover:text-cyan-400 p-1"><i class="fas fa-link"></i></button>
+                    <button onclick="wrapText('noteInput', '```\n', '\n```')" title="Code Block" class="hover:text-cyan-400 p-1"><i class="fas fa-code"></i></button>
+                    <button onclick="wrapText('noteInput', '>', '')" title="Quote" class="hover:text-cyan-400 p-1"><i class="fas fa-quote-left"></i></button>
+                </div>
+                <textarea id="noteInput" class="w-full bg-transparent border-none outline-none min-h-[150px] mb-4 text-gray-200" placeholder="Write Markdown here..."></textarea>
+                <div class="flex justify-end gap-2 border-t border-white/10 pt-4">
+                    <button onclick="addNote()" class="bg-cyan-600 px-6 py-2 rounded-lg font-bold">Save Note</button>
+                </div>
             </div>
             <div id="notesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         </section>
+
+        <!-- Note Modal -->
+        <div id="noteModal" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-center justify-center p-4">
+            <div class="glass w-full max-w-4xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <input id="editNoteId" type="hidden">
+                    <h3 class="text-xl font-bold">Edit Note</h3>
+                    <button onclick="closeNoteModal()" class="text-2xl">&times;</button>
+                </div>
+                <div class="flex gap-2 mb-2 pb-2 border-b border-white/10 overflow-x-auto text-xs">
+                    <button onclick="wrapText('editNoteText', '**', '**')" title="Bold" class="hover:text-cyan-400 p-1"><i class="fas fa-bold"></i></button>
+                    <button onclick="wrapText('editNoteText', '*', '*')" title="Italic" class="hover:text-cyan-400 p-1"><i class="fas fa-italic"></i></button>
+                    <button onclick="wrapText('editNoteText', '# ', '')" title="H1" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>1</button>
+                    <button onclick="wrapText('editNoteText', '## ', '')" title="H2" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>2</button>
+                    <button onclick="wrapText('editNoteText', '### ', '')" title="H3" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>3</button>
+                    <button onclick="wrapText('editNoteText', '- ', '')" title="List" class="hover:text-cyan-400 p-1"><i class="fas fa-list"></i></button>
+                    <button onclick="wrapText('editNoteText', '[', '](url)')" title="Link" class="hover:text-cyan-400 p-1"><i class="fas fa-link"></i></button>
+                    <button onclick="wrapText('editNoteText', '```\n', '\n```')" title="Code Block" class="hover:text-cyan-400 p-1"><i class="fas fa-code"></i></button>
+                    <button onclick="wrapText('editNoteText', '>', '')" title="Quote" class="hover:text-cyan-400 p-1"><i class="fas fa-quote-left"></i></button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow overflow-hidden">
+                    <textarea id="editNoteText" class="bg-black/20 p-4 rounded-xl border border-white/10 font-mono text-sm resize-none h-full"></textarea>
+                    <div id="notePreview" class="bg-white/5 p-4 rounded-xl border border-white/10 overflow-y-auto markdown-body"></div>
+                </div>
+                <div class="flex justify-end mt-4">
+                    <button onclick="saveEditedNote()" class="bg-cyan-600 px-8 py-2 rounded-xl font-bold">Update Note</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Randomizer Page -->
         <section id="random" class="page text-center">
@@ -135,20 +183,29 @@
 
         <!-- AI Page -->
         <section id="ai" class="page">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                <div>
-                    <h2 class="text-3xl font-bold">sOuLAI Dedicated</h2>
-                    <p class="text-sm text-gray-500">Intelligent Assistant • Model Switching Enabled</p>
+            <div class="flex flex-col lg:flex-row gap-6 h-[75vh]">
+                <!-- History Sidebar -->
+                <div class="w-full lg:w-64 glass flex flex-col p-4 shrink-0 overflow-hidden">
+                    <button onclick="newConversation()" class="w-full bg-purple-600 py-3 rounded-xl mb-4 font-bold flex items-center justify-center gap-2">
+                        <i class="fas fa-plus"></i> New Chat
+                    </button>
+                    <div id="chatHistoryList" class="flex-grow overflow-y-auto space-y-2 pr-2"></div>
                 </div>
-                <div class="flex gap-2">
-                    <select id="modelSelect" class="bg-gray-800 p-3 rounded-lg text-sm"></select>
-                    <button onclick="clearChat()" class="bg-gray-700 p-3 rounded-lg"><i class="fas fa-trash"></i></button>
+                <!-- Chat Window -->
+                <div class="flex-grow flex flex-col glass overflow-hidden">
+                    <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+                        <div class="flex gap-2">
+                            <select id="modelSelect" class="bg-gray-800 p-2 rounded-lg text-xs"></select>
+                            <button onclick="clearChat()" class="text-xs text-gray-400 hover:text-red-400"><i class="fas fa-trash-alt"></i></button>
+                        </div>
+                        <span class="text-xs font-mono text-purple-400" id="currentConvName">Untitled Chat</span>
+                    </div>
+                    <div id="chatBox" class="flex-grow overflow-y-auto p-6 flex flex-col gap-4 scroll-smooth"></div>
+                    <div class="p-4 border-t border-white/10 bg-black/20 flex gap-3">
+                        <input id="chatInput" type="text" class="bg-gray-800 p-4 rounded-xl flex-grow border border-gray-700 focus:border-purple-500" placeholder="Type your prompt here..." autocomplete="off">
+                        <button onclick="askAI()" class="bg-purple-600 px-8 rounded-xl font-bold hover:bg-purple-700 transition"><i class="fas fa-paper-plane"></i></button>
+                    </div>
                 </div>
-            </div>
-            <div id="chatBox" class="glass h-[500px] overflow-y-auto p-6 mb-4 rounded-2xl flex flex-col gap-4"></div>
-            <div class="flex gap-3">
-                <input id="chatInput" type="text" class="bg-gray-800 p-4 rounded-xl flex-grow border border-gray-700 focus:border-purple-500" placeholder="Type your prompt here...">
-                <button onclick="askAI()" class="bg-purple-600 px-8 rounded-xl font-bold hover:bg-purple-700 transition"><i class="fas fa-paper-plane"></i></button>
             </div>
         </section>
 
@@ -173,26 +230,68 @@
 
         <!-- Cricket Page -->
         <section id="cricket" class="page">
-            <div class="text-center max-w-2xl mx-auto">
-                <h2 class="text-3xl font-bold mb-4">sOuL Cricket League</h2>
-                <div class="glass p-10 rounded-3xl mb-6">
-                    <div class="flex justify-between mb-8">
-                        <div class="text-left">
-                            <p class="text-xs text-gray-400 uppercase">Current Score</p>
-                            <div class="text-5xl font-black" id="score">0/0</div>
+            <div id="cricketSetup" class="max-w-2xl mx-auto text-center">
+                <h2 class="text-4xl font-black mb-8">Match Setup</h2>
+                <div class="glass p-8 space-y-6">
+                    <div class="flex gap-4">
+                        <div class="flex-grow">
+                            <label class="block text-xs text-gray-500 text-left mb-1">Team A Name</label>
+                            <input id="teamAName" type="text" value="Super Kings" class="w-full bg-gray-800 p-3 rounded-lg">
                         </div>
-                        <div class="text-right">
-                            <p class="text-xs text-gray-400 uppercase">Overs</p>
-                            <div class="text-2xl" id="overs">0.0 (1.0)</div>
+                        <div class="flex-grow">
+                            <label class="block text-xs text-gray-500 text-left mb-1">Team B Name</label>
+                            <input id="teamBName" type="text" value="Knight Riders" class="w-full bg-gray-800 p-3 rounded-lg">
                         </div>
                     </div>
-                    <div id="status" class="bg-black/20 p-4 rounded-xl mb-8 text-lg font-medium text-cyan-400">Ready to Bat!</div>
+                    <div>
+                        <label class="block text-xs text-gray-500 text-left mb-1">Overs Per Innings</label>
+                        <select id="cricketOversSelect" class="w-full bg-gray-800 p-3 rounded-lg">
+                            <option value="1">1 Over</option>
+                            <option value="2">2 Overs</option>
+                            <option value="5">5 Overs</option>
+                            <option value="10">10 Overs</option>
+                            <option value="10">20 Overs</option>
+                            <option value="10">50 Overs</option>
+                        </select>
+                    </div>
+                    <p class="text-[10px] text-gray-500 text-left italic">Format: Name/Type (Types: Batsman, Bowler, Batting AR, Bowling AR, Keeper)</p>
                     <div class="grid grid-cols-2 gap-4">
-                        <button onclick="playCricket()" id="hitBtn" class="bg-orange-500 text-white p-6 rounded-2xl font-black text-3xl hover:bg-orange-600 shadow-lg shadow-orange-900/40">HIT!</button>
-                        <button onclick="resetCricket()" class="bg-gray-800 text-gray-400 p-6 rounded-2xl font-bold">New Game</button>
+                        <textarea id="teamAPlayers" class="bg-gray-800 p-3 rounded-lg text-xs h-32" placeholder="Player/Type (e.g. Kohli/Batsman)"></textarea>
+                        <textarea id="teamBPlayers" class="bg-gray-800 p-3 rounded-lg text-xs h-32" placeholder="Player/Type (e.g. Bumrah/Bowler)"></textarea>
+                    </div>
+                    <button onclick="startMatch()" class="w-full bg-cyan-600 py-4 rounded-xl font-bold text-xl">Coin Toss & Start</button>
+                </div>
+            </div>
+
+            <div id="cricketGround" class="hidden text-center max-w-4xl mx-auto">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2">
+                        <div class="glass p-8 rounded-3xl mb-6 relative overflow-hidden">
+                            <div class="absolute top-0 left-0 w-1 h-full bg-orange-500"></div>
+                            <div class="flex justify-between items-start mb-10">
+                                <div class="text-left">
+                                    <p id="battingTeamName" class="text-orange-400 font-bold uppercase tracking-widest text-sm"></p>
+                                    <div class="text-6xl font-black" id="score">0/0</div>
+                                    <p id="battingPartnership" class="text-gray-500 text-xs mt-1">CRR: 0.00</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-xs text-gray-400 uppercase">Overs</p>
+                                    <div class="text-3xl font-mono" id="overs">0.0</div>
+                                    <p id="targetDisplay" class="text-cyan-400 font-bold mt-2"></p>
+                                </div>
+                            </div>
+                            <div id="status" class="bg-black/40 p-4 rounded-2xl mb-8 text-xl border border-white/5 min-h-[4rem] flex items-center justify-center">Wait for Bowler...</div>
+                            <div class="grid grid-cols-1 gap-4">
+                                <button onclick="playCricket()" id="hitBtn" class="bg-orange-500 text-white p-8 rounded-3xl font-black text-4xl hover:bg-orange-600 shadow-xl active:scale-95 transition-all">HIT!</button>
+                            </div>
+                        </div>
+                        <div id="cricketHistory" class="flex gap-2 justify-center flex-wrap mb-6"></div>
+                    </div>
+                    <div class="glass p-6 h-fit">
+                        <h3 class="font-bold mb-4 border-b border-white/10 pb-2">Scorecard</h3>
+                        <div id="liveScorecard" class="text-sm space-y-2 text-left h-96 overflow-y-auto pr-2"></div>
                     </div>
                 </div>
-                <div id="cricketHistory" class="flex gap-2 justify-center flex-wrap"></div>
             </div>
         </section>
 
@@ -253,7 +352,13 @@
                     
                     <h3 class="text-xl mb-4 font-bold flex items-center gap-2"><i class="fas fa-cubes"></i> Model Configuration</h3>
                     <p class="text-sm text-gray-400 mb-4">JSON array of objects: <code>{"name": "Display Name", "id": "model-id"}</code></p>
-                    <textarea id="modelList" class="w-full bg-gray-900 p-4 rounded-xl h-32 mb-6 border border-gray-800 font-mono text-xs" placeholder='[{"name":"Pro 1.5", "id":"gemini-1.5-pro"}]'></textarea>
+                    <textarea id="modelList" class="w-full bg-gray-900 p-4 rounded-xl h-24 mb-4 border border-gray-800 font-mono text-xs" placeholder='[{"name":"Pro 1.5", "id":"gemini-1.5-pro"}]'></textarea>
+                    
+                    <div class="mb-6">
+                        <label class="block text-xs text-gray-500 mb-1">Floating Chat Default Model ID</label>
+                        <input id="miniChatModelId" type="text" placeholder="gemini-1.5-flash" class="w-full bg-gray-900 p-3 rounded-lg border border-gray-800 text-sm">
+                    </div>
+
                     <button onclick="saveAdminConfig()" class="bg-red-600 w-full py-4 rounded-xl font-bold hover:bg-red-700 transition">Apply Global Config</button>
                 </div>
                 <div class="glass p-8 rounded-xl">

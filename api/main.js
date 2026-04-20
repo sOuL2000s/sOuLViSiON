@@ -31,12 +31,20 @@ export default async function handler(req, res) {
         if (query.route === 'notes') {
             const col = db.collection('notes');
             if (method === 'GET') {
-                const notes = await col.find({ userId: query.userId }).toArray();
+                const notes = await col.find({ userId: query.userId }).sort({id: -1}).toArray();
                 return res.status(200).json(notes);
             }
             if (method === 'POST') {
                 await col.insertOne(body);
                 return res.status(201).json({ success: true });
+            }
+            if (method === 'DELETE') {
+                await col.deleteOne({ id: parseInt(query.id) });
+                return res.status(200).json({ success: true });
+            }
+            if (method === 'PATCH') {
+                await col.updateOne({ id: parseInt(query.id) }, { $set: { text: body.text } });
+                return res.status(200).json({ success: true });
             }
         }
 
