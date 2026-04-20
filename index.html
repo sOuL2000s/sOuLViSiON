@@ -17,28 +17,50 @@
 </head>
 <body>
 
-    <!-- Navigation -->
-    <nav class="glass sticky top-0 z-50 p-4 flex justify-between items-center px-8">
-        <h1 class="text-2xl font-bold tracking-tighter text-cyan-400">sOuLViSiON</h1>
-        <div class="space-x-4 hidden lg:flex overflow-x-auto">
-            <button onclick="showPage('home')">Home</button>
-            <button onclick="showPage('notes')">Notes</button>
-            <button onclick="showPage('random')">Random</button>
-            <button onclick="showPage('play')">Music</button>
-            <button onclick="showPage('ai')">AI</button>
-            <button onclick="showPage('fun')">Fun</button>
-            <button onclick="showPage('cricket')">Cricket</button>
-            <button onclick="showPage('support')">Support</button>
-            <button onclick="showPage('who')">Who?</button>
-            <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400">Admin</button>
+    <!-- Sidebar for Mobile -->
+    <div id="sidebarOverlay" class="fixed inset-0 bg-black/60 z-[60] hidden backdrop-blur-sm" onclick="toggleSidebar()"></div>
+    <aside id="mobileSidebar" class="fixed top-0 left-0 h-full w-64 glass z-[70] transform -translate-x-full transition-transform duration-300 ease-in-out p-6 flex flex-col gap-6 border-r border-white/10 overflow-y-auto">
+        <div class="flex justify-between items-center mb-4">
+            <h1 class="text-2xl font-bold text-cyan-400">sOuLViSiON</h1>
+            <button onclick="toggleSidebar()" class="text-2xl">&times;</button>
         </div>
-        <div id="userProfile" class="flex items-center gap-2">
-            <span id="userNameDisplay" class="text-sm hidden md:block"></span>
-            <button id="authBtn" onclick="showPage('login')" class="bg-cyan-600 px-4 py-1 rounded">Login</button>
+        <nav class="flex flex-col gap-4 text-lg">
+            <button onclick="showPage('home')" class="text-left hover:text-cyan-400"><i class="fas fa-home w-8"></i> Home</button>
+            <button onclick="showPage('notes')" class="text-left hover:text-cyan-400"><i class="fas fa-sticky-note w-8"></i> Notes</button>
+            <button onclick="showPage('ai')" class="text-left hover:text-cyan-400"><i class="fas fa-robot w-8"></i> AI Chat</button>
+            <button onclick="showPage('play')" class="text-left hover:text-cyan-400"><i class="fas fa-play w-8"></i> Music</button>
+            <button onclick="showPage('random')" class="text-left hover:text-cyan-400"><i class="fas fa-random w-8"></i> Random</button>
+            <button onclick="showPage('cricket')" class="text-left hover:text-cyan-400"><i class="fas fa-baseball-bat-ball w-8"></i> Cricket</button>
+            <button onclick="showPage('fun')" class="text-left hover:text-cyan-400"><i class="fas fa-smile w-8"></i> Fun</button>
+            <button onclick="showPage('support')" class="text-left hover:text-cyan-400"><i class="fas fa-heart w-8"></i> Support</button>
+            <button onclick="showPage('who')" class="text-left hover:text-cyan-400"><i class="fas fa-info-circle w-8"></i> Who?</button>
+            <button onclick="showPage('manage')" id="adminBtnSide" class="hidden text-left text-red-400"><i class="fas fa-user-shield w-8"></i> Admin</button>
+        </nav>
+    </aside>
+
+    <!-- Navigation -->
+    <nav class="glass sticky top-0 z-50 p-4 flex justify-between items-center px-4 md:px-8">
+        <div class="flex items-center gap-4">
+            <button onclick="toggleSidebar()" class="md:hidden text-xl p-2"><i class="fas fa-bars"></i></button>
+            <h1 class="text-xl md:text-2xl font-bold tracking-tighter text-cyan-400 cursor-pointer" onclick="showPage('home')">sOuLViSiON</h1>
+        </div>
+        
+        <div class="hidden md:flex space-x-2 md:space-x-4">
+            <button onclick="showPage('home')" class="text-sm font-medium hover:text-cyan-400">Home</button>
+            <button onclick="showPage('notes')" class="text-sm font-medium hover:text-cyan-400">Notes</button>
+            <button onclick="showPage('ai')" class="text-sm font-medium hover:text-cyan-400">AI</button>
+            <button onclick="showPage('play')" class="text-sm font-medium hover:text-cyan-400">Music</button>
+            <button onclick="showPage('support')" class="text-sm font-medium hover:text-cyan-400">Support</button>
+            <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400 text-sm font-medium">Admin</button>
+        </div>
+
+        <div id="userProfile" class="flex items-center gap-4">
+            <span id="userNameDisplay" class="text-sm hidden lg:block font-mono text-gray-400"></span>
+            <button id="authBtn" onclick="showPage('login')" class="bg-cyan-600/20 text-cyan-400 border border-cyan-600/30 px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-cyan-600 hover:text-white transition-all">Login</button>
         </div>
     </nav>
 
-    <main class="p-6 max-w-7xl mx-auto">
+    <main class="p-4 md:p-6 max-w-7xl mx-auto mb-20 md:mb-0">
         
         <!-- Login/Reg Page -->
         <section id="login" class="page">
@@ -54,29 +76,95 @@
         </section>
 
         <!-- Home Page -->
-        <section id="home" class="page active text-center py-10">
-            <h2 class="text-5xl md:text-7xl font-black mb-4">Everything in <span class="text-cyan-500">One Place.</span></h2>
-            <p class="text-gray-400 mb-12 max-w-2xl mx-auto text-lg">Your ultimate multi-tool workspace. Notes, AI, Music, Games, and Utilities all built to be fast, secure, and client-side.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 home-grid">
-                <div class="glass p-6 hover:scale-105 transition cursor-pointer" onclick="showPage('notes')">
+        <section id="home" class="page active py-10 md:py-20">
+            <div class="text-center mb-16 relative">
+                <div class="absolute -top-10 left-1/2 -translate-x-1/2 w-64 h-64 bg-cyan-500/10 blur-[100px] rounded-full -z-10"></div>
+                <h2 class="text-6xl md:text-8xl font-black mb-6 tracking-tighter">Everything in <br><span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-purple-500">One Place.</span></h2>
+                <p class="text-gray-400 max-w-2xl mx-auto text-lg md:text-xl leading-relaxed">
+                    Welcome to the digital sanctuary. sOuLViSiON brings together your essential tools in a fast, private, and powerful client-side environment.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 home-grid">
+                <!-- Tool Cards -->
+                <div class="glass p-8 group hover:border-yellow-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('notes')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-sticky-note text-6xl"></i>
+                    </div>
                     <i class="fas fa-sticky-note text-3xl mb-4 text-yellow-400"></i>
-                    <h3 class="text-xl font-bold">sOuLNOTES</h3>
-                    <p class="text-sm text-gray-400">Secure note taking.</p>
+                    <h3 class="text-xl font-bold mb-2">sOuLNOTES</h3>
+                    <p class="text-sm text-gray-400">Markdown-powered secure vault for your thoughts.</p>
+                    <div class="mt-4 text-yellow-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
                 </div>
-                <div class="glass p-6 hover:scale-105 transition cursor-pointer" onclick="showPage('ai')">
+
+                <div class="glass p-8 group hover:border-purple-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('ai')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-robot text-6xl"></i>
+                    </div>
                     <i class="fas fa-robot text-3xl mb-4 text-purple-400"></i>
-                    <h3 class="text-xl font-bold">sOuLAI</h3>
-                    <p class="text-sm text-gray-400">Multi-model AI Chat.</p>
+                    <h3 class="text-xl font-bold mb-2">sOuLAI</h3>
+                    <p class="text-sm text-gray-400">Multi-model intelligence workspace with key rotation.</p>
+                    <div class="mt-4 text-purple-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
                 </div>
-                <div class="glass p-6 hover:scale-105 transition cursor-pointer" onclick="showPage('random')">
-                    <i class="fas fa-random text-3xl mb-4 text-blue-400"></i>
-                    <h3 class="text-xl font-bold">sOuLRANDOM</h3>
-                    <p class="text-sm text-gray-400">Randomize anything.</p>
-                </div>
-                <div class="glass p-6 hover:scale-105 transition cursor-pointer" onclick="showPage('play')">
+
+                <div class="glass p-8 group hover:border-green-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('play')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-play text-6xl"></i>
+                    </div>
                     <i class="fas fa-play text-3xl mb-4 text-green-400"></i>
-                    <h3 class="text-xl font-bold">sOuLPLAY</h3>
-                    <p class="text-sm text-gray-400">Offline Music Experience.</p>
+                    <h3 class="text-xl font-bold mb-2">sOuLPLAY</h3>
+                    <p class="text-sm text-gray-400">Immersive offline-first music player with vinyl vibes.</p>
+                    <div class="mt-4 text-green-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+
+                <div class="glass p-8 group hover:border-orange-500/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('cricket')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-baseball-bat-ball text-6xl"></i>
+                    </div>
+                    <i class="fas fa-baseball-bat-ball text-3xl mb-4 text-orange-500"></i>
+                    <h3 class="text-xl font-bold mb-2">sOuLCRICKET</h3>
+                    <p class="text-sm text-gray-400">Realistic hand-cricket simulator for the enthusiasts.</p>
+                    <div class="mt-4 text-orange-500 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+
+                <div class="glass p-8 group hover:border-blue-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('random')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-random text-6xl"></i>
+                    </div>
+                    <i class="fas fa-random text-3xl mb-4 text-blue-400"></i>
+                    <h3 class="text-xl font-bold mb-2">sOuLRANDOM</h3>
+                    <p class="text-sm text-gray-400">Generate numbers, colors, and make decisions instantly.</p>
+                    <div class="mt-4 text-blue-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+
+                <div class="glass p-8 group hover:border-pink-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('fun')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-smile text-6xl"></i>
+                    </div>
+                    <i class="fas fa-smile text-3xl mb-4 text-pink-400"></i>
+                    <h3 class="text-xl font-bold mb-2">sOuLFUN</h3>
+                    <p class="text-sm text-gray-400">Clicker tests and magic balls to kill some time.</p>
+                    <div class="mt-4 text-pink-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+
+                <div class="glass p-8 group hover:border-cyan-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('support')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-hand-holding-heart text-6xl"></i>
+                    </div>
+                    <i class="fas fa-hand-holding-heart text-3xl mb-4 text-cyan-400"></i>
+                    <h3 class="text-xl font-bold mb-2">sOuLSUPPORT</h3>
+                    <p class="text-sm text-gray-400">Support the vision and join the wall of gratitude.</p>
+                    <div class="mt-4 text-cyan-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+
+                <div class="glass p-8 group hover:border-gray-300/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('who')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-ghost text-6xl"></i>
+                    </div>
+                    <i class="fas fa-ghost text-3xl mb-4 text-gray-300"></i>
+                    <h3 class="text-xl font-bold mb-2">sOuLWHO?</h3>
+                    <p class="text-sm text-gray-400">The story, the mission, and the people behind sOuLViSiON.</p>
+                    <div class="mt-4 text-gray-300 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
                 </div>
             </div>
         </section>
@@ -108,30 +196,28 @@
         </section>
 
         <!-- Note Modal -->
-        <div id="noteModal" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-center justify-center p-4">
-            <div class="glass w-full max-w-4xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
+        <div id="noteModal" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-center justify-center p-2 md:p-4">
+            <div class="glass w-full max-w-4xl max-h-[95vh] md:max-h-[90vh] flex flex-col p-4 md:p-6 overflow-hidden">
                 <div class="flex justify-between items-center mb-4">
                     <input id="editNoteId" type="hidden">
-                    <h3 class="text-xl font-bold">Edit Note</h3>
-                    <button onclick="closeNoteModal()" class="text-2xl">&times;</button>
+                    <h3 class="text-lg md:text-xl font-bold">Edit Note</h3>
+                    <button onclick="closeNoteModal()" class="text-3xl">&times;</button>
                 </div>
-                <div class="flex gap-2 mb-2 pb-2 border-b border-white/10 overflow-x-auto text-xs">
-                    <button onclick="wrapText('editNoteText', '**', '**')" title="Bold" class="hover:text-cyan-400 p-1"><i class="fas fa-bold"></i></button>
-                    <button onclick="wrapText('editNoteText', '*', '*')" title="Italic" class="hover:text-cyan-400 p-1"><i class="fas fa-italic"></i></button>
-                    <button onclick="wrapText('editNoteText', '# ', '')" title="H1" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>1</button>
-                    <button onclick="wrapText('editNoteText', '## ', '')" title="H2" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>2</button>
-                    <button onclick="wrapText('editNoteText', '### ', '')" title="H3" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>3</button>
-                    <button onclick="wrapText('editNoteText', '- ', '')" title="List" class="hover:text-cyan-400 p-1"><i class="fas fa-list"></i></button>
-                    <button onclick="wrapText('editNoteText', '[', '](url)')" title="Link" class="hover:text-cyan-400 p-1"><i class="fas fa-link"></i></button>
-                    <button onclick="wrapText('editNoteText', '```\n', '\n```')" title="Code Block" class="hover:text-cyan-400 p-1"><i class="fas fa-code"></i></button>
-                    <button onclick="wrapText('editNoteText', '>', '')" title="Quote" class="hover:text-cyan-400 p-1"><i class="fas fa-quote-left"></i></button>
+                <div class="flex gap-2 mb-2 pb-2 border-b border-white/10 overflow-x-auto no-scrollbar text-[10px] md:text-xs">
+                    <button onclick="wrapText('editNoteText', '**', '**')" class="p-1"><i class="fas fa-bold"></i></button>
+                    <button onclick="wrapText('editNoteText', '*', '*')" class="p-1"><i class="fas fa-italic"></i></button>
+                    <button onclick="wrapText('editNoteText', '# ', '')" class="p-1">H1</button>
+                    <button onclick="wrapText('editNoteText', '## ', '')" class="p-1">H2</button>
+                    <button onclick="wrapText('editNoteText', '- ', '')" class="p-1"><i class="fas fa-list"></i></button>
+                    <button onclick="wrapText('editNoteText', '[', '](url)')" class="p-1"><i class="fas fa-link"></i></button>
+                    <button onclick="wrapText('editNoteText', '```\n', '\n```')" class="p-1"><i class="fas fa-code"></i></button>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 flex-grow overflow-hidden">
-                    <textarea id="editNoteText" class="bg-black/20 p-4 rounded-xl border border-white/10 font-mono text-sm resize-none h-full"></textarea>
-                    <div id="notePreview" class="bg-white/5 p-4 rounded-xl border border-white/10 overflow-y-auto markdown-body"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-grow overflow-hidden">
+                    <textarea id="editNoteText" class="bg-black/20 p-3 rounded-xl border border-white/10 font-mono text-xs md:text-sm resize-none min-h-[150px] lg:h-full"></textarea>
+                    <div id="notePreview" class="bg-white/5 p-3 rounded-xl border border-white/10 overflow-y-auto markdown-body text-xs md:text-sm"></div>
                 </div>
                 <div class="flex justify-end mt-4">
-                    <button onclick="saveEditedNote()" class="bg-cyan-600 px-8 py-2 rounded-xl font-bold">Update Note</button>
+                    <button onclick="saveEditedNote()" class="w-full md:w-auto bg-cyan-600 px-8 py-3 rounded-xl font-bold">Update</button>
                 </div>
             </div>
         </div>
@@ -182,17 +268,22 @@
         </section>
 
         <!-- AI Page -->
-        <section id="ai" class="page">
-            <div class="flex flex-col lg:flex-row gap-6 h-[75vh]">
+        <section id="ai" class="page h-[85vh] lg:h-[75vh]">
+            <div class="flex flex-col lg:flex-row gap-4 h-full">
+                <!-- Mobile History Toggle -->
+                <button onclick="toggleAIHistory()" class="lg:hidden glass p-3 text-xs flex items-center justify-between">
+                    <span>Chat History</span>
+                    <i class="fas fa-chevron-down"></i>
+                </button>
                 <!-- History Sidebar -->
-                <div class="w-full lg:w-64 glass flex flex-col p-4 shrink-0 overflow-hidden">
+                <div id="aiSidebar" class="hidden lg:flex w-full lg:w-64 glass flex-col p-4 shrink-0 overflow-hidden transition-all duration-300">
                     <button onclick="newConversation()" class="w-full bg-purple-600 py-3 rounded-xl mb-4 font-bold flex items-center justify-center gap-2">
                         <i class="fas fa-plus"></i> New Chat
                     </button>
-                    <div id="chatHistoryList" class="flex-grow overflow-y-auto space-y-2 pr-2"></div>
+                    <div id="chatHistoryList" class="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar"></div>
                 </div>
                 <!-- Chat Window -->
-                <div class="flex-grow flex flex-col glass overflow-hidden">
+                <div class="flex-grow flex flex-col glass overflow-hidden relative">
                     <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
                         <div class="flex gap-2">
                             <select id="modelSelect" class="bg-gray-800 p-2 rounded-lg text-xs"></select>

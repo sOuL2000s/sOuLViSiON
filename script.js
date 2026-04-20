@@ -77,8 +77,30 @@ document.addEventListener('input', (e) => {
 // --- NAVIGATION ---
 function showPage(pageId) {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById(pageId).classList.add('active');
+    const page = document.getElementById(pageId);
+    if(page) page.classList.add('active');
+    
+    // Close sidebar on navigation (mobile)
+    const sidebar = document.getElementById('mobileSidebar');
+    if (sidebar && sidebar.classList.contains('translate-x-0')) toggleSidebar();
+    
     window.scrollTo(0, 0);
+}
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('mobileSidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const isOpen = sidebar.classList.contains('translate-x-0');
+    
+    if (isOpen) {
+        sidebar.classList.remove('translate-x-0');
+        sidebar.classList.add('-translate-x-full');
+        overlay.classList.add('hidden');
+    } else {
+        sidebar.classList.add('translate-x-0');
+        sidebar.classList.remove('-translate-x-full');
+        overlay.classList.remove('hidden');
+    }
 }
 
 // --- AUTH LOGIC ---
@@ -110,24 +132,40 @@ async function handleAuth() {
         currentUser = data;
         localStorage.setItem('soulUser', JSON.stringify(currentUser));
         updateAuthUI();
-        syncNotes(); // Fetch user's notes immediately after login
+        await syncAllData();
         showPage('home');
     } catch (err) {
         alert(err.message);
     }
 }
 
+async function syncAllData() {
+    if (!currentUser) return;
+    await Promise.all([
+        syncNotes(),
+        syncAIHistory(),
+        syncFunStats(),
+        syncCricketHistory()
+    ]);
+}
+
 function updateAuthUI() {
+    const adminBtn = document.getElementById('adminBtn');
+    const adminBtnSide = document.getElementById('adminBtnSide');
     if (currentUser) {
         document.getElementById('userNameDisplay').innerText = `Hey, ${currentUser.name}`;
         document.getElementById('authBtn').innerText = 'Logout';
         document.getElementById('authBtn').onclick = logout;
-        if(currentUser.isAdmin) document.getElementById('adminBtn').classList.remove('hidden');
+        if(currentUser.isAdmin) {
+            adminBtn?.classList.remove('hidden');
+            adminBtnSide?.classList.remove('hidden');
+        }
     } else {
         document.getElementById('userNameDisplay').innerText = '';
         document.getElementById('authBtn').innerText = 'Login';
         document.getElementById('authBtn').onclick = () => showPage('login');
-        document.getElementById('adminBtn').classList.add('hidden');
+        adminBtn?.classList.add('hidden');
+        adminBtnSide?.classList.add('hidden');
     }
 }
 
@@ -319,10 +357,30 @@ function updateAIUI() {
 }
 
 // --- AI LOGIC (Key Rotation + History) ---
+async function syncAIHistory() {
+    if (!currentUser) return;
+    const res = await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}`);
+    const data = await res.json();
+    if (Array.isArray(data)) {
+        aiConversations = data;
+        renderAIHistory();
+    }
+}
+
+async function saveAIHistory(conversation) {
+    if (!currentUser || !conversation) return;
+    await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(conversation)
+    });
+}
+
 function newConversation() {
     currentChatId = Date.now();
-    aiConversations.unshift({ id: currentChatId, name: "New Conversation", messages: [] });
-    saveAIHistory();
+    const conv = { id: currentChatId, name: "New Conversation", messages: [] };
+    aiConversations.unshift(conv);
+    saveAIHistory(conv);
     renderAIHistory();
     loadConversation(currentChatId);
 }
@@ -334,6 +392,7 @@ function loadConversation(id) {
     document.getElementById('currentConvName').innerText = conv.name;
     conv.messages.forEach(m => appendAIMessage(m.role, m.content));
     renderAIHistory();
+    if(window.innerWidth < 1024) document.getElementById('aiSidebar').classList.add('hidden');
 }
 
 function renderAIHistory() {
@@ -414,7 +473,6 @@ async function askAI() {
     conv.messages.push({ role: 'user', content: input });
 
     await callGeminiAPI(input, 'chatBox');
-    saveAIHistory();
 }
 
 async function callGeminiAPI(text, targetBoxId = 'chatBox') {
@@ -441,10 +499,10 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox') {
         const aiText = data.candidates[0].content.parts[0].text;
         appendAIMessage('ai', aiText, targetBoxId);
         
-        // Only save history if it's the dedicated chat
         if (targetBoxId === 'chatBox' && currentChatId) {
-            aiConversations.find(c => c.id === currentChatId).messages.push({ role: 'ai', content: aiText });
-            saveAIHistory();
+            const conv = aiConversations.find(c => c.id === currentChatId);
+            conv.messages.push({ role: 'ai', content: aiText });
+            await saveAIHistory(conv);
         }
     } catch (err) {
         console.warn(`Key Index ${currentKeyIndex} failed: ${err.message}. Rotating...`);
@@ -459,6 +517,11 @@ function saveAIHistory() {
 }
 
 function clearChat() { document.getElementById('chatBox').innerHTML = ''; }
+
+function toggleAIHistory() {
+    const sidebar = document.getElementById('aiSidebar');
+    sidebar.classList.toggle('hidden');
+}
 
 // --- MINI CHAT ---
 function toggleMiniChat() { document.getElementById('miniChat').classList.toggle('show'); }
@@ -482,15 +545,28 @@ function startClicker() {
     if(clickActive) { clickCount++; document.getElementById('clickCounter').innerText = clickCount; return; }
     clickActive = true; clickCount = 1; clickTime = 10;
     document.getElementById('clickCounter').innerText = "1";
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
         clickTime--;
         document.getElementById('clickTimer').innerText = clickTime + "s remaining";
         if(clickTime <= 0) {
             clearInterval(interval);
             clickActive = false;
-            alert(`Time's up! Your CPS: ${clickCount/10}`);
+            const cps = clickCount / 10;
+            alert(`Time's up! Your CPS: ${cps}`);
+            if (currentUser) {
+                await fetch(`/api/main?route=fun_stats&userId=${currentUser.email}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'clicker', score: cps })
+                });
+            }
         }
     }, 1000);
+}
+
+async function syncFunStats() {
+    if (!currentUser) return;
+    const res = await fetch(`/api/main?route=fun_stats&userId=${currentUser.email}`);
 }
 
 function shakeBall() {
@@ -622,7 +698,7 @@ function playCricket() {
     if(battingTeam.wickets >= 10 || battingTeam.balls >= maxBalls || (match.target && battingTeam.score >= match.target)) endInnings();
 }
 
-function endInnings() {
+async function endInnings() {
     if(match.currentInnings === 0) {
         match.target = match.teams[0].score + 1;
         match.currentInnings = 1;
@@ -637,7 +713,25 @@ function endInnings() {
         const t2 = match.teams[1];
         let winMsg = t2.score >= match.target ? `${t2.name} Wins!` : t2.score === match.target - 1 ? "Match Tied!" : `${t1.name} Wins!`;
         document.getElementById('status').innerText = winMsg;
+        
+        if (currentUser) {
+            await fetch(`/api/main?route=cricket_history&userId=${currentUser.email}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    result: winMsg, 
+                    scoreA: `${t1.name}: ${t1.score}/${t1.wickets}`,
+                    scoreB: `${t2.name}: ${t2.score}/${t2.wickets}`
+                })
+            });
+        }
     }
+}
+
+async function syncCricketHistory() {
+    if (!currentUser) return;
+    const res = await fetch(`/api/main?route=cricket_history&userId=${currentUser.email}`);
+    // History can be displayed in an 'Archives' tab if UI is added later
 }
 
 function updateCricketUI() {
@@ -753,9 +847,9 @@ async function saveAdminConfig() {
 }
 
 // --- INIT ---
-window.onload = () => {
+window.onload = async () => {
     updateAuthUI();
-    if (currentUser) syncNotes();
+    if (currentUser) await syncAllData();
     loadConfig();
     loadFeedbacks();
     renderAIHistory();

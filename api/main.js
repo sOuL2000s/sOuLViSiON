@@ -73,6 +73,32 @@ export default async function handler(req, res) {
             }
         }
 
+        // Persistence for AI, Cricket, Fun, Random
+        if (['ai_conversations', 'cricket_history', 'fun_stats', 'random_history'].includes(query.route)) {
+            const col = db.collection(query.route);
+            const userId = query.userId;
+
+            if (method === 'GET') {
+                if (!userId) return res.status(400).json({ error: "UserId required" });
+                const data = await col.find({ userId }).sort({ timestamp: -1 }).toArray();
+                return res.status(200).json(data);
+            }
+            if (method === 'POST') {
+                const doc = { ...body, userId, timestamp: Date.now() };
+                await col.insertOne(doc);
+                return res.status(201).json({ success: true });
+            }
+            if (method === 'PUT') {
+                const { id, ...updateData } = body;
+                await col.updateOne({ id: id, userId }, { $set: updateData }, { upsert: true });
+                return res.status(200).json({ success: true });
+            }
+            if (method === 'DELETE') {
+                await col.deleteMany({ userId });
+                return res.status(200).json({ success: true });
+            }
+        }
+
         res.status(404).json({ error: "Route not found" });
     } catch (e) {
         res.status(500).json({ error: e.message });
