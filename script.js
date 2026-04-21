@@ -1571,6 +1571,38 @@ async function loadFeedbacks() {
     }
 }
 
+// --- CONTACT FORM LOGIC ---
+async function handleContact(e) {
+    e.preventDefault();
+    const name = document.getElementById('contactName').value;
+    const email = document.getElementById('contactEmail').value;
+    const message = document.getElementById('contactMessage').value;
+    const status = document.getElementById('contactStatus');
+
+    setLoading(true, "Sending Message");
+    try {
+        const res = await fetch('/api/main?route=messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, message, timestamp: Date.now() })
+        });
+
+        if (res.ok) {
+            status.innerText = "Message sent successfully! We'll get back to you soon.";
+            status.className = "mt-4 text-center text-xs text-green-400 block";
+            document.getElementById('contactForm').reset();
+        } else {
+            throw new Error("Failed to send message");
+        }
+    } catch (err) {
+        status.innerText = "Error: " + err.message;
+        status.className = "mt-4 text-center text-xs text-red-400 block";
+    } finally {
+        setLoading(false);
+        setTimeout(() => { if(status) status.classList.add('hidden'); }, 5000);
+    }
+}
+
 // --- ADMIN ---
 async function saveAdminConfig() {
     const keys = document.getElementById('apiKeys').value.split(',').map(k => k.trim());

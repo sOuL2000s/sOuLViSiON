@@ -615,20 +615,79 @@
         </section>
 
         <!-- About/Who? Page -->
-        <section id="who" class="page text-center max-w-3xl mx-auto py-10">
-            <h2 class="text-5xl font-black mb-8 text-cyan-400 italic">sOuLViSiON</h2>
-            <div class="glass p-10 text-left leading-relaxed space-y-6">
-                <p>Born from the desire to consolidate the digital experience, <span class="font-bold">sOuLViSiON</span> is more than just a website; it's a client-side ecosystem.</p>
-                <p>We believe that tools should be fast, accessible, and privacy-focused. By utilizing client-side processing, we ensure that your data stays closer to you while providing heavy-lifting features like AI chat and music streaming.</p>
-                <div class="border-l-4 border-cyan-500 pl-6 my-8 italic">
-                    "Our vision is to provide a single soul-ful interface for every digital need."
+        <section id="who" class="page max-w-5xl mx-auto py-10">
+            <div class="text-center mb-16">
+                <h2 class="text-6xl font-black mb-4 text-cyan-400 italic tracking-tighter">sOuLViSiON</h2>
+                <p class="text-gray-400 text-lg">The Digital Sanctuary for Your Creative Soul.</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Mission & Vision -->
+                <div class="lg:col-span-2 space-y-8">
+                    <div class="glass p-8 space-y-4">
+                        <h3 class="text-2xl font-bold flex items-center gap-2"><i class="fas fa-eye text-cyan-400"></i> Our Vision</h3>
+                        <p class="text-gray-300 leading-relaxed">
+                            sOuLViSiON was born from a simple observation: the digital world is fragmented. We jump between dozens of tabs, apps, and platforms just to perform basic tasks like taking notes, listening to music, or interacting with AI. 
+                        </p>
+                        <p class="text-gray-300 leading-relaxed">
+                            Our mission is to consolidate these experiences into a single, cohesive, and high-performance interface. We prioritize <span class="text-cyan-400 font-bold">Privacy</span>, <span class="text-purple-400 font-bold">Speed</span>, and <span class="text-orange-400 font-bold">Simplicity</span>. By leveraging client-side processing, we ensure that your data remains yours, while providing a seamless user experience that feels like a native OS in your browser.
+                        </p>
+                    </div>
+
+                    <div class="glass p-8">
+                        <h3 class="text-2xl font-bold mb-6 flex items-center gap-2"><i class="fas fa-user-tie text-purple-400"></i> The Architect</h3>
+                        <div class="flex flex-col md:flex-row gap-8 items-center">
+                            <div class="w-32 h-32 rounded-full bg-gradient-to-br from-cyan-500 to-purple-600 flex-shrink-0 flex items-center justify-center text-4xl font-bold shadow-xl shadow-cyan-500/20">
+                                SP
+                            </div>
+                            <div class="space-y-3 text-center md:text-left">
+                                <h4 class="text-xl font-bold text-white">Souparna Paul</h4>
+                                <p class="text-gray-400 text-sm">Founder & Lead Software Engineer</p>
+                                <p class="text-gray-300 text-sm italic">
+                                    "A passionate developer dedicated to building tools that empower individuals. sOuLViSiON is my commitment to the open web and the belief that powerful technology should be accessible to everyone without compromising privacy."
+                                </p>
+                                <div class="flex gap-4 justify-center md:justify-start pt-2">
+                                    <a href="https://github.com/sOuL2000s" target="_blank" class="text-gray-400 hover:text-white transition text-xl"><i class="fab fa-github"></i></a>
+                                    <a href="https://www.linkedin.com/in/souparna-paul-28a75524b/" target="_blank" class="text-gray-400 hover:text-blue-400 transition text-xl"><i class="fab fa-linkedin"></i></a>
+                                    <a href="https://www.youtube.com/c/SouparnoPaulOfficial" target="_blank" class="text-gray-400 hover:text-red-500 transition text-xl"><i class="fab fa-youtube"></i></a>
+                                    <a href="mailto:souparnopaulreborn@gmail.com" class="text-gray-400 hover:text-cyan-400 transition text-xl"><i class="fas fa-envelope"></i></a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <h3 class="text-2xl font-bold pt-4">Core Values</h3>
-                <ul class="list-disc list-inside space-y-2 text-gray-300">
-                    <li>Speed over Complexity</li>
-                    <li>Privacy by Design</li>
-                    <li>Community Driven Growth</li>
-                </ul>
+
+                <!-- Contact Form Sidebar -->
+                <div class="space-y-8">
+                    <div class="glass p-8 border-t-4 border-cyan-500">
+                        <h3 class="text-xl font-bold mb-4">Get in Touch</h3>
+                        <p class="text-xs text-gray-400 mb-6">Have a suggestion, a bug report, or just want to say hi? Send us a message!</p>
+                        
+                        <form id="contactForm" onsubmit="handleContact(event)" class="space-y-4">
+                            <div>
+                                <label class="block text-[10px] text-gray-500 uppercase font-bold mb-1 ml-1">Your Name</label>
+                                <input type="text" id="contactName" required class="w-full bg-gray-900 border border-white/5 p-3 rounded-lg text-sm focus:border-cyan-500 transition outline-none" placeholder="John Doe">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-gray-500 uppercase font-bold mb-1 ml-1">Email Address</label>
+                                <input type="email" id="contactEmail" required class="w-full bg-gray-900 border border-white/5 p-3 rounded-lg text-sm focus:border-cyan-500 transition outline-none" placeholder="john@example.com">
+                            </div>
+                            <div>
+                                <label class="block text-[10px] text-gray-500 uppercase font-bold mb-1 ml-1">Message</label>
+                                <textarea id="contactMessage" required class="w-full bg-gray-900 border border-white/5 p-3 rounded-lg text-sm h-32 resize-none focus:border-cyan-500 transition outline-none" placeholder="How can we help?"></textarea>
+                            </div>
+                            <button type="submit" class="w-full bg-cyan-600 py-3 rounded-lg font-bold hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20">
+                                Send Message
+                            </button>
+                        </form>
+                        <div id="contactStatus" class="mt-4 text-center text-xs hidden"></div>
+                    </div>
+
+                    <div class="glass p-6 text-center">
+                        <p class="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-2">Support the Project</p>
+                        <button onclick="showPage('support')" class="text-cyan-400 hover:underline font-bold">Donate to sOuLViSiON</button>
+                    </div>
+                </div>
             </div>
         </section>
 

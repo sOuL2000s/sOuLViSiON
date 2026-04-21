@@ -1,5 +1,6 @@
 const { MongoClient } = require('mongodb');
 const { OAuth2Client } = require('google-auth-library');
+const nodemailer = require('nodemailer');
 
 const uri = process.env.MONGODB_URI;
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -117,6 +118,39 @@ export default async function handler(req, res) {
             }
         }
 
+        // Contact Form Handling (Email + DB)
+        if (query.route === 'messages' && method === 'POST') {
+            const col = db.collection('messages');
+            const data = typeof body === 'string' ? JSON.parse(body) : body;
+            const doc = { ...data, timestamp: Date.now() };
+            await col.insertOne(doc);
+
+            if (process.env.MAIL_USER && process.env.MAIL_PASS) {
+                const transporter = nodemailer.createTransport({
+                    service: 'gmail',
+                    auth: {
+                        user: process.env.MAIL_USER,
+                        pass: process.env.MAIL_PASS
+                    }
+                });
+
+                const mailOptions = {
+                    from: process.env.MAIL_USER,
+                    to: process.env.MAIL_RECEIVER || process.env.MAIL_USER,
+                    replyTo: data.email,
+                    subject: `sOuLViSiON: New Message from ${data.name}`,
+                    text: `Name: ${data.name}\nEmail: ${data.email}\n\nMessage:\n${data.message}`
+                };
+
+                try {
+                    await transporter.sendMail(mailOptions);
+                } catch (err) {
+                    console.error("Email forwarding failed:", err);
+                }
+            }
+            return res.status(201).json({ success: true });
+        }
+
         // Persistence for AI, Cricket, Fun, Random
         if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history'].includes(query.route)) {
             const col = db.collection(query.route);
@@ -129,7 +163,8 @@ export default async function handler(req, res) {
             }
             if (method === 'POST') {
                 const data = typeof body === 'string' ? JSON.parse(body) : body;
-                const doc = { ...data, userId, timestamp: Date.now() };
+                const doc = { ...data, timestamp: Date.now() };
+                if (userId) doc.userId = userId;
                 await col.insertOne(doc);
                 return res.status(201).json({ success: true });
             }
