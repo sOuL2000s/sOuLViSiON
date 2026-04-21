@@ -14,6 +14,7 @@
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
     <link rel="stylesheet" href="style.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
@@ -103,6 +104,8 @@
                     <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/5"></div></div>
                     <div class="relative flex justify-center text-xs uppercase"><span class="bg-gray-900 px-2 text-gray-500">Or</span></div>
                 </div>
+
+                <div id="googleBtnContainer" class="flex justify-center mb-6"></div>
 
                 <p class="text-center text-sm text-gray-400">
                     <button onclick="toggleAuthMode()" id="authToggle" class="text-cyan-400 hover:underline">Don't have an account? Create one</button>

@@ -1589,9 +1589,51 @@ async function saveAdminConfig() {
     }
 }
 
+// --- GOOGLE LOGIN ---
+function handleGoogleCredentialResponse(response) {
+    setLoading(true, "Authenticating with Google");
+    fetch(`/api/main?route=auth`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            mode: 'google', 
+            credential: response.credential 
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.error) throw new Error(data.error);
+        currentUser = data;
+        localStorage.setItem('soulUser', JSON.stringify(currentUser));
+        updateAuthUI();
+        syncAllData();
+        showPage('home');
+    })
+    .catch(err => alert(err.message))
+    .finally(() => setLoading(false));
+}
+
+function initGoogleLogin() {
+    if (typeof google === 'undefined') {
+        setTimeout(initGoogleLogin, 500);
+        return;
+    }
+    google.accounts.id.initialize({
+        client_id: "117626690354-1d85pk16ojvju3o3oc5e6gpcmtfno1kj.apps.googleusercontent.com",
+        callback: handleGoogleCredentialResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true
+    });
+    google.accounts.id.renderButton(
+        document.getElementById("googleBtnContainer"),
+        { theme: "outline", size: "large", width: "320", shape: "rectangular" }
+    );
+}
+
 // --- INIT ---
 window.onload = async () => {
     updateAuthUI();
+    initGoogleLogin();
     if (currentUser) {
         await syncAllData();
         await loadCricketSetup();

@@ -1,6 +1,8 @@
 const { MongoClient } = require('mongodb');
+const { OAuth2Client } = require('google-auth-library');
 
 const uri = process.env.MONGODB_URI;
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 let cachedClient = null;
 let cachedDb = null;
 
@@ -34,7 +36,28 @@ export default async function handler(req, res) {
                 return res.status(200).json({ success: true });
             }
 
-            if (mode === 'register') {
+            if (mode === 'google') {
+                const { credential } = body;
+                const ticket = await googleClient.verifyIdToken({
+                    idToken: credential,
+                    audience: process.env.GOOGLE_CLIENT_ID
+                });
+                const payload = ticket.getPayload();
+                const email = payload['email'];
+                const name = payload['name'];
+                
+                let user = await col.findOne({ email });
+                if (!user) {
+                    user = { 
+                        email, 
+                        name, 
+                        isAdmin: email.includes('admin@soulvision.com'),
+                        authSource: 'google'
+                    };
+                    await col.insertOne(user);
+                }
+                return res.status(200).json(user);
+            } else if (mode === 'register') {
                 const existing = await col.findOne({ email });
                 if (existing) return res.status(400).json({ error: "User already exists" });
                 const newUser = { email, password, name, isAdmin: email.includes('admin@soulvision.com') };
