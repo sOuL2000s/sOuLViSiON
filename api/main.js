@@ -1,14 +1,25 @@
 const { MongoClient } = require('mongodb');
 
 const uri = process.env.MONGODB_URI;
-const client = new MongoClient(uri);
+let cachedClient = null;
+let cachedDb = null;
+
+async function connectToDatabase() {
+    if (cachedClient && cachedDb) {
+        return { client: cachedClient, db: cachedDb };
+    }
+    const client = await MongoClient.connect(uri);
+    const db = client.db('soulvision');
+    cachedClient = client;
+    cachedDb = db;
+    return { client, db };
+}
 
 export default async function handler(req, res) {
     const { method, body, query } = req;
     
     try {
-        await client.connect();
-        const db = client.db('soulvision');
+        const { db } = await connectToDatabase();
         
         // Basic Route Handler
         if (query.route === 'auth') {
@@ -47,11 +58,13 @@ export default async function handler(req, res) {
                 return res.status(201).json({ success: true });
             }
             if (method === 'DELETE') {
-                await col.deleteOne({ id: parseInt(query.id) });
+                const queryId = isNaN(query.id) ? query.id : Number(query.id);
+                await col.deleteOne({ id: queryId });
                 return res.status(200).json({ success: true });
             }
             if (method === 'PATCH') {
-                await col.updateOne({ id: parseInt(query.id) }, { $set: { text: body.text } });
+                const queryId = isNaN(query.id) ? query.id : Number(query.id);
+                await col.updateOne({ id: queryId }, { $set: { text: body.text } });
                 return res.status(200).json({ success: true });
             }
         }
@@ -92,18 +105,23 @@ export default async function handler(req, res) {
                 return res.status(200).json(data);
             }
             if (method === 'POST') {
-                const doc = { ...body, userId, timestamp: Date.now() };
+                const data = typeof body === 'string' ? JSON.parse(body) : body;
+                const doc = { ...data, userId, timestamp: Date.now() };
                 await col.insertOne(doc);
                 return res.status(201).json({ success: true });
             }
             if (method === 'PUT') {
-                const { id, ...updateData } = body;
-                await col.updateOne({ id: id, userId }, { $set: updateData }, { upsert: true });
+                const data = typeof body === 'string' ? JSON.parse(body) : body;
+                const { id, ...updateData } = data;
+                // Handle numeric IDs (like those from Date.now()) vs string IDs
+                const queryId = isNaN(id) ? id : Number(id);
+                await col.updateOne({ id: queryId, userId }, { $set: updateData }, { upsert: true });
                 return res.status(200).json({ success: true });
             }
             if (method === 'DELETE') {
                 if (query.id) {
-                    await col.deleteOne({ userId, id: parseInt(query.id) });
+                    const queryId = isNaN(query.id) ? query.id : Number(query.id);
+                    await col.deleteOne({ userId, id: queryId });
                 } else {
                     await col.deleteMany({ userId });
                 }

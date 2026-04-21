@@ -485,6 +485,11 @@
 
         <!-- Cricket Page -->
         <section id="cricket" class="page">
+            <div class="flex justify-center gap-4 mb-8">
+                <button onclick="toggleCricketView('setup')" id="cricketSetupTab" class="bg-cyan-600/20 text-cyan-400 px-6 py-2 rounded-full font-bold border border-cyan-500/30">New Match</button>
+                <button onclick="toggleCricketView('history')" id="cricketHistoryTab" class="hover:bg-white/5 px-6 py-2 rounded-full font-bold transition">Archives</button>
+            </div>
+
             <div id="cricketSetup" class="max-w-2xl mx-auto text-center">
                 <h2 class="text-4xl font-black mb-8">Match Setup</h2>
                 <div class="glass p-8 space-y-6">
@@ -549,6 +554,29 @@
                     <div class="glass p-6 h-fit">
                         <h3 class="font-bold mb-4 border-b border-white/10 pb-2">Scorecard</h3>
                         <div id="liveScorecard" class="text-sm space-y-2 text-left h-96 overflow-y-auto pr-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cricket Archives -->
+            <div id="cricketArchives" class="hidden max-w-4xl mx-auto">
+                <h2 class="text-3xl font-black mb-8 text-center">Match History</h2>
+                <div id="matchHistoryList" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- History cards injected here -->
+                </div>
+            </div>
+
+            <!-- Past Match Detail Modal -->
+            <div id="matchDetailModal" class="fixed inset-0 bg-black/90 z-[100] hidden flex items-center justify-center p-4">
+                <div class="glass w-full max-w-2xl p-6 overflow-y-auto max-h-[90vh]">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-2xl font-bold" id="detailMatchTitle">Match Details</h3>
+                        <button onclick="closeMatchDetail()" class="text-3xl">&times;</button>
+                    </div>
+                    <div id="matchDetailContent" class="space-y-6"></div>
+                    <div class="mt-8 flex gap-4">
+                        <button id="rematchBtn" class="flex-grow bg-cyan-600 py-3 rounded-xl font-bold">Rematch</button>
+                        <button onclick="closeMatchDetail()" class="flex-grow bg-white/5 py-3 rounded-xl font-bold">Close</button>
                     </div>
                 </div>
             </div>
@@ -657,6 +685,15 @@
             <input id="miniChatInput" type="text" class="bg-gray-900 text-sm p-2 rounded flex-grow" placeholder="Quick ask...">
             <button onclick="askMiniAI()" class="bg-purple-600 px-2 py-2 rounded"><i class="fas fa-paper-plane text-xs"></i></button>
         </div>
+    </div>
+
+    <!-- Global Loading Spinner -->
+    <div id="globalLoader" class="fixed inset-0 bg-black/60 z-[200] hidden flex flex-col items-center justify-center backdrop-blur-md">
+        <div class="relative w-20 h-20">
+            <div class="absolute inset-0 border-4 border-cyan-500/20 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+        <p class="mt-4 text-cyan-400 font-mono text-xs tracking-widest animate-pulse uppercase" id="loaderText">Synchronizing</p>
     </div>
 
     <script src="script.js"></script>

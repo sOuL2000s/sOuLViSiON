@@ -1,5 +1,19 @@
 // --- STATE MANAGEMENT ---
 let currentUser = JSON.parse(localStorage.getItem('soulUser')) || null;
+
+// UI Helpers
+function setLoading(show, text = "Synchronizing") {
+    const loader = document.getElementById('globalLoader');
+    const txt = document.getElementById('loaderText');
+    if (loader) {
+        if (show) {
+            txt.innerText = text;
+            loader.classList.remove('hidden');
+        } else {
+            loader.classList.add('hidden');
+        }
+    }
+}
 let aiConfig = { keys: [], models: [] };
 let currentKeyIndex = 0;
 let pendingFiles = [];
@@ -121,6 +135,7 @@ async function updateUserProfile() {
     
     if (!name) return alert("Name cannot be empty");
 
+    setLoading(true, "Updating Profile");
     try {
         const res = await fetch(`/api/main?route=auth&email=${currentUser.email}`, {
             method: 'PATCH',
@@ -140,6 +155,8 @@ async function updateUserProfile() {
         }
     } catch (e) {
         alert(e.message);
+    } finally {
+        setLoading(false);
     }
 }
 
@@ -192,6 +209,7 @@ async function handleAuth() {
     if (!email || !pass) return alert("Fill all fields");
     if (!isLoginMode && !nameInput) return alert("Name is required for registration");
 
+    setLoading(true, isLoginMode ? "Signing In" : "Creating Account");
     const mode = isLoginMode ? 'login' : 'register';
     const name = isLoginMode ? email.split('@')[0] : nameInput;
 
@@ -212,17 +230,24 @@ async function handleAuth() {
         showPage('home');
     } catch (err) {
         alert(err.message);
+    } finally {
+        setLoading(false);
     }
 }
 
 async function syncAllData() {
     if (!currentUser) return;
-    await Promise.all([
-        syncNotes(),
-        syncAIHistory(),
-        syncFunStats(),
-        syncCricketHistory()
-    ]);
+    setLoading(true, "Synchronizing Data");
+    try {
+        await Promise.all([
+            syncNotes(),
+            syncAIHistory(),
+            syncFunStats(),
+            syncCricketHistory()
+        ]);
+    } finally {
+        setLoading(false);
+    }
 }
 
 function updateAuthUI() {
@@ -284,8 +309,8 @@ function renderNotes() {
             <div class="flex justify-between items-center text-xs text-gray-500 pt-4 border-t border-white/5">
                 <span>${new Date(n.id).toLocaleDateString()}</span>
                 <div class="flex gap-3">
-                    <button onclick="openNote(${n.id})" class="text-cyan-400 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-edit"></i></button>
-                    <button onclick="deleteNote(${n.id})" class="text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>
+                    <button onclick="openNote('${n.id}')" class="text-cyan-400 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-edit"></i></button>
+                    <button onclick="deleteNote('${n.id}')" class="text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>
                 </div>
             </div>
         </div>
@@ -293,6 +318,7 @@ function renderNotes() {
 }
 
 function openNote(id) {
+    id = Number(id);
     const note = notes.find(n => n.id === id);
     if (!note) return;
     document.getElementById('editNoteId').value = id;
@@ -313,18 +339,30 @@ async function saveEditedNote() {
         notes[noteIdx].text = text;
         renderNotes();
         closeNoteModal();
-        await fetch(`/api/main?route=notes&id=${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text })
-        });
+        setLoading(true, "Updating Note");
+        try {
+            await fetch(`/api/main?route=notes&id=${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+        } finally {
+            setLoading(false);
+        }
     }
 }
 
 async function deleteNote(id) {
+    id = Number(id);
+    if(!confirm("Delete this note?")) return;
     notes = notes.filter(n => n.id !== id);
     renderNotes();
-    await fetch(`/api/main?route=notes&id=${id}`, { method: 'DELETE' });
+    setLoading(true, "Deleting Note");
+    try {
+        await fetch(`/api/main?route=notes&id=${id}`, { method: 'DELETE' });
+    } finally {
+        setLoading(false);
+    }
 }
 
 async function syncNotes(silent = true) {
@@ -332,7 +370,7 @@ async function syncNotes(silent = true) {
         if(!silent) alert("Login to sync notes!");
         return;
     }
-    const res = await fetch(`/api/main?route=notes&userId=${currentUser.email}`);
+    const res = await fetch(`/api/main?route=notes&userId=${encodeURIComponent(currentUser.email)}`);
     const data = await res.json();
     if(Array.isArray(data)) {
         notes = data;
@@ -358,7 +396,7 @@ async function saveNotesToDB(note) {
 // --- RANDOMIZER LOGIC ---
 async function saveRandomHistory(type, value) {
     if (!currentUser) return;
-    await fetch(`/api/main?route=random_history&userId=${currentUser.email}`, {
+    await fetch(`/api/main?route=random_history&userId=${encodeURIComponent(currentUser.email)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type, value })
@@ -648,7 +686,7 @@ function updateAIUI() {
 async function syncAIHistory() {
     if (!currentUser) return;
     try {
-        const res = await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}`);
+        const res = await fetch(`/api/main?route=ai_conversations&userId=${encodeURIComponent(currentUser.email)}`);
         const data = await res.json();
         if (Array.isArray(data)) {
             aiConversations = data;
@@ -671,14 +709,17 @@ async function saveAIHistory(conversation) {
     // Ensure ID is a number for DB consistency
     const payload = { ...conversation, id: Number(conversation.id) };
 
+    setLoading(true, "Syncing Chat History");
     try {
-        await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}`, {
+        await fetch(`/api/main?route=ai_conversations&userId=${encodeURIComponent(currentUser.email)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
     } catch (e) {
         console.warn("Could not sync AI history to cloud", e);
+    } finally {
+        setLoading(false);
     }
 }
 
@@ -690,6 +731,7 @@ function newConversation() {
 }
 
 function loadConversation(id) {
+    id = Number(id);
     currentChatId = id;
     const conv = aiConversations.find(c => c.id === id);
     if (!conv) return;
@@ -705,18 +747,19 @@ function renderAIHistory() {
     const list = document.getElementById('chatHistoryList');
     list.innerHTML = aiConversations.map(c => `
         <div class="flex items-center gap-1 group">
-            <div onclick="loadConversation(${c.id})" class="flex-grow p-3 rounded-xl cursor-pointer transition text-xs truncate ${c.id === currentChatId ? 'bg-purple-600/30 border border-purple-500' : 'hover:bg-white/5'}">
+            <div onclick="loadConversation('${c.id}')" class="flex-grow p-3 rounded-xl cursor-pointer transition text-xs truncate ${c.id === currentChatId ? 'bg-purple-600/30 border border-purple-500' : 'hover:bg-white/5'}">
                 <i class="fas fa-comment-alt mr-2 opacity-50"></i> ${c.name}
             </div>
             <div class="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition pr-1">
-                <button onclick="renameConversation(${c.id})" class="text-[10px] text-gray-400 hover:text-cyan-400"><i class="fas fa-pen"></i></button>
-                <button onclick="deleteConversation(${c.id})" class="text-[10px] text-gray-400 hover:text-red-400"><i class="fas fa-trash-alt"></i></button>
+                <button onclick="renameConversation('${c.id}')" class="text-[10px] text-gray-400 hover:text-cyan-400"><i class="fas fa-pen"></i></button>
+                <button onclick="deleteConversation('${c.id}')" class="text-[10px] text-gray-400 hover:text-red-400"><i class="fas fa-trash-alt"></i></button>
             </div>
         </div>
     `).join('');
 }
 
 async function renameConversation(id) {
+    id = Number(id);
     const conv = aiConversations.find(c => c.id === id);
     const newName = prompt("Enter new name for conversation:", conv.name);
     if (newName) {
@@ -727,12 +770,18 @@ async function renameConversation(id) {
 }
 
 async function deleteConversation(id) {
+    id = Number(id);
     if (!confirm("Are you sure you want to delete this conversation?")) return;
     aiConversations = aiConversations.filter(c => c.id !== id);
     if (currentUser) {
-        await fetch(`/api/main?route=ai_conversations&userId=${currentUser.email}&id=${id}`, {
-            method: 'DELETE'
-        });
+        setLoading(true, "Deleting Chat");
+        try {
+            await fetch(`/api/main?route=ai_conversations&userId=${encodeURIComponent(currentUser.email)}&id=${id}`, {
+                method: 'DELETE'
+            });
+        } finally {
+            setLoading(false);
+        }
     }
     if (currentChatId === id) {
         currentChatId = null;
@@ -1005,7 +1054,7 @@ function startClicker() {
             const cps = clickCount / 10;
             alert(`Time's up! Your CPS: ${cps}`);
             if (currentUser) {
-                await fetch(`/api/main?route=fun_stats&userId=${currentUser.email}`, {
+                await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type: 'clicker', score: cps })
@@ -1017,7 +1066,7 @@ function startClicker() {
 
 async function syncFunStats() {
     if (!currentUser) return;
-    const res = await fetch(`/api/main?route=fun_stats&userId=${currentUser.email}`);
+    const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
 }
 
 function shakeBall() {
@@ -1078,14 +1127,17 @@ function selectBowler() {
     return next;
 }
 
-function startMatch() {
+async function startMatch() {
     const tA = document.getElementById('teamAName').value;
     const tB = document.getElementById('teamBName').value;
+    const pA = document.getElementById('teamAPlayers').value;
+    const pB = document.getElementById('teamBPlayers').value;
+    const oversVal = document.getElementById('cricketOversSelect').value;
     
-    match.maxOvers = parseInt(document.getElementById('cricketOversSelect').value);
+    match.maxOvers = parseInt(oversVal);
     match.teams = [
-        { name: tA, players: parsePlayers(document.getElementById('teamAPlayers').value), score: 0, wickets: 0, balls: 0, history: [] },
-        { name: tB, players: parsePlayers(document.getElementById('teamBPlayers').value), score: 0, wickets: 0, balls: 0, history: [] }
+        { name: tA, players: parsePlayers(pA), score: 0, wickets: 0, balls: 0, history: [] },
+        { name: tB, players: parsePlayers(pB), score: 0, wickets: 0, balls: 0, history: [] }
     ];
     match.currentInnings = 0;
     match.target = null;
@@ -1093,6 +1145,19 @@ function startMatch() {
     match.strikerIdx = 0;
     match.nonStrikerIdx = 1;
     selectBowler();
+
+    // Auto-save setup to database when match starts if logged in
+    if (currentUser) {
+        try {
+            await fetch(`/api/main?route=cricket_setup&userId=${currentUser.email}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tA, tB, pA, pB, overs: oversVal })
+            });
+        } catch (e) {
+            console.warn("Failed to auto-save cricket setup", e);
+        }
+    }
 
     document.getElementById('cricketSetup').classList.add('hidden');
     document.getElementById('cricketGround').classList.remove('hidden');
@@ -1167,15 +1232,34 @@ async function endInnings() {
         document.getElementById('newMatchBtn').classList.remove('hidden');
         
         if (currentUser) {
-            await fetch(`/api/main?route=cricket_history&userId=${currentUser.email}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    result: winMsg, 
-                    scoreA: `${t1.name}: ${t1.score}/${t1.wickets}`,
-                    scoreB: `${t2.name}: ${t2.score}/${t2.wickets}`
-                })
-            });
+            // Create a deep copy of players to ensure data persistence
+            const cleanPlayers = (players) => players.map(p => ({
+                name: p.name, type: p.type, runs: p.runs, balls: p.balls, 
+                wickets: p.wickets, runsConceded: p.runsConceded, ballsBowled: p.ballsBowled, isOut: p.isOut
+            }));
+
+            const historyObj = { 
+                id: Date.now(),
+                result: winMsg, 
+                teamA: { name: t1.name, score: t1.score, wickets: t1.wickets, balls: t1.balls, players: cleanPlayers(t1.players) },
+                teamB: { name: t2.name, score: t2.score, wickets: t2.wickets, balls: t2.balls, players: cleanPlayers(t2.players) },
+                maxOvers: Number(match.maxOvers),
+                setup: {
+                    pA: document.getElementById('teamAPlayers').value,
+                    pB: document.getElementById('teamBPlayers').value
+                }
+            };
+            
+            try {
+                await fetch(`/api/main?route=cricket_history&userId=${encodeURIComponent(currentUser.email)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(historyObj)
+                });
+                await syncCricketHistory();
+            } catch (e) {
+                console.error("Failed to save match history", e);
+            }
         }
     }
 }
@@ -1189,25 +1273,54 @@ async function saveCricketSetup() {
         pA: document.getElementById('teamAPlayers').value,
         pB: document.getElementById('teamBPlayers').value
     };
-    await fetch(`/api/main?route=cricket_setup&userId=${currentUser.email}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(setup)
-    });
-    alert("Match setup saved to cloud!");
+    setLoading(true, "Saving Match Setup");
+    try {
+        await fetch(`/api/main?route=cricket_setup&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(setup)
+        });
+        alert("Match setup saved to cloud!");
+    } finally {
+        setLoading(false);
+    }
 }
 
 async function loadCricketSetup() {
     if (!currentUser) return;
-    const res = await fetch(`/api/main?route=cricket_setup&userId=${currentUser.email}`);
+    const res = await fetch(`/api/main?route=cricket_setup&userId=${encodeURIComponent(currentUser.email)}`);
     const data = await res.json();
     if (data && data.length > 0) {
-        const latest = data[data.length - 1];
-        document.getElementById('teamAName').value = latest.tA;
-        document.getElementById('teamBName').value = latest.tB;
-        document.getElementById('cricketOversSelect').value = latest.overs;
-        document.getElementById('teamAPlayers').value = latest.pA;
-        document.getElementById('teamBPlayers').value = latest.pB;
+        // Since API sorts by timestamp: -1, index 0 is the most recent setup
+        const latest = data[0];
+        document.getElementById('teamAName').value = latest.tA || '';
+        document.getElementById('teamBName').value = latest.tB || '';
+        document.getElementById('cricketOversSelect').value = latest.overs || '1';
+        document.getElementById('teamAPlayers').value = latest.pA || '';
+        document.getElementById('teamBPlayers').value = latest.pB || '';
+    }
+}
+
+function toggleCricketView(view) {
+    const setup = document.getElementById('cricketSetup');
+    const archives = document.getElementById('cricketArchives');
+    const ground = document.getElementById('cricketGround');
+    const setupTab = document.getElementById('cricketSetupTab');
+    const historyTab = document.getElementById('cricketHistoryTab');
+
+    if (view === 'setup') {
+        setup.classList.remove('hidden');
+        archives.classList.add('hidden');
+        ground.classList.add('hidden');
+        setupTab.className = "bg-cyan-600/20 text-cyan-400 px-6 py-2 rounded-full font-bold border border-cyan-500/30";
+        historyTab.className = "hover:bg-white/5 px-6 py-2 rounded-full font-bold transition";
+    } else {
+        setup.classList.add('hidden');
+        archives.classList.remove('hidden');
+        ground.classList.add('hidden');
+        historyTab.className = "bg-cyan-600/20 text-cyan-400 px-6 py-2 rounded-full font-bold border border-cyan-500/30";
+        setupTab.className = "hover:bg-white/5 px-6 py-2 rounded-full font-bold transition";
+        syncCricketHistory();
     }
 }
 
@@ -1216,12 +1329,147 @@ function resetCricketMatch() {
     document.getElementById('cricketSetup').classList.remove('hidden');
     document.getElementById('newMatchBtn').classList.add('hidden');
     document.getElementById('status').innerText = "Wait for Bowler...";
+    toggleCricketView('setup');
+}
+
+let cricketHistoryData = [];
+async function deleteCricketMatch(id) {
+    if (!confirm("Delete this match record from history?")) return;
+    setLoading(true, "Deleting Match Record");
+    try {
+        const res = await fetch(`/api/main?route=cricket_history&userId=${encodeURIComponent(currentUser.email)}&id=${id}`, {
+            method: 'DELETE'
+        });
+        if (res.ok) {
+            await syncCricketHistory();
+        } else {
+            throw new Error("Failed to delete record");
+        }
+    } catch (e) {
+        alert(e.message);
+    } finally {
+        setLoading(false);
+    }
 }
 
 async function syncCricketHistory() {
     if (!currentUser) return;
-    const res = await fetch(`/api/main?route=cricket_history&userId=${currentUser.email}`);
-    // History can be displayed in an 'Archives' tab if UI is added later
+    const list = document.getElementById('matchHistoryList');
+    list.innerHTML = '<div class="col-span-full text-center py-10"><i class="fas fa-spinner fa-spin text-2xl"></i></div>';
+    
+    try {
+        const res = await fetch(`/api/main?route=cricket_history&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        
+        if (Array.isArray(data)) {
+            cricketHistoryData = data;
+            if (data.length > 0) {
+                list.innerHTML = data.map((m, idx) => {
+                    // Safe fallbacks for historical records
+                    const tA = m.teamA || {};
+                    const tB = m.teamB || {};
+                    const tAName = tA.name || 'Unknown';
+                    const tBName = tB.name || 'Unknown';
+                    
+                    const borderClass = (m.result && tBName !== 'Unknown' && m.result.includes(tBName)) ? 'border-purple-500' : 'border-orange-500';
+                    
+                    return `
+                    <div class="glass p-5 border-l-4 ${borderClass} group hover:scale-[1.02] transition-transform relative">
+                        <button onclick="deleteCricketMatch('${m.id}')" class="absolute top-2 right-2 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-1" title="Delete Match">
+                            <i class="fas fa-trash-alt text-[10px]"></i>
+                        </button>
+                        <div class="flex justify-between items-start mb-4 pr-6">
+                            <span class="text-[10px] text-gray-500">${new Date(m.timestamp || m.id).toLocaleString()}</span>
+                            <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-tighter">${m.maxOvers || '?'} Overs</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="text-left">
+                                <p class="text-xs font-bold">${tAName}</p>
+                                <p class="text-xl font-black">${tA.score ?? 0}/${tA.wickets ?? 0}</p>
+                            </div>
+                            <div class="text-gray-600 font-bold">VS</div>
+                            <div class="text-right">
+                                <p class="text-xs font-bold">${tBName}</p>
+                                <p class="text-xl font-black">${tB.score ?? 0}/${tB.wickets ?? 0}</p>
+                            </div>
+                        </div>
+                        <div class="text-center p-2 bg-black/20 rounded-lg text-xs font-bold text-gray-300 mb-4">
+                            ${m.result || 'Match Completed'}
+                        </div>
+                        <button onclick='viewMatchDetail(${idx})' class="w-full py-2 text-xs bg-white/5 rounded-lg hover:bg-white/10 transition">Deep Dive</button>
+                    </div>
+                `}).join('');
+            } else {
+                list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-500">No matches found in archives.</div>';
+            }
+        } else {
+            throw new Error(data.error || "Invalid data format");
+        }
+    } catch (e) {
+        console.error("Cricket Sync Error:", e);
+        list.innerHTML = `<div class="col-span-full text-center py-20 text-red-500">Failed to load history: ${e.message}</div>`;
+    }
+}
+
+function viewMatchDetail(idx) {
+    const m = cricketHistoryData[idx];
+    if (!m) return;
+    const tA = m.teamA || { name: 'Unknown', players: [] };
+    const tB = m.teamB || { name: 'Unknown', players: [] };
+
+    document.getElementById('detailMatchTitle').innerText = `${tA.name || 'Unknown'} vs ${tB.name || 'Unknown'}`;
+    const content = document.getElementById('matchDetailContent');
+    
+    const renderTeamScorecard = (team) => `
+        <div class="bg-white/5 p-4 rounded-xl border border-white/5">
+            <h4 class="font-bold text-cyan-400 border-b border-white/10 mb-3 pb-1">${team.name || 'Unknown'} Scorecard</h4>
+            <div class="space-y-2">
+                ${(team.players || []).length > 0 ? (team.players || []).filter(p => p.balls > 0 || !p.isOut).map(p => `
+                    <div class="flex justify-between text-xs">
+                        <span class="${p.isOut ? 'text-gray-500' : 'text-white'}">${p.name || 'Player'} ${p.isOut ? '(out)' : ''}</span>
+                        <span class="font-mono">${p.runs || 0}(${p.balls || 0}) SR: ${(((p.runs || 0)/((p.balls || 1) || 1))*100).toFixed(1)}</span>
+                    </div>
+                `).join('') : '<p class="text-[10px] text-gray-500 italic">No player data available</p>'}
+            </div>
+            <div class="mt-4 pt-3 border-t border-white/5">
+                <p class="text-[10px] text-gray-500 uppercase font-bold mb-2">Bowling Performance</p>
+                ${(team.players || []).length > 0 ? (team.players || []).filter(p => p.ballsBowled > 0).map(p => `
+                    <div class="flex justify-between text-xs text-gray-400">
+                        <span>${p.name || 'Player'}</span>
+                        <span class="font-mono">${p.wickets || 0}-${p.runsConceded || 0} (${Math.floor((p.ballsBowled || 0)/6)}.${(p.ballsBowled || 0)%6})</span>
+                    </div>
+                `).join('') : '<p class="text-[10px] text-gray-500 italic">No bowling data</p>'}
+            </div>
+        </div>
+    `;
+
+    content.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            ${renderTeamScorecard(tA)}
+            ${renderTeamScorecard(tB)}
+        </div>
+        <div class="bg-cyan-500/10 p-4 rounded-xl border border-cyan-500/20 text-center">
+            <p class="text-sm font-bold text-cyan-400">${m.result || 'No result data'}</p>
+        </div>
+    `;
+
+    const rematchBtn = document.getElementById('rematchBtn');
+    rematchBtn.onclick = () => {
+        closeMatchDetail();
+        document.getElementById('teamAName').value = tA.name;
+        document.getElementById('teamBName').value = tB.name;
+        document.getElementById('cricketOversSelect').value = m.maxOvers;
+        document.getElementById('teamAPlayers').value = m.setup?.pA || '';
+        document.getElementById('teamBPlayers').value = m.setup?.pB || '';
+        toggleCricketView('setup');
+        startMatch();
+    };
+
+    document.getElementById('matchDetailModal').classList.remove('hidden');
+}
+
+function closeMatchDetail() {
+    document.getElementById('matchDetailModal').classList.add('hidden');
 }
 
 function updateCricketUI() {
@@ -1328,12 +1576,17 @@ async function saveAdminConfig() {
     const keys = document.getElementById('apiKeys').value.split(',').map(k => k.trim());
     const models = JSON.parse(document.getElementById('modelList').value);
     const miniChatModel = document.getElementById('miniChatModelId').value.trim();
-    const res = await fetch('/api/main?route=admin_config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'ai_settings', keys, models, miniChatModel })
-    });
-    if(res.ok) { alert("Config Updated!"); loadConfig(); }
+    setLoading(true, "Applying Admin Settings");
+    try {
+        const res = await fetch('/api/main?route=admin_config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'ai_settings', keys, models, miniChatModel })
+        });
+        if(res.ok) { alert("Config Updated!"); loadConfig(); }
+    } finally {
+        setLoading(false);
+    }
 }
 
 // --- INIT ---
