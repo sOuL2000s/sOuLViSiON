@@ -99,7 +99,9 @@ export default async function handler(req, res) {
         if (query.route === 'admin_config') {
             const col = db.collection('config');
             if (method === 'GET') {
-                const config = await col.findOne({ type: 'ai_settings' });
+                const config = (await col.findOne({ type: 'ai_settings' })) || {};
+                // Expose Razorpay Public Key from environment
+                config.razorpayKey = process.env.RAZORPAY_KEY_ID;
                 return res.status(200).json(config);
             }
             if (method === 'POST') {

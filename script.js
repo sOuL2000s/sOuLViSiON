@@ -878,6 +878,7 @@ async function loadConfig() {
         aiConfig.keys = data.keys || [];
         aiConfig.models = data.models || [];
         aiConfig.miniChatModel = data.miniChatModel || "gemini-1.5-flash";
+        aiConfig.razorpayKey = data.razorpayKey;
         updateAIUI();
         document.getElementById('statKeys').innerText = aiConfig.keys.length;
         document.getElementById('statModels').innerText = aiConfig.models.length;
@@ -1735,23 +1736,53 @@ function updateCricketUI() {
 async function payNow() {
     const amount = document.getElementById('donAmount').value;
     const remark = document.getElementById('donRemark').value;
+    const key = aiConfig.razorpayKey || "rzp_live_RuDJUlLd5GCYqf";
+    
+    if (!amount || amount < 1) return alert("Please enter a valid amount.");
+
     const options = {
-        "key": "rzp_live_RuDJUlLd5GCYqf", 
+        "key": key, 
         "amount": amount * 100,
         "currency": "INR",
         "name": "sOuLViSiON Support",
-        "description": remark,
+        "description": remark || "Donation for sOuLViSiON",
+        "prefill": {
+            "name": currentUser?.name || "",
+            "email": currentUser?.email || ""
+        },
         "handler": async function (response){
-            alert("Payment Successful!");
-            await fetch('/api/main?route=feedback', {
-                method: 'POST',
-                body: JSON.stringify({ name: currentUser?.name || 'Anonymous', amount, remark })
-            });
-            loadFeedbacks();
+            setLoading(true, "Verifying Payment");
+            try {
+                await fetch('/api/main?route=feedback', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name: currentUser?.name || 'Anonymous', 
+                        amount, 
+                        remark,
+                        paymentId: response.razorpay_payment_id
+                    })
+                });
+                alert("Thank you for your support!");
+                loadFeedbacks();
+            } catch (e) {
+                alert("Payment recorded, but failed to update wall.");
+            } finally {
+                setLoading(false);
+            }
         },
         "theme": { "color": "#06b6d4" }
     };
-    new Razorpay(options).open();
+    
+    try {
+        const rzp = new Razorpay(options);
+        rzp.on('payment.failed', function (response){
+            alert("Payment Failed: " + response.error.description + ". Note: Ensure your domain is whitelisted in Razorpay Dashboard.");
+        });
+        rzp.open();
+    } catch (e) {
+        alert("Razorpay failed to initialize. Check your API key and domain whitelisting in Razorpay Settings.");
+    }
 }
 
 async function loadFeedbacks() {
