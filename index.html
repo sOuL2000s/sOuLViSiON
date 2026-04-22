@@ -10,10 +10,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" defer></script>
     <link rel="stylesheet" href="style.css">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -361,8 +361,8 @@
                         <button onclick="setPlayMode('offline')" id="modeOffline" class="px-6 py-2 rounded-full text-xs font-bold transition-all text-gray-400">Local Files</button>
                     </div>
                     <div id="ytSearchContainer" class="relative w-full md:w-80">
-                        <input id="ytSearchInput" type="text" placeholder="Search YouTube Music..." class="w-full bg-gray-900 border border-white/10 py-2.5 px-4 rounded-xl text-sm outline-none focus:border-cyan-500 transition">
-                        <button onclick="searchYT()" class="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400"><i class="fas fa-search"></i></button>
+                        <input id="ytSearchInput" type="text" placeholder="Search or paste URL..." class="w-full bg-gray-900 border border-white/10 py-2.5 px-4 rounded-xl text-sm outline-none focus:border-cyan-500 transition">
+                        <button onclick="handleSearchOrUrl()" class="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400"><i class="fas fa-paper-plane"></i></button>
                     </div>
                 </div>
 
@@ -443,23 +443,32 @@
                     </div>
 
                     <!-- Right: Search/Playlist -->
-                    <div class="lg:col-span-5 flex flex-col gap-6 max-h-[700px]">
+                    <div class="lg:col-span-5 flex flex-col gap-6 h-[700px]">
                         <!-- Search Results (Only shown in online mode) -->
-                        <div id="ytResultsContainer" class="glass p-6 flex flex-col overflow-hidden max-h-[300px]">
+                        <div id="ytResultsContainer" class="glass p-6 flex flex-col shrink-0 h-[300px] overflow-hidden">
                             <h4 class="text-xs font-bold uppercase tracking-widest text-cyan-400 mb-4 flex items-center gap-2">
                                 <i class="fab fa-youtube"></i> Search Results
                             </h4>
-                            <div id="ytResultsList" class="overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-2">
+                            <div id="ytResultsList" class="overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-2 h-full">
                                 <p class="text-xs text-gray-500 italic">Enter a keyword to find music...</p>
                             </div>
                         </div>
 
                         <!-- Local Playlist -->
-                        <div id="localPlaylistContainer" class="glass p-6 flex flex-col overflow-hidden flex-grow">
-                            <div class="flex justify-between items-center mb-4">
+                        <div id="localPlaylistContainer" class="glass p-6 flex flex-col overflow-hidden flex-grow min-h-0">
+                            <div class="flex justify-between items-center mb-2">
                                 <h4 class="text-xs font-bold uppercase tracking-widest text-cyan-400">Library</h4>
-                                <input type="file" id="musicUpload" class="hidden" multiple accept="audio/*" onchange="loadMusic(event)">
-                                <button id="addLocalBtn" onclick="document.getElementById('musicUpload').click()" class="text-[10px] bg-white/5 border border-white/10 px-4 py-1.5 rounded-full hover:bg-white/10 transition">Import Audio</button>
+                                <div class="flex gap-2">
+                                    <input type="file" id="musicUpload" class="hidden" multiple accept="audio/*" onchange="loadMusic(event)">
+                                    <button id="addLocalBtn" onclick="document.getElementById('musicUpload').click()" class="text-[10px] bg-white/5 border border-white/10 px-4 py-1.5 rounded-full hover:bg-white/10 transition">Import</button>
+                                </div>
+                            </div>
+                            <div id="musicBulkActions" class="hidden flex justify-between items-center bg-white/5 p-2 rounded-lg mb-2 border border-white/10">
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" id="selectAllMusic" onclick="selectAllTracks(this.checked)" class="accent-cyan-500">
+                                    <span class="text-[10px] text-gray-400" id="musicSelectionCount">0 selected</span>
+                                </div>
+                                <button onclick="deleteSelectedTracks()" class="text-[10px] text-red-400 font-bold hover:text-red-300"><i class="fas fa-trash-alt mr-1"></i> Delete Selected</button>
                             </div>
                             <div id="playlistContainer" class="overflow-y-auto custom-scrollbar flex flex-col gap-1 pr-2">
                                 <p class="text-xs text-gray-500 italic">Queue is empty.</p>
@@ -494,6 +503,13 @@
                     <button onclick="newConversation()" class="w-full bg-purple-600 py-3 rounded-xl mb-4 font-bold flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20">
                         <i class="fas fa-plus"></i> New Chat
                     </button>
+                    <div id="aiBulkActions" class="hidden flex justify-between items-center bg-white/5 p-2 rounded-lg mb-2 border border-white/10">
+                        <div class="flex items-center gap-2">
+                            <input type="checkbox" id="selectAllAI" onclick="selectAllConversations(this.checked)" class="accent-purple-500">
+                            <span class="text-[10px] text-gray-400" id="aiSelectionCount">0 selected</span>
+                        </div>
+                        <button onclick="deleteSelectedConversations()" class="text-[10px] text-red-400 font-bold hover:text-red-300">Delete</button>
+                    </div>
                     <div id="chatHistoryList" class="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar"></div>
                 </div>
                 <!-- Chat Window -->
@@ -509,6 +525,7 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-1 md:gap-2">
+                            <button onclick="exportChat()" class="p-1.5 text-[10px] md:text-xs text-gray-400 hover:text-cyan-400 transition" title="Export Markdown"><i class="fas fa-file-export"></i></button>
                             <select id="modelSelect" class="bg-gray-800/50 border border-white/10 p-1.5 rounded-lg text-[8px] md:text-[10px] font-bold text-gray-300 focus:ring-1 ring-purple-500 outline-none max-w-[80px] md:max-w-none"></select>
                             <button onclick="clearChat()" class="p-1.5 text-[10px] md:text-xs text-gray-500 hover:text-red-400 transition" title="Clear View"><i class="fas fa-eraser"></i></button>
                         </div>
@@ -522,9 +539,17 @@
                     <div id="aiAttachmentPreview" class="px-4 py-2 flex gap-2 flex-wrap empty:hidden"></div>
                     <div class="p-2 md:p-4 border-t border-white/10 bg-black/20 flex gap-2 md:gap-3 items-center">
                         <input type="file" id="aiFileInput" class="hidden" multiple onchange="handleAIFile(event)">
-                        <button onclick="document.getElementById('aiFileInput').click()" class="text-gray-400 hover:text-purple-400 p-2"><i class="fas fa-paperclip text-sm md:text-base"></i></button>
-                        <input id="chatInput" type="text" class="bg-gray-800 p-2 md:p-4 rounded-xl flex-grow border border-gray-700 focus:border-purple-500 text-xs md:text-sm" placeholder="Ask anything..." autocomplete="off">
-                        <button onclick="askAI()" class="bg-purple-600 px-4 md:px-8 py-2 md:py-4 rounded-xl font-bold hover:bg-purple-700 transition shadow-lg shadow-purple-600/20"><i class="fas fa-paper-plane text-xs md:text-base"></i></button>
+                        <div class="flex flex-col gap-1">
+                            <button onclick="document.getElementById('aiFileInput').click()" class="text-gray-400 hover:text-purple-400 p-2 transition-transform hover:scale-110" title="Attach Files"><i class="fas fa-paperclip text-sm md:text-base"></i></button>
+                            <button onclick="toggleLargeEditor()" class="text-gray-400 hover:text-cyan-400 p-2 transition-transform hover:scale-110" title="Expand Editor"><i class="fas fa-expand-alt text-sm md:text-base"></i></button>
+                        </div>
+                        <div class="relative flex-grow">
+                            <textarea id="chatInput" rows="1" class="w-full bg-gray-800 p-3 md:p-4 rounded-xl border border-gray-700 focus:border-purple-500 text-xs md:text-sm resize-none custom-scrollbar" placeholder="Ask anything... (Paste files or long text supported)" autocomplete="off" oninput="autoResize(this)"></textarea>
+                            <button id="sttBtn" onclick="toggleSTT()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-purple-400 transition-colors p-2">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                        </div>
+                        <button onclick="askAI()" class="bg-purple-600 px-4 md:px-8 py-3 md:py-4 rounded-xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-600/20 active:scale-95"><i class="fas fa-paper-plane text-xs md:text-base"></i></button>
                     </div>
                 </div>
             </div>
@@ -807,8 +832,26 @@
         <div class="flex gap-1 items-center">
             <input type="file" id="miniFileInput" class="hidden" multiple onchange="handleAIFile(event, true)">
             <button onclick="document.getElementById('miniFileInput').click()" class="text-gray-500 hover:text-purple-400 p-1"><i class="fas fa-paperclip text-xs"></i></button>
-            <input id="miniChatInput" type="text" class="bg-gray-900 text-sm p-2 rounded flex-grow" placeholder="Quick ask...">
+            <div class="relative flex-grow">
+                <input id="miniChatInput" type="text" class="w-full bg-gray-900 text-sm p-2 pr-8 rounded" placeholder="Quick ask...">
+                <button id="miniSttBtn" onclick="toggleSTT(true)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-purple-400 transition-colors">
+                    <i class="fas fa-microphone text-xs"></i>
+                </button>
+            </div>
             <button onclick="askMiniAI()" class="bg-purple-600 px-2 py-2 rounded"><i class="fas fa-paper-plane text-xs"></i></button>
+        </div>
+    </div>
+
+    <!-- Large Text Editor Modal -->
+    <div id="largeEditorModal" class="fixed inset-0 bg-black/90 z-[150] hidden flex flex-col p-4 md:p-10">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-cyan-400">sOuLAI Advanced Editor</h3>
+            <button onclick="toggleLargeEditor()" class="text-3xl text-white">&times;</button>
+        </div>
+        <textarea id="largeEditorText" class="flex-grow bg-white/5 border border-white/10 rounded-2xl p-6 text-lg outline-none focus:border-cyan-500 transition-all custom-scrollbar resize-none" placeholder="Write or paste large content here..."></textarea>
+        <div class="flex justify-end gap-4 mt-6">
+            <button onclick="toggleLargeEditor()" class="px-8 py-3 rounded-xl border border-white/10 font-bold hover:bg-white/5 transition">Cancel</button>
+            <button onclick="saveLargeEditor()" class="px-10 py-3 rounded-xl bg-cyan-600 font-bold shadow-lg shadow-cyan-600/20 hover:bg-cyan-500 transition">Apply to Chat</button>
         </div>
     </div>
 

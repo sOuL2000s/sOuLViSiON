@@ -19,8 +19,10 @@ let currentKeyIndex = 0;
 let pendingFiles = [];
 let notes = [];
 let aiConversations = [];
+let selectedConversations = new Set();
 let currentChatId = null;
 let musicList = [];
+let selectedTracks = new Set();
 let currentTrackIndex = 0;
 let audioPlayer = new Audio();
 let isMusicPlaying = false;
@@ -48,10 +50,17 @@ function renderMD(text) {
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         const active = document.activeElement;
-        if (active.tagName === 'TEXTAREA') return; // Don't submit on Enter in textareas
+        if (active.id === 'chatInput') {
+            e.preventDefault();
+            askAI();
+            return;
+        }
+        if (active.id === 'miniChatInput') {
+            e.preventDefault();
+            askMiniAI();
+            return;
+        }
         if (active.id === 'authPass' || active.id === 'authEmail') handleAuth();
-        if (active.id === 'chatInput') askAI();
-        if (active.id === 'miniChatInput') askMiniAI();
         if (active.id === 'donAmount' || active.id === 'donRemark') payNow();
     }
 });
@@ -536,6 +545,35 @@ function toggleVisualMode() {
     }
 }
 
+function handleSearchOrUrl() {
+    const input = document.getElementById('ytSearchInput').value.trim();
+    if (!input) return;
+
+    // Detect YouTube URL
+    const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+    const match = input.match(ytRegex);
+
+    if (match) {
+        const videoId = match[1];
+        const title = prompt("Enter track title:", "YouTube Video") || "YouTube Video";
+        addYTTrack(videoId, title, "URL Source");
+        document.getElementById('ytSearchInput').value = '';
+    } else if (input.startsWith('http') && (input.toLowerCase().includes('.mp3') || input.toLowerCase().includes('.wav') || input.toLowerCase().includes('.ogg') || input.toLowerCase().includes('.m4a'))) {
+        // Direct Audio URL
+        const defaultName = input.split('/').pop().split('?')[0] || "Audio Stream";
+        const name = prompt("Enter track title:", defaultName) || defaultName;
+        const track = { name, url: input, artist: "External URL" };
+        const newIdx = musicList.length;
+        musicList.push(track);
+        if (isShuffle) shuffledIndices.push(newIdx);
+        renderPlaylist();
+        if (musicList.length === 1) playTrack(0);
+        document.getElementById('ytSearchInput').value = '';
+    } else {
+        searchYT();
+    }
+}
+
 async function searchYT() {
     const query = document.getElementById('ytSearchInput').value;
     if (!query) return;
@@ -562,12 +600,15 @@ async function searchYT() {
 
 function addYTTrack(id, title, artist) {
     const track = { type: 'youtube', id, name: title, artist: artist };
+    const newIdx = musicList.length;
     musicList.push(track);
+    if (isShuffle) shuffledIndices.push(newIdx);
     renderPlaylist();
     if (musicList.length === 1) playTrack(0);
 }
 
 let isShuffle = false;
+let shuffledIndices = [];
 let isRepeat = false;
 let audioContext, analyser, dataArray, source;
 let eqBands = {};
@@ -602,6 +643,12 @@ function initAudioContext() {
 function drawVisualizer() {
     const canvas = document.getElementById('musicVisualizer');
     if (!canvas) return;
+    
+    // Set internal resolution to match display size
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
     const ctx = canvas.getContext('2d');
     const render = () => {
         requestAnimationFrame(render);
@@ -622,56 +669,145 @@ function drawVisualizer() {
 
 function loadMusic(e) {
     const files = Array.from(e.target.files);
+    const startIndex = musicList.length;
     const newTracks = files.map(f => ({ name: f.name.replace(/\.[^/.]+$/, ""), url: URL.createObjectURL(f) }));
     musicList = [...musicList, ...newTracks];
+    
+    if (isShuffle) {
+        const newIndices = newTracks.map((_, i) => startIndex + i);
+        shuffledIndices = [...shuffledIndices, ...newIndices];
+    }
+    
     renderPlaylist();
     if(musicList.length > 0 && !audioPlayer.src) playTrack(0);
 }
 
 function renderPlaylist() {
     const container = document.getElementById('playlistContainer');
+    const bulkBar = document.getElementById('musicBulkActions');
     const shuffleTag = isShuffle ? '<span class="text-[8px] bg-cyan-500/20 text-cyan-400 px-1.5 py-0.5 rounded ml-2 font-bold tracking-widest animate-pulse">SHUFFLE ON</span>' : '';
     const repeatTag = isRepeat ? '<span class="text-[8px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded ml-2 font-bold tracking-widest animate-pulse">REPEAT ON</span>' : '';
     
     if (musicList.length === 0) {
         container.innerHTML = `<p class="text-[10px] text-gray-500 italic">No tracks added yet.</p>`;
+        bulkBar.classList.add('hidden');
+        selectedTracks.clear();
         return;
     }
 
+    bulkBar.classList.remove('hidden');
+    document.getElementById('musicSelectionCount').innerText = `${selectedTracks.size} selected`;
+    document.getElementById('selectAllMusic').checked = (selectedTracks.size === musicList.length && musicList.length > 0);
+
+    const displayIndices = isShuffle ? shuffledIndices : musicList.map((_, i) => i);
+
     container.innerHTML = `
         <div class="flex gap-1 mb-3">${shuffleTag}${repeatTag}</div>
-        ${musicList.map((t, i) => `
-            <div class="flex items-center gap-3 p-2 rounded-lg group hover:bg-white/5 transition ${i === currentTrackIndex ? 'bg-cyan-500/10 border border-cyan-500/20' : ''}">
-                <div onclick="playTrack(${i})" class="w-6 h-6 flex items-center justify-center bg-black/20 rounded text-[10px] font-mono cursor-pointer">${i + 1}</div>
-                <div onclick="playTrack(${i})" class="flex flex-col flex-grow overflow-hidden cursor-pointer">
-                    <span class="text-xs truncate ${i === currentTrackIndex ? 'text-cyan-400 font-bold' : 'text-gray-300'}">${t.name}</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    ${i === currentTrackIndex && isMusicPlaying ? '<div class="playing-bars"><span></span><span></span><span></span></div>' : ''}
-                    <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                        <button onclick="renameTrack(${i})" class="text-[10px] text-gray-500 hover:text-cyan-400"><i class="fas fa-edit"></i></button>
-                        <button onclick="deleteTrack(${i})" class="text-[10px] text-gray-500 hover:text-red-400"><i class="fas fa-trash"></i></button>
+        ${displayIndices.map((originalIdx, displayIdx) => {
+            const t = musicList[originalIdx];
+            const isActive = originalIdx === currentTrackIndex;
+            const isSelected = selectedTracks.has(originalIdx);
+            return `
+                <div class="flex items-center gap-3 p-2 rounded-lg group hover:bg-white/5 transition ${isActive ? 'bg-cyan-500/10 border border-cyan-500/20' : ''}">
+                    <input type="checkbox" class="accent-cyan-500" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleTrackSelection(${originalIdx})">
+                    <div onclick="playTrack(${originalIdx})" class="w-6 h-6 flex items-center justify-center bg-black/20 rounded text-[10px] font-mono cursor-pointer">${displayIdx + 1}</div>
+                    <div onclick="playTrack(${originalIdx})" class="flex flex-col flex-grow overflow-hidden cursor-pointer">
+                        <span class="text-xs truncate ${isActive ? 'text-cyan-400 font-bold' : 'text-gray-300'}">${t.name}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        ${isActive && isMusicPlaying ? '<div class="playing-bars"><span></span><span></span><span></span></div>' : ''}
+                        <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                            ${!isShuffle ? `
+                                <button onclick="moveTrack(${originalIdx}, -1)" class="text-[10px] text-gray-500 hover:text-cyan-400" title="Move Up"><i class="fas fa-chevron-up"></i></button>
+                                <button onclick="moveTrack(${originalIdx}, 1)" class="text-[10px] text-gray-500 hover:text-cyan-400" title="Move Down"><i class="fas fa-chevron-down"></i></button>
+                            ` : ''}
+                            <button onclick="renameTrack(${originalIdx})" class="text-[10px] text-gray-500 hover:text-cyan-400" title="Rename"><i class="fas fa-edit"></i></button>
+                            <button onclick="deleteTrack(${originalIdx})" class="text-[10px] text-gray-500 hover:text-red-400" title="Delete"><i class="fas fa-trash"></i></button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `).join('')}
+            `;
+        }).join('')}
     `;
+}
+
+function toggleTrackSelection(idx) {
+    if (selectedTracks.has(idx)) selectedTracks.delete(idx);
+    else selectedTracks.add(idx);
+    renderPlaylist();
+}
+
+function selectAllTracks(checked) {
+    if (checked) {
+        musicList.forEach((_, i) => selectedTracks.add(i));
+    } else {
+        selectedTracks.clear();
+    }
+    renderPlaylist();
+}
+
+function deleteSelectedTracks() {
+    if (selectedTracks.size === 0) return;
+    if (!confirm(`Delete ${selectedTracks.size} tracks?`)) return;
+    
+    const sortedToKeep = musicList.filter((_, i) => !selectedTracks.has(i));
+    
+    // Revoke blobs for deleted tracks
+    musicList.forEach((t, i) => {
+        if (selectedTracks.has(i) && t.url && t.url.startsWith('blob:')) {
+            URL.revokeObjectURL(t.url);
+        }
+    });
+
+    const currentTrack = musicList[currentTrackIndex];
+    musicList = sortedToKeep;
+    selectedTracks.clear();
+    
+    // Re-index shuffle if active
+    if (isShuffle) {
+        shuffledIndices = musicList.map((_, i) => i);
+        // ... re-shuffle ... (simplified for now)
+    }
+
+    if (musicList.length === 0) {
+        audioPlayer.pause(); audioPlayer.src = ''; isMusicPlaying = false;
+        document.getElementById('trackName').innerText = "No Track Loaded";
+    } else {
+        const newIdx = musicList.indexOf(currentTrack);
+        currentTrackIndex = newIdx > -1 ? newIdx : 0;
+        if (newIdx === -1) playTrack(0);
+    }
+    
+    renderPlaylist();
+    updateMusicUI();
 }
 
 function deleteTrack(index) {
     const isCurrent = (index === currentTrackIndex);
-    URL.revokeObjectURL(musicList[index].url);
+    if (musicList[index].url && musicList[index].url.startsWith('blob:')) {
+        URL.revokeObjectURL(musicList[index].url);
+    }
+    
     musicList.splice(index, 1);
+    
+    if (isShuffle) {
+        shuffledIndices = shuffledIndices.filter(i => i !== index).map(i => i > index ? i - 1 : i);
+    }
     
     if (musicList.length === 0) {
         audioPlayer.pause();
         audioPlayer.src = '';
         isMusicPlaying = false;
+        shuffledIndices = [];
         document.getElementById('trackName').innerText = "No Track Loaded";
         document.getElementById('artistName').innerText = "Upload local tracks to begin";
         updateMusicUI();
     } else if (isCurrent) {
-        playTrack(currentTrackIndex % musicList.length);
+        let nextToPlay = index % musicList.length;
+        if (isShuffle && shuffledIndices.length > 0) {
+            nextToPlay = shuffledIndices[0];
+        }
+        playTrack(nextToPlay);
     } else if (index < currentTrackIndex) {
         currentTrackIndex--;
     }
@@ -746,8 +882,10 @@ function toggleMusic() {
 
 function musicNext() {
     if(musicList.length === 0) return;
-    if(isShuffle) {
-        playTrack(Math.floor(Math.random() * musicList.length));
+    if(isShuffle && shuffledIndices.length > 0) {
+        let currentDisplayIdx = shuffledIndices.indexOf(currentTrackIndex);
+        let nextDisplayIdx = (currentDisplayIdx + 1) % shuffledIndices.length;
+        playTrack(shuffledIndices[nextDisplayIdx]);
     } else {
         playTrack((currentTrackIndex + 1) % musicList.length);
     }
@@ -755,7 +893,13 @@ function musicNext() {
 
 function musicPrev() {
     if(musicList.length === 0) return;
-    playTrack((currentTrackIndex - 1 + musicList.length) % musicList.length);
+    if(isShuffle && shuffledIndices.length > 0) {
+        let currentDisplayIdx = shuffledIndices.indexOf(currentTrackIndex);
+        let prevDisplayIdx = (currentDisplayIdx - 1 + shuffledIndices.length) % shuffledIndices.length;
+        playTrack(shuffledIndices[prevDisplayIdx]);
+    } else {
+        playTrack((currentTrackIndex - 1 + musicList.length) % musicList.length);
+    }
 }
 
 function musicSkip(seconds) {
@@ -793,6 +937,13 @@ function toggleFullScreen(id) {
 
 function toggleShuffle() {
     isShuffle = !isShuffle;
+    if (isShuffle && musicList.length > 0) {
+        shuffledIndices = musicList.map((_, i) => i);
+        for (let i = shuffledIndices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffledIndices[i], shuffledIndices[j]] = [shuffledIndices[j], shuffledIndices[i]];
+        }
+    }
     document.getElementById('shuffleBtn').classList.toggle('control-active', isShuffle);
     renderPlaylist();
 }
@@ -859,15 +1010,41 @@ document.getElementById('volumeControl').addEventListener('input', (e) => {
     if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(vol * 100);
 });
 
+function moveTrack(index, direction) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= musicList.length) return;
+    
+    const temp = musicList[index];
+    musicList[index] = musicList[newIndex];
+    musicList[newIndex] = temp;
+    
+    if (currentTrackIndex === index) {
+        currentTrackIndex = newIndex;
+    } else if (currentTrackIndex === newIndex) {
+        currentTrackIndex = index;
+    }
+    
+    renderPlaylist();
+}
+
 document.getElementById('ytSearchInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') searchYT();
+    if (e.key === 'Enter') handleSearchOrUrl();
 });
 
 function updateMusicUI() {
     const btn = document.getElementById('playPauseBtn');
     const disk = document.getElementById('vinylDisk');
+    const card = document.querySelector('.music-card');
+    
     btn.innerHTML = isMusicPlaying ? '<i class="fas fa-pause-circle"></i>' : '<i class="fas fa-play-circle"></i>';
-    isMusicPlaying ? disk.classList.add('rotating') : disk.classList.remove('rotating');
+    
+    if (isMusicPlaying) {
+        disk.classList.add('rotating');
+        card.classList.add('playing');
+    } else {
+        disk.classList.remove('rotating');
+        card.classList.remove('playing');
+    }
 }
 
 // --- AI LOGIC (Key Rotation) ---
@@ -956,17 +1133,81 @@ function loadConversation(id) {
 
 function renderAIHistory() {
     const list = document.getElementById('chatHistoryList');
-    list.innerHTML = aiConversations.map(c => `
-        <div class="flex items-center gap-1 group">
-            <div onclick="loadConversation('${c.id}')" class="flex-grow p-3 rounded-xl cursor-pointer transition text-xs truncate ${c.id === currentChatId ? 'bg-purple-600/30 border border-purple-500' : 'hover:bg-white/5'}">
-                <i class="fas fa-comment-alt mr-2 opacity-50"></i> ${c.name}
+    const bulkBar = document.getElementById('aiBulkActions');
+    
+    if (aiConversations.length === 0) {
+        list.innerHTML = '<p class="text-[10px] text-gray-500 text-center py-4">No chat history.</p>';
+        bulkBar?.classList.add('hidden');
+        selectedConversations.clear();
+        return;
+    }
+
+    bulkBar?.classList.remove('hidden');
+    const countEl = document.getElementById('aiSelectionCount');
+    if (countEl) countEl.innerText = `${selectedConversations.size} selected`;
+    
+    const selectAllEl = document.getElementById('selectAllAI');
+    if (selectAllEl) selectAllEl.checked = (selectedConversations.size === aiConversations.length && aiConversations.length > 0);
+
+    list.innerHTML = aiConversations.map(c => {
+        const isSelected = selectedConversations.has(Number(c.id));
+        return `
+            <div class="relative group flex items-center gap-2">
+                <input type="checkbox" class="accent-purple-500 shrink-0" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleConvSelection(${c.id})">
+                <div onclick="loadConversation('${c.id}')" class="flex-grow p-3 pr-10 rounded-xl cursor-pointer transition text-[11px] truncate ${c.id === currentChatId ? 'bg-purple-600/30 border border-purple-500' : 'hover:bg-white/5'}">
+                    <i class="fas fa-comment-alt mr-2 opacity-50"></i> ${c.name}
+                </div>
+                <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <button onclick="event.stopPropagation(); renameConversation('${c.id}')" class="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/10 text-gray-400 hover:text-cyan-400 transition-colors" title="Rename"><i class="fas fa-pen text-[9px]"></i></button>
+                    <button onclick="event.stopPropagation(); deleteConversation('${c.id}')" class="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/10 text-gray-400 hover:text-red-400 transition-colors" title="Delete"><i class="fas fa-trash-alt text-[9px]"></i></button>
+                </div>
             </div>
-            <div class="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition pr-1">
-                <button onclick="renameConversation('${c.id}')" class="text-[10px] text-gray-400 hover:text-cyan-400"><i class="fas fa-pen"></i></button>
-                <button onclick="deleteConversation('${c.id}')" class="text-[10px] text-gray-400 hover:text-red-400"><i class="fas fa-trash-alt"></i></button>
-            </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+}
+
+function toggleConvSelection(id) {
+    id = Number(id);
+    if (selectedConversations.has(id)) selectedConversations.delete(id);
+    else selectedConversations.add(id);
+    renderAIHistory();
+}
+
+function selectAllConversations(checked) {
+    if (checked) {
+        aiConversations.forEach(c => selectedConversations.add(Number(c.id)));
+    } else {
+        selectedConversations.clear();
+    }
+    renderAIHistory();
+}
+
+async function deleteSelectedConversations() {
+    if (selectedConversations.size === 0) return;
+    if (!confirm(`Delete ${selectedConversations.size} conversations?`)) return;
+
+    setLoading(true, "Deleting Chats");
+    try {
+        const idsToDelete = Array.from(selectedConversations);
+        if (currentUser) {
+            // Bulk delete via multiple API calls or a batch endpoint if it existed
+            // For now, we iterate for simplicity with the existing route
+            await Promise.all(idsToDelete.map(id => 
+                fetch(`/api/main?route=ai_conversations&userId=${encodeURIComponent(currentUser.email)}&id=${id}`, { method: 'DELETE' })
+            ));
+        }
+        
+        aiConversations = aiConversations.filter(c => !selectedConversations.has(Number(c.id)));
+        if (selectedConversations.has(Number(currentChatId))) {
+            currentChatId = null;
+            document.getElementById('chatBox').innerHTML = '';
+            document.getElementById('currentConvName').innerText = 'Untitled Chat';
+        }
+        selectedConversations.clear();
+        renderAIHistory();
+    } finally {
+        setLoading(false);
+    }
 }
 
 async function renameConversation(id) {
@@ -1004,8 +1245,12 @@ async function deleteConversation(id) {
 
 function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = false) {
     const box = document.getElementById(targetBoxId);
-    let msgDiv = isStreaming ? box.querySelector('.streaming-msg') : null;
-    
+    let msgDiv = null;
+
+    if (isStreaming || role === 'ai') {
+        msgDiv = box.querySelector('.streaming-msg');
+    }
+
     if (!msgDiv) {
         msgDiv = document.createElement('div');
         msgDiv.className = `message ${role === 'user' ? 'user-msg' : 'ai-msg'} relative group ${isStreaming ? 'streaming-msg' : ''}`;
@@ -1013,25 +1258,16 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
         const contentDiv = document.createElement('div');
         contentDiv.className = "markdown-body";
         msgDiv.appendChild(contentDiv);
-        
-        if (role === 'ai' && !isStreaming) {
-            const copyBtn = document.createElement('button');
-            copyBtn.className = "absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-xs bg-white/10 p-1 rounded hover:bg-white/20";
-            copyBtn.innerHTML = '<i class="far fa-copy"></i>';
-            copyBtn.onclick = () => {
-                navigator.clipboard.writeText(content);
-                copyBtn.innerHTML = '<i class="fas fa-check"></i>';
-                setTimeout(() => copyBtn.innerHTML = '<i class="far fa-copy"></i>', 2000);
-            };
-            msgDiv.appendChild(copyBtn);
-        }
-        
         box.appendChild(msgDiv);
+    }
+
+    if (!isStreaming && role === 'ai') {
+        msgDiv.classList.remove('streaming-msg');
     }
 
     const contentDiv = msgDiv.querySelector('.markdown-body');
     contentDiv.innerHTML = renderMD(content);
-    
+
     // Add Copy Buttons to Code Blocks
     contentDiv.querySelectorAll('pre').forEach(pre => {
         if (pre.querySelector('.code-copy-btn')) return;
@@ -1047,33 +1283,238 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
         pre.appendChild(btn);
     });
 
+    // If finished, add copy button and handle math rendering
+    if (role === 'ai' && !isStreaming) {
+        if (!msgDiv.querySelector('.msg-copy-btn')) {
+            const copyBtn = document.createElement('button');
+            copyBtn.className = "msg-copy-btn absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition text-xs bg-white/10 p-1.5 rounded hover:bg-white/20";
+            copyBtn.innerHTML = '<i class="far fa-copy"></i>';
+            copyBtn.onclick = () => {
+                const textToCopy = contentDiv.innerText;
+                navigator.clipboard.writeText(textToCopy);
+                copyBtn.innerHTML = '<i class="fas fa-check text-green-400"></i>';
+                setTimeout(() => copyBtn.innerHTML = '<i class="far fa-copy"></i>', 2000);
+            };
+            msgDiv.appendChild(copyBtn);
+        }
+        
+        // Final math render pass
+        if (typeof renderMathInElement === 'function') {
+            renderMathInElement(contentDiv, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError : false
+            });
+        }
+    }
+
     box.scrollTop = box.scrollHeight;
     return msgDiv;
 }
 
 async function handleAIFile(e, isMini = false) {
-    const files = Array.from(e.target.files);
-    const previewId = isMini ? 'miniAttachmentPreview' : 'aiAttachmentPreview';
-    const preview = document.getElementById(previewId);
+    const files = e.target ? Array.from(e.target.files) : Array.from(e);
     
     for (const file of files) {
         const reader = new FileReader();
         reader.onload = (event) => {
             const base64 = event.target.result.split(',')[1];
-            pendingFiles.push({ mime_type: file.type, data: base64, name: file.name });
+            const fileObj = { mime_type: file.type, data: base64, name: file.name };
             
-            const chip = document.createElement('div');
-            chip.className = "bg-purple-600/20 text-purple-400 text-[10px] px-2 py-1 rounded flex items-center gap-2 border border-purple-500/30";
-            chip.innerHTML = `<span>${file.name}</span><button class="hover:text-red-400">&times;</button>`;
-            chip.querySelector('button').onclick = () => {
-                pendingFiles = pendingFiles.filter(p => p.data !== base64);
-                chip.remove();
-            };
-            preview.appendChild(chip);
+            if (file.type.startsWith('text/')) {
+                // For text files, we keep a raw copy for editing
+                const raw = atob(base64);
+                fileObj.raw = raw;
+            }
+            
+            pendingFiles.push(fileObj);
+            renderAttachmentChips();
         };
         reader.readAsDataURL(file);
     }
 }
+
+// STT Toggle
+let recognition;
+function toggleSTT(isMini = false) {
+    const btnId = isMini ? 'miniSttBtn' : 'sttBtn';
+    const inputId = isMini ? 'miniChatInput' : 'chatInput';
+    const btn = document.getElementById(btnId);
+    const input = document.getElementById(inputId);
+
+    if (!('webkitSpeechRecognition' in window)) {
+        return alert("Speech recognition not supported in this browser.");
+    }
+
+    if (recognition && recognition.active) {
+        recognition.stop();
+        return;
+    }
+
+    recognition = new webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+        btn.innerHTML = `<i class="fas fa-stop-circle text-red-500 animate-pulse ${isMini ? 'text-[10px]' : ''}"></i>`;
+        recognition.active = true;
+    };
+
+    recognition.onresult = (event) => {
+        if (event.results[0].isFinal) {
+            const result = event.results[0][0].transcript;
+            const start = input.selectionStart || 0;
+            const end = input.selectionEnd || 0;
+            const text = input.value;
+            input.value = text.substring(0, start) + result + " " + text.substring(end);
+            const newPos = start + result.length + 1;
+            input.focus();
+            input.setSelectionRange(newPos, newPos);
+            if (!isMini) autoResize(input);
+        }
+    };
+
+    recognition.onerror = () => {
+        btn.innerHTML = `<i class="fas fa-microphone ${isMini ? 'text-xs' : ''}"></i>`;
+        recognition.active = false;
+    };
+
+    recognition.onend = () => {
+        btn.innerHTML = `<i class="fas fa-microphone ${isMini ? 'text-xs' : ''}"></i>`;
+        recognition.active = false;
+    };
+
+    recognition.start();
+}
+
+let editingAttachmentIdx = -1;
+
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    
+    if (textarea.value.length > 3000 && textarea.id === 'chatInput') {
+        const content = textarea.value;
+        textarea.value = '';
+        textarea.style.height = 'auto';
+        addTextAsAttachment(content);
+    }
+}
+
+function addTextAsAttachment(content, name = null) {
+    const fileName = name || `Large Text ${pendingFiles.length + 1}.txt`;
+    const base64 = btoa(unescape(encodeURIComponent(content)));
+    const fileObj = { mime_type: 'text/plain', data: base64, name: fileName, raw: content };
+    pendingFiles.push(fileObj);
+    renderAttachmentChips();
+}
+
+function renderAttachmentChips() {
+    const preview = document.getElementById('aiAttachmentPreview');
+    const miniPreview = document.getElementById('miniAttachmentPreview');
+    [preview, miniPreview].forEach(p => { if(p) p.innerHTML = ''; });
+
+    pendingFiles.forEach((file, idx) => {
+        const chip = document.createElement('div');
+        chip.className = "bg-purple-600/20 text-purple-400 text-[10px] px-2 py-1 rounded flex items-center gap-2 border border-purple-500/30 group animate-fadeIn";
+        
+        let icon = '<i class="fas fa-file-alt"></i>';
+        let editBtn = '';
+        
+        if (file.mime_type.startsWith('image/')) {
+            icon = `<img src="data:${file.mime_type};base64,${file.data}" class="w-4 h-4 rounded object-cover">`;
+        } else if (file.mime_type === 'text/plain' || file.raw) {
+            editBtn = `<button onclick="toggleLargeEditor(null, ${idx})" class="hover:text-cyan-400 transition" title="Edit text"><i class="fas fa-edit"></i></button>`;
+        }
+
+        chip.innerHTML = `
+            ${icon}
+            <span class="max-w-[100px] truncate">${file.name}</span>
+            <div class="flex items-center gap-1.5 ml-1">
+                ${editBtn}
+                <button onclick="removeAttachment(${idx})" class="hover:text-red-400 transition"><i class="fas fa-times"></i></button>
+            </div>
+        `;
+        
+        const target = (document.getElementById('ai').classList.contains('active')) ? preview : miniPreview;
+        if(target) target.appendChild(chip);
+    });
+}
+
+function removeAttachment(idx) {
+    pendingFiles.splice(idx, 1);
+    renderAttachmentChips();
+}
+
+function toggleLargeEditor(content = null, attachmentIdx = -1) {
+    const modal = document.getElementById('largeEditorModal');
+    const editor = document.getElementById('largeEditorText');
+    const isOpening = modal.classList.contains('hidden');
+    
+    if (isOpening) {
+        editingAttachmentIdx = attachmentIdx;
+        if (attachmentIdx !== -1) {
+            editor.value = pendingFiles[attachmentIdx].raw || atob(pendingFiles[attachmentIdx].data);
+        } else {
+            editor.value = content || document.getElementById('chatInput').value;
+        }
+        modal.classList.remove('hidden');
+        editor.focus();
+    } else {
+        modal.classList.add('hidden');
+        editingAttachmentIdx = -1;
+    }
+}
+
+function saveLargeEditor() {
+    const content = document.getElementById('largeEditorText').value;
+    if (editingAttachmentIdx !== -1) {
+        pendingFiles[editingAttachmentIdx].raw = content;
+        pendingFiles[editingAttachmentIdx].data = btoa(unescape(encodeURIComponent(content)));
+        renderAttachmentChips();
+    } else {
+        const input = document.getElementById('chatInput');
+        input.value = content;
+        autoResize(input);
+    }
+    toggleLargeEditor();
+}
+
+function exportChat() {
+    if (!currentChatId) return;
+    const conv = aiConversations.find(c => c.id === currentChatId);
+    if (!conv) return;
+    
+    let md = `# Chat: ${conv.name}\n\n`;
+    conv.messages.forEach(m => {
+        md += `### ${m.role.toUpperCase()}\n${m.content}\n\n---\n\n`;
+    });
+    
+    const blob = new Blob([md], {type: 'text/markdown'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${conv.name.replace(/\s+/g, '_')}.md`;
+    a.click();
+}
+
+// Paste handling
+document.getElementById('chatInput').addEventListener('paste', (e) => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    const files = [];
+    for (let item of items) {
+        if (item.kind === 'file') {
+            files.push(item.getAsFile());
+        }
+    }
+    if (files.length > 0) {
+        e.preventDefault();
+        handleAIFile(files);
+    }
+});
 
 async function askAI() {
     const inputEl = document.getElementById('chatInput');
@@ -1086,13 +1527,13 @@ async function askAI() {
     const userMsg = input + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
     appendAIMessage('user', userMsg, 'chatBox');
     inputEl.value = '';
-    document.getElementById('aiAttachmentPreview').innerHTML = '';
+    [document.getElementById('aiAttachmentPreview'), document.getElementById('miniAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
 
     if(conv && conv.messages.length === 0) {
         conv.name = input.substring(0, 25) || "New Conversation";
     }
     
-    const parts = [{ text: input }];
+    const parts = [{ text: input || " " }];
     pendingFiles.forEach(f => parts.push({ inline_data: { mime_type: f.mime_type, data: f.data } }));
     
     const messageObj = { role: 'user', content: userMsg, parts };
@@ -1112,7 +1553,7 @@ async function askMiniAI() {
     const txt = inputEl.value;
     appendAIMessage('user', txt + (pendingFiles.length ? " [Files attached]" : ""), 'miniChatBox');
     inputEl.value = '';
-    document.getElementById('miniAttachmentPreview').innerHTML = '';
+    [document.getElementById('aiAttachmentPreview'), document.getElementById('miniAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
     
     const attachmentsForApi = [...pendingFiles];
     pendingFiles = [];
@@ -1132,7 +1573,10 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
     if(!aiConfig.keys.length) return alert("Please configure API Keys in Admin panel.");
 
     const statusEl = document.getElementById(targetBoxId === 'chatBox' ? 'aiStatus' : null);
-    if(statusEl) { statusEl.innerText = "Connecting to Neural Link..."; statusEl.classList.remove('hidden'); }
+    if(statusEl) { 
+        statusEl.innerHTML = `<div class="flex items-center gap-2"><div class="typing-indicator"><span></span><span></span><span></span></div> Connecting to Neural Link...</div>`; 
+        statusEl.classList.remove('hidden'); 
+    }
 
     // Map history to Gemini format
     const contents = history.map(m => ({
@@ -1159,67 +1603,68 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
             throw new Error(errData.error?.message || "API Error");
         }
 
-        if(statusEl) statusEl.innerText = "Streaming Response...";
+        if(statusEl) statusEl.innerHTML = `<div class="flex items-center gap-2"><div class="typing-indicator"><span></span><span></span><span></span></div> Receiving Intelligence...</div>`;
         
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
         let fullContent = "";
-        let streamingDiv = appendAIMessage('ai', '...', targetBoxId, true);
+        appendAIMessage('ai', '<div class="typing-dots"><span></span><span></span><span></span></div>', targetBoxId, true);
         
         let buffer = "";
         while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
+            if (done) {
+                // Process any remaining buffer
+                if (buffer.trim()) processBuffer(buffer.trim());
+                break;
+            }
             
             buffer += decoder.decode(value, { stream: true });
-            
-            let braceCount = 0;
-            let inString = false;
-            let startIdx = -1;
-
-            for (let i = 0; i < buffer.length; i++) {
-                const char = buffer[i];
-                
-                // Handle strings to ignore braces inside them
-                if (char === '"' && (i === 0 || buffer[i - 1] !== '\\')) {
-                    inString = !inString;
-                }
-
-                if (!inString) {
-                    if (char === '{') {
-                        if (braceCount === 0) startIdx = i;
-                        braceCount++;
-                    } else if (char === '}') {
-                        braceCount--;
-                        
-                        if (braceCount === 0 && startIdx !== -1) {
-                            const chunkStr = buffer.substring(startIdx, i + 1);
-                            try {
-                                const chunk = JSON.parse(chunkStr);
-                                const textPart = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                                if (textPart) {
-                                    fullContent += textPart;
-                                    appendAIMessage('ai', fullContent, targetBoxId, true);
-                                }
-                            } catch (e) {
-                                console.error("Stream parse error", e);
-                            }
-                            
-                            // Remove processed object and any trailing comma/whitespace
-                            buffer = buffer.substring(i + 1).replace(/^[\s,]+/, '');
-                            // Reset search indices for the new buffer
-                            i = -1; 
-                            startIdx = -1;
-                            braceCount = 0;
-                            inString = false;
-                        }
-                    }
-                }
-            }
+            buffer = processBuffer(buffer);
         }
 
-        streamingDiv.classList.remove('streaming-msg');
-        if(statusEl) statusEl.classList.add('hidden');
+        function processBuffer(data) {
+            let tempBuffer = data;
+            while (true) {
+                let startIdx = tempBuffer.indexOf('{');
+                if (startIdx === -1) break;
+                
+                let braceCount = 0;
+                let endIdx = -1;
+                for (let i = startIdx; i < tempBuffer.length; i++) {
+                    if (tempBuffer[i] === '{') braceCount++;
+                    else if (tempBuffer[i] === '}') braceCount--;
+                    
+                    if (braceCount === 0) {
+                        endIdx = i;
+                        break;
+                    }
+                }
+                
+                if (endIdx === -1) break; // Incomplete JSON object
+                
+                const chunkStr = tempBuffer.substring(startIdx, endIdx + 1);
+                try {
+                    const chunk = JSON.parse(chunkStr);
+                    const textPart = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                    if (textPart) {
+                        fullContent += textPart;
+                        appendAIMessage('ai', fullContent, targetBoxId, true);
+                    }
+                } catch (e) {
+                    // Log but continue
+                }
+                tempBuffer = tempBuffer.substring(endIdx + 1).trim();
+                if (tempBuffer.startsWith(',')) tempBuffer = tempBuffer.substring(1).trim();
+            }
+            return tempBuffer;
+        }
+
+        appendAIMessage('ai', fullContent, targetBoxId, false); // Final transition
+        if(statusEl) {
+            statusEl.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i> Sequence Complete`;
+            setTimeout(() => statusEl.classList.add('hidden'), 2000);
+        }
 
         if (targetBoxId === 'chatBox' && currentChatId) {
             const conv = aiConversations.find(c => c.id === currentChatId);
