@@ -5,7 +5,7 @@
   "main": "api/main.js",
   "dependencies": {
     "google-auth-library": "^10.6.2",
-    "https-proxy-agent": "^9.0.0",
+    "https-proxy-agent": "5.0.1",
     "mongodb": "^7.1.1",
     "nodemailer": "^8.0.5",
     "proxifly": "^3.0.1",

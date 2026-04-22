@@ -202,11 +202,11 @@ export default async function handler(req, res) {
 
             let proxyUrl = null;
 
-            // Rotate proxy via Proxifly
             if (process.env.PROXIFLY_API_KEY) {
                 try {
-                    const proxifly = new Proxifly({ apiKey: process.env.PROXIFLY_API_KEY });
-                    // Use catch to prevent Proxifly internal fetch errors from stopping execution
+                    // Proxifly handling might need different import styles depending on version
+                    // but we try the standard constructor provided in main.js
+                    const proxifly = new (Proxifly.default || Proxifly)({ apiKey: process.env.PROXIFLY_API_KEY });
                     const proxies = await proxifly.getProxy({
                         quantity: 1,
                         https: true,
@@ -220,24 +220,18 @@ export default async function handler(req, res) {
                         }
                     }
                 } catch (err) {
-                    if (process.env.NODE_ENV === 'development') {
-                        console.warn("Proxifly optional proxy skipped:", err.message);
-                    }
+                    console.warn("Proxy rotation skip:", err.message);
                 }
             }
 
             let r;
             if (proxyUrl) {
                 try {
+                    // Using version 5.0.1 of https-proxy-agent for CommonJS compatibility
                     const agent = new HttpsProxyAgent(proxyUrl);
                     searchOptions.agent = agent;
-                    // Attempt search with proxy
                     r = await ytSearch(searchOptions);
                 } catch (proxyError) {
-                    // If proxy fails (dead proxy or config error), fallback to direct search
-                    if (process.env.NODE_ENV === 'development') {
-                        console.warn("Proxy search failed, falling back to direct:", proxyError.message);
-                    }
                     delete searchOptions.agent;
                     r = await ytSearch(searchOptions);
                 }
@@ -245,7 +239,7 @@ export default async function handler(req, res) {
                 r = await ytSearch(searchOptions);
             }
             
-            return res.status(200).json(r.videos.slice(0, 15));
+            return res.status(200).json(r.videos ? r.videos.slice(0, 15) : []);
         }
 
         res.status(404).json({ error: "Route not found" });
