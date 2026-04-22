@@ -1,6 +1,9 @@
 const { MongoClient } = require('mongodb');
 const { OAuth2Client } = require('google-auth-library');
 const nodemailer = require('nodemailer');
+const ytSearch = require('yt-search');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const Proxifly = require('proxifly');
 
 const uri = process.env.MONGODB_URI;
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -185,6 +188,50 @@ export default async function handler(req, res) {
                 }
                 return res.status(200).json({ success: true });
             }
+        }
+
+        if (query.route === 'yt_search') {
+            const q = query.q;
+            if (!q) return res.status(400).json({ error: "Query required" });
+            
+            let searchOptions = {
+                query: q,
+                hl: 'en',
+                gl: 'US'
+            };
+
+            let proxyUrl = null;
+
+            // Rotate proxy via Proxifly
+            if (process.env.PROXIFLY_API_KEY) {
+                try {
+                    const proxifly = new Proxifly({ apiKey: process.env.PROXIFLY_API_KEY });
+                    const proxies = await proxifly.getProxy({
+                        quantity: 1,
+                        https: true,
+                        protocol: ['http', 'https']
+                    });
+                    if (proxies && proxies.length > 0) {
+                        const p = proxies[0];
+                        proxyUrl = `${p.protocol}://${p.ip}:${p.port}`;
+                    }
+                } catch (err) {
+                    console.error("Proxifly Rotation Error:", err.message);
+                }
+            }
+
+            if (proxyUrl) {
+                try {
+                    // HttpsProxyAgent is REQUIRED to convert the proxy URL into a usable agent for yt-search
+                    const agent = new HttpsProxyAgent(proxyUrl);
+                    searchOptions.agent = agent;
+                } catch (proxyError) {
+                    console.error("Proxy Configuration Error:", proxyError.message);
+                }
+            }
+            
+            const r = await ytSearch(searchOptions);
+            return res.status(200).json(r.videos.slice(0, 15));
         }
 
         res.status(404).json({ error: "Route not found" });

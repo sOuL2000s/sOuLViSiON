@@ -5,8 +5,11 @@
   "main": "api/main.js",
   "dependencies": {
     "google-auth-library": "^10.6.2",
+    "https-proxy-agent": "^9.0.0",
     "mongodb": "^7.1.1",
-    "nodemailer": "^8.0.5"
+    "nodemailer": "^8.0.5",
+    "proxifly": "^3.0.1",
+    "yt-search": "^2.13.1"
   },
   "scripts": {
     "start": "echo 'Open index.html in your browser'"

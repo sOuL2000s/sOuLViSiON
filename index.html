@@ -352,67 +352,109 @@
         </section>
 
         <!-- Music Page -->
-        <section id="play" class="page text-center">
-            <h2 class="text-3xl font-bold mb-6">sOuLPLAY</h2>
-            <div class="max-w-2xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- Main Player -->
-                <div class="glass p-8 music-card relative overflow-hidden">
-                    <canvas id="musicVisualizer" class="absolute inset-0 w-full h-full opacity-20 pointer-events-none"></canvas>
-                    <div id="vinylDisk" class="vinyl-disk mb-4"></div>
-                    <h3 id="trackName" class="text-xl font-bold truncate">No Track Loaded</h3>
-                    <p id="artistName" class="text-xs text-gray-400 mb-6">Upload local tracks to begin</p>
-                    
-                    <!-- Progress Bar -->
-                    <div class="mb-6">
-                        <input type="range" id="musicProgress" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400" value="0" step="0.1">
-                        <div class="flex justify-between text-[10px] text-gray-500 mt-1">
-                            <span id="currentTime">0:00</span>
-                            <span id="durationTime">0:00</span>
-                        </div>
+        <section id="play" class="page">
+            <div class="max-w-6xl mx-auto">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                    <h2 class="text-3xl font-black italic tracking-tighter">sOuLPLAY</h2>
+                    <div class="flex bg-white/5 p-1 rounded-full border border-white/10">
+                        <button onclick="setPlayMode('online')" id="modeOnline" class="px-6 py-2 rounded-full text-xs font-bold transition-all bg-cyan-600 text-white">Cloud Search</button>
+                        <button onclick="setPlayMode('offline')" id="modeOffline" class="px-6 py-2 rounded-full text-xs font-bold transition-all text-gray-400">Local Files</button>
                     </div>
-
-                    <!-- Main Controls -->
-                    <div class="flex items-center justify-between mb-8">
-                        <button onclick="toggleShuffle()" id="shuffleBtn" class="text-gray-500 hover:text-cyan-400 transition"><i class="fas fa-random"></i></button>
-                        <div class="flex items-center gap-4">
-                            <button onclick="musicSkip(-10)" class="text-xl hover:text-cyan-400"><i class="fas fa-undo"></i></button>
-                            <button onclick="musicPrev()" class="text-2xl hover:text-cyan-400"><i class="fas fa-step-backward"></i></button>
-                            <button onclick="toggleMusic()" id="playPauseBtn" class="text-5xl text-white hover:scale-105 transition"><i class="fas fa-play-circle"></i></button>
-                            <button onclick="musicNext()" class="text-2xl hover:text-cyan-400"><i class="fas fa-step-forward"></i></button>
-                            <button onclick="musicSkip(10)" class="text-xl hover:text-cyan-400"><i class="fas fa-redo"></i></button>
-                        </div>
-                        <button onclick="toggleRepeat()" id="repeatBtn" class="text-gray-500 hover:text-cyan-400 transition"><i class="fas fa-redo-alt"></i></button>
-                    </div>
-
-                    <!-- Volume Control -->
-                    <div class="flex items-center gap-3 bg-black/20 p-3 rounded-xl">
-                        <i class="fas fa-volume-down text-xs text-gray-500"></i>
-                        <input type="range" id="volumeControl" class="flex-grow h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-400" min="0" max="1" step="0.01" value="1">
-                        <i class="fas fa-volume-up text-xs text-gray-500"></i>
+                    <div id="ytSearchContainer" class="relative w-full md:w-80">
+                        <input id="ytSearchInput" type="text" placeholder="Search YouTube Music..." class="w-full bg-gray-900 border border-white/10 py-2.5 px-4 rounded-xl text-sm outline-none focus:border-cyan-500 transition">
+                        <button onclick="searchYT()" class="absolute right-3 top-1/2 -translate-y-1/2 text-cyan-400"><i class="fas fa-search"></i></button>
                     </div>
                 </div>
 
-                <!-- Playlist & EQ -->
-                <div class="flex flex-col gap-6">
-                    <!-- Equalizer -->
-                    <div class="glass p-6 text-left">
-                        <h4 class="text-xs font-bold uppercase tracking-widest text-cyan-400 mb-4">Equalizer Presets</h4>
-                        <div class="grid grid-cols-2 gap-2">
-                            <button onclick="setEQ('normal')" class="eq-btn active">Normal</button>
-                            <button onclick="setEQ('bass')" class="eq-btn">Bass Boost</button>
-                            <button onclick="setEQ('pop')" class="eq-btn">Pop</button>
-                            <button onclick="setEQ('rock')" class="eq-btn">Rock</button>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    <!-- Left: Player -->
+                    <div class="lg:col-span-7 flex flex-col gap-6">
+                        <div class="glass p-6 md:p-10 music-card relative overflow-hidden group">
+                            <canvas id="musicVisualizer" class="absolute inset-0 w-full h-full opacity-20 pointer-events-none"></canvas>
+                            
+                            <!-- Video/Vinyl Container -->
+                            <div class="relative mx-auto mb-8 w-full aspect-video md:w-[480px] rounded-2xl overflow-hidden shadow-2xl bg-black border border-white/5">
+                                <div id="vinylDisk" class="vinyl-disk absolute inset-0 z-10 m-auto flex items-center justify-center pointer-events-none transition-opacity duration-500">
+                                    <div class="w-16 h-16 rounded-full bg-cyan-500/20 animate-pulse"></div>
+                                </div>
+                                <div id="ytPlayerContainer" class="w-full h-full opacity-0 transition-opacity duration-500">
+                                    <div id="youtubePlayer"></div>
+                                </div>
+                                <!-- Visual Overlay -->
+                                <div class="absolute top-4 right-4 z-30 flex gap-2">
+                                    <button onclick="toggleVisualMode()" id="visualModeBtn" class="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-lg text-[10px] font-bold border border-white/10 hover:bg-cyan-600 transition">
+                                        <i class="fas fa-eye mr-1"></i> VIDEO MODE
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="text-center">
+                                <h3 id="trackName" class="text-2xl font-bold truncate mb-1">No Track Loaded</h3>
+                                <p id="artistName" class="text-sm text-cyan-400/60 font-mono uppercase tracking-widest mb-8">Ready for sOuLViSiON</p>
+                            </div>
+                            
+                            <!-- Controls -->
+                            <div class="max-w-md mx-auto">
+                                <div class="mb-6">
+                                    <input type="range" id="musicProgress" class="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" value="0" step="0.1">
+                                    <div class="flex justify-between text-[10px] font-mono text-gray-500 mt-2">
+                                        <span id="currentTime">0:00</span>
+                                        <span id="durationTime">0:00</span>
+                                    </div>
+                                </div>
+
+                                <div class="flex items-center justify-between mb-8">
+                                    <button onclick="toggleShuffle()" id="shuffleBtn" class="text-gray-500 hover:text-cyan-400 transition"><i class="fas fa-random text-lg"></i></button>
+                                    <div class="flex items-center gap-6">
+                                        <button onclick="musicPrev()" class="text-2xl hover:text-cyan-400 transition-transform active:scale-90"><i class="fas fa-step-backward"></i></button>
+                                        <button onclick="toggleMusic()" id="playPauseBtn" class="text-6xl text-white hover:scale-110 transition-all drop-shadow-lg shadow-cyan-500/50"><i class="fas fa-play-circle"></i></button>
+                                        <button onclick="musicNext()" class="text-2xl hover:text-cyan-400 transition-transform active:scale-90"><i class="fas fa-step-forward"></i></button>
+                                    </div>
+                                    <button onclick="toggleRepeat()" id="repeatBtn" class="text-gray-500 hover:text-cyan-400 transition"><i class="fas fa-redo-alt text-lg"></i></button>
+                                </div>
+
+                                <div class="flex items-center gap-4 bg-black/40 p-4 rounded-2xl border border-white/5">
+                                    <i class="fas fa-volume-down text-gray-500"></i>
+                                    <input type="range" id="volumeControl" class="flex-grow h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" min="0" max="1" step="0.01" value="1">
+                                    <i class="fas fa-volume-up text-gray-500"></i>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                    <!-- Playlist -->
-                    <div class="glass p-6 text-left flex-grow flex flex-col overflow-hidden max-h-[300px]">
-                        <div class="flex justify-between items-center mb-4">
-                            <h4 class="text-xs font-bold uppercase tracking-widest text-cyan-400">Playlist</h4>
-                            <input type="file" id="musicUpload" class="hidden" multiple accept="audio/*" onchange="loadMusic(event)">
-                            <button onclick="document.getElementById('musicUpload').click()" class="text-[10px] bg-white/5 px-3 py-1 rounded hover:bg-white/10">Add Files</button>
+
+                    <!-- Right: Search/Playlist -->
+                    <div class="lg:col-span-5 flex flex-col gap-6 max-h-[700px]">
+                        <!-- Search Results (Only shown in online mode) -->
+                        <div id="ytResultsContainer" class="glass p-6 flex flex-col overflow-hidden hidden">
+                            <h4 class="text-xs font-bold uppercase tracking-widest text-cyan-400 mb-4 flex items-center gap-2">
+                                <i class="fab fa-youtube"></i> Search Results
+                            </h4>
+                            <div id="ytResultsList" class="overflow-y-auto custom-scrollbar flex flex-col gap-2 pr-2">
+                                <p class="text-xs text-gray-500 italic">Enter a keyword to find music...</p>
+                            </div>
                         </div>
-                        <div id="playlistContainer" class="overflow-y-auto custom-scrollbar flex flex-col gap-1 pr-2">
-                            <p class="text-[10px] text-gray-500 italic">No tracks added yet.</p>
+
+                        <!-- Local Playlist -->
+                        <div id="localPlaylistContainer" class="glass p-6 flex flex-col overflow-hidden flex-grow">
+                            <div class="flex justify-between items-center mb-4">
+                                <h4 class="text-xs font-bold uppercase tracking-widest text-cyan-400">Library</h4>
+                                <input type="file" id="musicUpload" class="hidden" multiple accept="audio/*" onchange="loadMusic(event)">
+                                <button id="addLocalBtn" onclick="document.getElementById('musicUpload').click()" class="text-[10px] bg-white/5 border border-white/10 px-4 py-1.5 rounded-full hover:bg-white/10 transition">Import Audio</button>
+                            </div>
+                            <div id="playlistContainer" class="overflow-y-auto custom-scrollbar flex flex-col gap-1 pr-2">
+                                <p class="text-xs text-gray-500 italic">Queue is empty.</p>
+                            </div>
+                        </div>
+
+                        <!-- EQ -->
+                        <div class="glass p-6">
+                            <h4 class="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-4">Acoustic Engine</h4>
+                            <div class="grid grid-cols-4 gap-2">
+                                <button onclick="setEQ('normal')" class="eq-btn active">Flat</button>
+                                <button onclick="setEQ('bass')" class="eq-btn">Bass</button>
+                                <button onclick="setEQ('pop')" class="eq-btn">Pop</button>
+                                <button onclick="setEQ('rock')" class="eq-btn">Rock</button>
+                            </div>
                         </div>
                     </div>
                 </div>
