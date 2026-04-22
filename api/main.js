@@ -206,31 +206,45 @@ export default async function handler(req, res) {
             if (process.env.PROXIFLY_API_KEY) {
                 try {
                     const proxifly = new Proxifly({ apiKey: process.env.PROXIFLY_API_KEY });
+                    // Use catch to prevent Proxifly internal fetch errors from stopping execution
                     const proxies = await proxifly.getProxy({
                         quantity: 1,
                         https: true,
                         protocol: ['http', 'https']
-                    });
-                    if (proxies && proxies.length > 0) {
+                    }).catch(() => null);
+
+                    if (proxies && Array.isArray(proxies) && proxies.length > 0) {
                         const p = proxies[0];
-                        proxyUrl = `${p.protocol}://${p.ip}:${p.port}`;
+                        if (p.ip && p.port) {
+                            proxyUrl = `${p.protocol || 'http'}://${p.ip}:${p.port}`;
+                        }
                     }
                 } catch (err) {
-                    console.error("Proxifly Rotation Error:", err.message);
+                    if (process.env.NODE_ENV === 'development') {
+                        console.warn("Proxifly optional proxy skipped:", err.message);
+                    }
                 }
             }
 
+            let r;
             if (proxyUrl) {
                 try {
-                    // HttpsProxyAgent is REQUIRED to convert the proxy URL into a usable agent for yt-search
                     const agent = new HttpsProxyAgent(proxyUrl);
                     searchOptions.agent = agent;
+                    // Attempt search with proxy
+                    r = await ytSearch(searchOptions);
                 } catch (proxyError) {
-                    console.error("Proxy Configuration Error:", proxyError.message);
+                    // If proxy fails (dead proxy or config error), fallback to direct search
+                    if (process.env.NODE_ENV === 'development') {
+                        console.warn("Proxy search failed, falling back to direct:", proxyError.message);
+                    }
+                    delete searchOptions.agent;
+                    r = await ytSearch(searchOptions);
                 }
+            } else {
+                r = await ytSearch(searchOptions);
             }
             
-            const r = await ytSearch(searchOptions);
             return res.status(200).json(r.videos.slice(0, 15));
         }
 

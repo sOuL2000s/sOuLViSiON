@@ -759,7 +759,36 @@ function musicPrev() {
 }
 
 function musicSkip(seconds) {
-    audioPlayer.currentTime += seconds;
+    const track = musicList[currentTrackIndex];
+    if (track && track.type === 'youtube') {
+        if (ytPlayer && ytPlayer.getCurrentTime) {
+            ytPlayer.seekTo(ytPlayer.getCurrentTime() + seconds, true);
+        }
+    } else {
+        audioPlayer.currentTime += seconds;
+    }
+}
+
+function setPlaybackSpeed(speed) {
+    const track = musicList[currentTrackIndex];
+    if (track && track.type === 'youtube') {
+        if (ytPlayer && ytPlayer.setPlaybackRate) {
+            ytPlayer.setPlaybackRate(parseFloat(speed));
+        }
+    } else {
+        audioPlayer.playbackRate = parseFloat(speed);
+    }
+}
+
+function toggleFullScreen(id) {
+    const el = document.getElementById(id);
+    if (!document.fullscreenElement) {
+        el.requestFullscreen().catch(err => {
+            alert(`Error attempting to enable full-screen mode: ${err.message}`);
+        });
+    } else {
+        document.exitFullscreen();
+    }
 }
 
 function toggleShuffle() {
