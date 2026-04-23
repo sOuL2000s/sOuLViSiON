@@ -1807,6 +1807,7 @@ async function handleAIFile(e, isMini = false) {
 
 // STT Toggle
 let recognition;
+let sttForceStop = false;
 function toggleSTT(isMini = false) {
     const btnId = isMini ? 'miniSttBtn' : 'sttBtn';
     const inputId = isMini ? 'miniChatInput' : 'chatInput';
@@ -1818,10 +1819,12 @@ function toggleSTT(isMini = false) {
     }
 
     if (recognition && recognition.active) {
+        sttForceStop = true;
         recognition.stop();
         return;
     }
 
+    sttForceStop = false;
     recognition = new webkitSpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = false;
@@ -1829,6 +1832,7 @@ function toggleSTT(isMini = false) {
 
     recognition.onstart = () => {
         btn.innerHTML = `<i class="fas fa-stop-circle text-red-500 animate-pulse ${isMini ? 'text-[10px]' : ''}"></i>`;
+        btn.classList.add('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
         recognition.active = true;
     };
 
@@ -1849,18 +1853,25 @@ function toggleSTT(isMini = false) {
             const newPos = start + result.length + 1;
             input.focus();
             input.setSelectionRange(newPos, newPos);
-            if (!isMini) autoResize(input);
+            if (!isMini && input.id === 'chatInput') autoResize(input);
         }
     };
 
     recognition.onerror = () => {
+        sttForceStop = true;
         btn.innerHTML = `<i class="fas fa-microphone ${isMini ? 'text-xs' : ''}"></i>`;
+        btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
         recognition.active = false;
     };
 
     recognition.onend = () => {
-        btn.innerHTML = `<i class="fas fa-microphone ${isMini ? 'text-xs' : ''}"></i>`;
-        recognition.active = false;
+        if (!sttForceStop) {
+            recognition.start();
+        } else {
+            btn.innerHTML = `<i class="fas fa-microphone ${isMini ? 'text-xs' : ''}"></i>`;
+            btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
+            recognition.active = false;
+        }
     };
 
     recognition.start();
@@ -1952,9 +1963,14 @@ function saveLargeEditor() {
         pendingFiles[editingAttachmentIdx].data = btoa(unescape(encodeURIComponent(content)));
         renderAttachmentChips();
     } else {
-        const input = document.getElementById('chatInput');
-        input.value = content;
-        autoResize(input);
+        if (content.length > 3000) {
+            addTextAsAttachment(content);
+            document.getElementById('chatInput').value = '';
+        } else {
+            const input = document.getElementById('chatInput');
+            input.value = content;
+            autoResize(input);
+        }
     }
     toggleLargeEditor();
 }

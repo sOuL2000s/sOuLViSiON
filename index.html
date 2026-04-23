@@ -715,15 +715,14 @@
                     <div id="aiAttachmentPreview" class="px-4 py-2 flex gap-2 flex-wrap empty:hidden"></div>
                     <div class="p-2 md:p-4 border-t border-white/10 bg-black/20 flex gap-2 md:gap-3 items-center">
                         <input type="file" id="aiFileInput" class="hidden" multiple onchange="handleAIFile(event)">
-                        <div class="flex flex-col gap-1">
-                            <button onclick="document.getElementById('aiFileInput').click()" class="text-gray-400 hover:text-purple-400 p-2 transition-transform hover:scale-110" title="Attach Files"><i class="fas fa-paperclip text-sm md:text-base"></i></button>
-                            <button onclick="toggleLargeEditor()" class="text-gray-400 hover:text-cyan-400 p-2 transition-transform hover:scale-110" title="Expand Editor"><i class="fas fa-expand-alt text-sm md:text-base"></i></button>
-                        </div>
-                        <div class="relative flex-grow">
-                            <textarea id="chatInput" rows="1" class="w-full bg-gray-800 p-3 md:p-4 rounded-xl border border-gray-700 focus:border-purple-500 text-xs md:text-sm resize-none custom-scrollbar" placeholder="Ask anything... (Paste files or long text supported)" autocomplete="off" oninput="autoResize(this)"></textarea>
-                            <button id="sttBtn" onclick="toggleSTT()" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-purple-400 transition-colors p-2">
+                        <div class="flex gap-1 md:gap-2">
+                            <button onclick="document.getElementById('aiFileInput').click()" class="bg-gray-800 text-gray-400 hover:text-purple-400 w-10 h-10 md:w-12 md:h-12 rounded-xl border border-gray-700 transition-all flex items-center justify-center" title="Attach Files"><i class="fas fa-paperclip text-sm md:text-base"></i></button>
+                            <button id="sttBtn" onclick="toggleSTT()" class="bg-gray-800 text-gray-500 hover:text-purple-400 w-10 h-10 md:w-12 md:h-12 rounded-xl border border-gray-700 transition-all flex items-center justify-center" title="Voice Input">
                                 <i class="fas fa-microphone"></i>
                             </button>
+                        </div>
+                        <div class="flex-grow">
+                            <textarea id="chatInput" rows="1" class="w-full bg-gray-800 p-3 md:p-4 rounded-xl border border-gray-700 focus:border-purple-500 text-xs md:text-sm resize-none custom-scrollbar" placeholder="Ask anything... (Paste files or long text supported)" autocomplete="off" oninput="autoResize(this)"></textarea>
                         </div>
                         <button onclick="askAI()" class="bg-purple-600 px-4 md:px-8 py-3 md:py-4 rounded-xl font-bold hover:bg-purple-700 transition-all shadow-lg shadow-purple-600/20 active:scale-95"><i class="fas fa-paper-plane text-xs md:text-base"></i></button>
                     </div>
@@ -1007,14 +1006,14 @@
         <div id="miniAttachmentPreview" class="px-2 pb-1 flex gap-1 overflow-x-auto empty:hidden"></div>
         <div class="flex gap-1 items-center">
             <input type="file" id="miniFileInput" class="hidden" multiple onchange="handleAIFile(event, true)">
-            <button onclick="document.getElementById('miniFileInput').click()" class="text-gray-500 hover:text-purple-400 p-1"><i class="fas fa-paperclip text-xs"></i></button>
-            <div class="relative flex-grow">
-                <input id="miniChatInput" type="text" class="w-full bg-gray-900 text-sm p-2 pr-8 rounded" placeholder="Quick ask...">
-                <button id="miniSttBtn" onclick="toggleSTT(true)" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-purple-400 transition-colors">
-                    <i class="fas fa-microphone text-xs"></i>
-                </button>
+            <button onclick="document.getElementById('miniFileInput').click()" class="bg-gray-900 text-gray-500 hover:text-purple-400 p-2 rounded border border-gray-800" title="Attach"><i class="fas fa-paperclip text-xs"></i></button>
+            <button id="miniSttBtn" onclick="toggleSTT(true)" class="bg-gray-900 text-gray-500 hover:text-purple-400 p-2 rounded border border-gray-800" title="Voice Input">
+                <i class="fas fa-microphone text-xs"></i>
+            </button>
+            <div class="flex-grow">
+                <input id="miniChatInput" type="text" class="w-full bg-gray-900 text-sm p-2 rounded border border-gray-800 focus:border-purple-500 outline-none" placeholder="Quick ask...">
             </div>
-            <button onclick="askMiniAI()" class="bg-purple-600 px-2 py-2 rounded"><i class="fas fa-paper-plane text-xs"></i></button>
+            <button onclick="askMiniAI()" class="bg-purple-600 p-2 rounded shadow-lg shadow-purple-600/20"><i class="fas fa-paper-plane text-xs"></i></button>
         </div>
     </div>
 
