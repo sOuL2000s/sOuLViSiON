@@ -37,7 +37,9 @@ export default async function handler(req, res) {
             if (method === 'PATCH') {
                 const userEmail = query.email;
                 const update = { name };
-                if (password) update.password = password;
+                if (password) {
+                    update.password = await bcrypt.hash(password, 10);
+                }
                 await col.updateOne({ email: userEmail }, { $set: update });
                 return res.status(200).json({ success: true });
             }
@@ -114,12 +116,6 @@ export default async function handler(req, res) {
 
         if (query.route === 'admin_config') {
             const col = db.collection('config');
-            // Server-side admin verification
-            const adminEmail = query.adminEmail;
-            const adminUser = await db.collection('users').findOne({ email: adminEmail });
-            if (!adminUser || !adminUser.isAdmin) {
-                return res.status(403).json({ error: "Unauthorized access" });
-            }
 
             if (method === 'GET') {
                 const config = (await col.findOne({ type: 'ai_settings' })) || {};
@@ -127,6 +123,14 @@ export default async function handler(req, res) {
                 config.razorpayKey = process.env.RAZORPAY_KEY_ID;
                 return res.status(200).json(config);
             }
+
+            // POST/UPDATE requires admin verification
+            const adminEmail = query.adminEmail;
+            const adminUser = await db.collection('users').findOne({ email: adminEmail });
+            if (!adminUser || !adminUser.isAdmin) {
+                return res.status(403).json({ error: "Unauthorized access" });
+            }
+
             if (method === 'POST') {
                 await col.updateOne({ type: 'ai_settings' }, { $set: body }, { upsert: true });
                 return res.status(200).json({ success: true });

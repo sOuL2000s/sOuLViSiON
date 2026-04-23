@@ -2226,7 +2226,7 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
     
     if(!aiConfig.keys.length) return alert("Please configure API Keys in Admin panel.");
 
-    const statusEl = document.getElementById(targetBoxId === 'chatBox' ? 'aiStatus' : null);
+    const statusEl = document.getElementById(targetBoxId === 'chatBox' ? 'aiStatus' : 'miniAiStatus');
     if(statusEl) { 
         statusEl.innerHTML = `<div class="flex items-center gap-2"><div class="typing-indicator"><span></span><span></span><span></span></div> Connecting to Neural Link...</div>`; 
         statusEl.classList.remove('hidden'); 
