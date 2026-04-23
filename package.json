@@ -8,6 +8,7 @@
     "https-proxy-agent": "5.0.1",
     "mongodb": "^7.1.1",
     "nodemailer": "^8.0.5",
+    "pdfkit": "^0.18.0",
     "proxifly": "^3.0.1",
     "yt-search": "^2.13.1"
   },

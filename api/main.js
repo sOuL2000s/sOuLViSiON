@@ -4,6 +4,7 @@ const nodemailer = require('nodemailer');
 const ytSearch = require('yt-search');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const Proxifly = require('proxifly');
+const PDFDocument = require('pdfkit');
 
 const uri = process.env.MONGODB_URI;
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
@@ -193,6 +194,77 @@ export default async function handler(req, res) {
                     await col.deleteMany({ userId });
                 }
                 return res.status(200).json({ success: true });
+            }
+        }
+
+        if (query.route === 'export') {
+            const { format, type, data } = body;
+            const filename = `sOuLViSiON_${type}_${Date.now()}`;
+            
+            if (format === 'pdf') {
+                return new Promise((resolve) => {
+                    try {
+                        const cleanStr = (str) => {
+                            if (typeof str !== 'string') return "";
+                            return str.replace(/[^\x20-\x7E\xA0-\xFF\n\r\t]/g, " ");
+                        };
+
+                        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+                        let chunks = [];
+
+                        doc.on('data', chunk => chunks.push(chunk));
+                        doc.on('end', () => {
+                            const result = Buffer.concat(chunks);
+                            res.setHeader('Content-Type', 'application/pdf');
+                            res.setHeader('Content-Length', result.length);
+                            res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
+                            res.status(200).send(result);
+                            resolve();
+                        });
+
+                        doc.font('Helvetica');
+                        doc.fillColor('#06b6d4').fontSize(24).text(`sOuLViSiON`, { align: 'center' });
+                        doc.fillColor('#333333').fontSize(10).text(`${type.toUpperCase()} EXPORT`, { align: 'center' });
+                        doc.moveDown(0.5);
+                        doc.fontSize(8).fillColor('#999999').text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
+                        doc.moveDown();
+                        doc.strokeColor('#eeeeee').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+                        doc.moveDown(2);
+
+                        if (type === 'chat' && data.messages) {
+                            data.messages.forEach(m => {
+                                doc.fillColor(m.role === 'user' ? '#7c3aed' : '#06b6d4')
+                                   .fontSize(10).text(m.role.toUpperCase(), { continued: true })
+                                   .fillColor('#999999').text(`  |  ${new Date().toLocaleTimeString()}`);
+                                doc.moveDown(0.5);
+                                doc.fillColor('#333333').fontSize(11).text(cleanStr(m.content), { align: 'left', lineGap: 2 });
+                                doc.moveDown(1.5);
+                            });
+                        } else if (type === 'note') {
+                            doc.fillColor('#06b6d4').fontSize(18).text(cleanStr(data.title) || 'Untitled Note');
+                            doc.fillColor('#999999').fontSize(9).text(`Type: ${(data.type || 'Note').toUpperCase()} | Deadline: ${data.deadline || 'None'}`);
+                            doc.moveDown();
+                            doc.strokeColor('#eeeeee').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+                            doc.moveDown();
+                            doc.fillColor('#333333').fontSize(12).text(cleanStr(data.text), { lineGap: 3 });
+                        }
+                        doc.end();
+                    } catch (pdfErr) {
+                        console.error("CRITICAL PDF ERROR:", pdfErr);
+                        res.status(500).json({ error: "PDF Generation Failed: " + pdfErr.message });
+                        resolve();
+                    }
+                });
+            } else if (format === 'markdown' || format === 'txt') {
+                let content = "";
+                if (type === 'chat') {
+                    content = `# Chat Export: ${data.name}\n\n` + data.messages.map(m => `### ${m.role.toUpperCase()}\n${m.content}`).join('\n\n---\n\n');
+                } else {
+                    content = `# ${data.title || 'Untitled Note'}\n\n${data.text}`;
+                }
+                res.setHeader('Content-Type', format === 'markdown' ? 'text/markdown' : 'text/plain');
+                res.setHeader('Content-Disposition', `attachment; filename=${filename}.${format === 'markdown' ? 'md' : 'txt'}`);
+                return res.send(content);
             }
         }
 

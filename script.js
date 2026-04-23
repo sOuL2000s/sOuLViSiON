@@ -616,7 +616,18 @@ function renderNotes() {
                         <span>${new Date(n.id).toLocaleDateString()}</span>
                     </div>
                     <div class="flex gap-4">
-                        <button onclick="event.stopPropagation(); deleteNote('${n.id}')" class="text-gray-500 hover:text-red-400 transition" title="Delete Note"><i class="fas fa-trash-alt"></i></button>
+                        <div class="relative group/export">
+                            <button onclick="event.stopPropagation()" class="text-gray-500 hover:text-cyan-400 transition text-sm" title="Export Note"><i class="fas fa-file-export"></i></button>
+                            <!-- The pb-2 on this div acts as a hover bridge for bottom-full -->
+                            <div class="absolute bottom-full right-0 pb-2 hidden group-hover/export:flex flex-col z-50 animate-fadeIn">
+                                <div class="bg-gray-900 border border-white/10 rounded-xl shadow-2xl py-2 min-w-[100px] overflow-hidden">
+                                    <button onclick="event.stopPropagation(); exportData('note', '${n.id}', 'pdf')" class="w-full px-4 py-2 text-left hover:bg-cyan-600/20 text-[10px] font-bold">PDF</button>
+                                    <button onclick="event.stopPropagation(); exportData('note', '${n.id}', 'markdown')" class="w-full px-4 py-2 text-left hover:bg-cyan-600/20 text-[10px] font-bold">Markdown</button>
+                                    <button onclick="event.stopPropagation(); exportData('note', '${n.id}', 'txt')" class="w-full px-4 py-2 text-left hover:bg-cyan-600/20 text-[10px] font-bold">Plain Text</button>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="event.stopPropagation(); deleteNote('${n.id}')" class="text-gray-500 hover:text-red-400 transition text-sm" title="Delete Note"><i class="fas fa-trash-can"></i></button>
                     </div>
                 </div>
             </div>
@@ -882,7 +893,8 @@ function onYouTubeIframeAPIReady() {
             'disablekb': 1,
             'fs': 0,
             'rel': 0,
-            'modestbranding': 1
+            'modestbranding': 1,
+            'origin': window.location.origin
         },
         events: {
             'onReady': onPlayerReady,
@@ -1793,8 +1805,8 @@ async function handleAIFile(e, isMini = false) {
             const fileObj = { mime_type: file.type, data: base64, name: file.name };
             
             if (file.type.startsWith('text/')) {
-                // For text files, we keep a raw copy for editing
-                const raw = atob(base64);
+                // For text files, we keep a raw copy for editing using UTF-8 aware decoding
+                const raw = new TextDecoder().decode(Uint8Array.from(atob(base64), c => c.charCodeAt(0)));
                 fileObj.raw = raw;
             }
             
@@ -1893,7 +1905,8 @@ function autoResize(textarea) {
 
 function addTextAsAttachment(content, name = null) {
     const fileName = name || `Large Text ${pendingFiles.length + 1}.txt`;
-    const base64 = btoa(unescape(encodeURIComponent(content)));
+    // Modern UTF-8 to Base64 encoding
+    const base64 = btoa(new TextEncoder().encode(content).reduce((data, byte) => data + String.fromCharCode(byte), ''));
     const fileObj = { mime_type: 'text/plain', data: base64, name: fileName, raw: content };
     pendingFiles.push(fileObj);
     renderAttachmentChips();
@@ -1960,7 +1973,7 @@ function saveLargeEditor() {
     const content = document.getElementById('largeEditorText').value;
     if (editingAttachmentIdx !== -1) {
         pendingFiles[editingAttachmentIdx].raw = content;
-        pendingFiles[editingAttachmentIdx].data = btoa(unescape(encodeURIComponent(content)));
+        pendingFiles[editingAttachmentIdx].data = btoa(new TextEncoder().encode(content).reduce((data, byte) => data + String.fromCharCode(byte), ''));
         renderAttachmentChips();
     } else {
         if (content.length > 3000) {
@@ -1975,22 +1988,73 @@ function saveLargeEditor() {
     toggleLargeEditor();
 }
 
-function exportChat() {
-    if (!currentChatId) return;
-    const conv = aiConversations.find(c => c.id === currentChatId);
-    if (!conv) return;
+async function exportData(type, id, format) {
+    if (!id) {
+        alert("Selection required for export.");
+        return;
+    }
+    let payload = null;
     
-    let md = `# Chat: ${conv.name}\n\n`;
-    conv.messages.forEach(m => {
-        md += `### ${m.role.toUpperCase()}\n${m.content}\n\n---\n\n`;
-    });
+    if (type === 'chat') {
+        payload = aiConversations.find(c => c.id === Number(id));
+    } else {
+        payload = notes.find(n => n.id === Number(id));
+    }
     
-    const blob = new Blob([md], {type: 'text/markdown'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${conv.name.replace(/\s+/g, '_')}.md`;
-    a.click();
+    if (!payload) return;
+
+    setLoading(true, `Generating ${format.toUpperCase()} Document...`);
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // Increased to 60s for large PDFs
+
+        const response = await fetch('/api/main?route=export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, format, data: payload }),
+            signal: controller.signal
+        }).catch(err => {
+            if (err.name === 'AbortError') throw new Error("Export timed out. The file might be too large.");
+            throw new Error("Network error: Server connection reset during export.");
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            let errorMsg = "Export failed.";
+            const text = await response.text();
+            try {
+                const errData = JSON.parse(text);
+                errorMsg = errData.error || errorMsg;
+            } catch(e) {
+                errorMsg = text || errorMsg;
+            }
+            throw new Error(errorMsg);
+        }
+        
+        const blob = await response.blob();
+        if (blob.size === 0) throw new Error("Generated file is empty.");
+
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        const ext = format === 'markdown' ? 'md' : format;
+        a.download = `sOuLViSiON_${type}_${id}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+
+    } catch (e) {
+        console.error("Export Error:", e);
+        alert(`Export Failed: ${e.message === 'The user aborted a request.' ? 'Request timed out. The file might be too large for PDF conversion.' : e.message}`);
+    } finally {
+        setLoading(false);
+    }
 }
 
 // Paste handling
