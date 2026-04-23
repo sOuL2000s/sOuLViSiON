@@ -277,12 +277,28 @@
 
         <!-- Notes Page -->
         <section id="notes" class="page">
-            <div class="flex justify-between items-end mb-6">
-                <h2 class="text-3xl font-bold">Your sOuLNOTES</h2>
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                <div>
+                    <h2 class="text-3xl font-bold">Your sOuLNOTES</h2>
+                    <div class="flex gap-2 mt-2">
+                        <button onclick="setNoteFilter('all')" id="filterAll" class="text-[10px] font-bold px-3 py-1 rounded-full bg-cyan-600 text-white border border-cyan-500">ALL</button>
+                        <button onclick="setNoteFilter('note')" id="filterNotes" class="text-[10px] font-bold px-3 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10">NOTES</button>
+                        <button onclick="setNoteFilter('todo')" id="filterTodos" class="text-[10px] font-bold px-3 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10">TASK LISTS</button>
+                    </div>
+                </div>
                 <button onclick="syncNotes()" class="text-cyan-400 text-sm"><i class="fas fa-sync"></i> Sync with Cloud</button>
             </div>
+            
             <div class="glass p-4 mb-8">
-                <div class="flex gap-2 mb-2 pb-2 border-b border-white/10 overflow-x-auto text-xs">
+                <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
+                    <div class="flex bg-white/5 p-1 rounded-lg">
+                        <button onclick="setNoteInputType('note')" id="typeBtnNote" class="px-4 py-1.5 rounded-md text-[10px] font-bold bg-cyan-600 text-white">GENERAL NOTE</button>
+                        <button onclick="setNoteInputType('todo')" id="typeBtnTodo" class="px-4 py-1.5 rounded-md text-[10px] font-bold text-gray-400">TASK LIST</button>
+                    </div>
+                    <input id="noteTitle" type="text" placeholder="Title (Optional)" class="bg-transparent border-none outline-none text-sm font-bold text-cyan-400 w-1/2 text-right">
+                </div>
+                
+                <div id="noteToolbar" class="flex gap-2 mb-2 pb-2 border-b border-white/10 overflow-x-auto text-xs">
                     <button onclick="wrapText('noteInput', '**', '**')" title="Bold" class="hover:text-cyan-400 p-1"><i class="fas fa-bold"></i></button>
                     <button onclick="wrapText('noteInput', '*', '*')" title="Italic" class="hover:text-cyan-400 p-1"><i class="fas fa-italic"></i></button>
                     <button onclick="wrapText('noteInput', '# ', '')" title="H1" class="hover:text-cyan-400 p-1"><i class="fas fa-heading"></i>1</button>
@@ -293,37 +309,85 @@
                     <button onclick="wrapText('noteInput', '```\n', '\n```')" title="Code Block" class="hover:text-cyan-400 p-1"><i class="fas fa-code"></i></button>
                     <button onclick="wrapText('noteInput', '>', '')" title="Quote" class="hover:text-cyan-400 p-1"><i class="fas fa-quote-left"></i></button>
                 </div>
-                <textarea id="noteInput" class="w-full bg-transparent border-none outline-none min-h-[150px] mb-4 text-gray-200" placeholder="Write Markdown here..."></textarea>
-                <div class="flex justify-end gap-2 border-t border-white/10 pt-4">
-                    <button onclick="addNote()" class="bg-cyan-600 px-6 py-2 rounded-lg font-bold">Save Note</button>
+
+                <textarea id="noteInput" class="w-full bg-transparent border-none outline-none min-h-[150px] mb-4 text-gray-200" placeholder="Start writing..."></textarea>
+                
+                <div class="flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-4">
+                    <div class="flex items-center gap-4">
+                        <div class="flex flex-col">
+                            <label class="text-[10px] text-gray-500 uppercase font-bold ml-1">Deadline (Optional)</label>
+                            <input id="noteDeadline" type="date" class="bg-gray-800 border border-white/5 rounded-lg px-3 py-1.5 text-xs text-gray-300 outline-none focus:border-cyan-500 transition">
+                        </div>
+                        <div class="text-[10px] text-gray-400 font-mono flex gap-3 mt-4">
+                            <span>Words: <span id="noteWordCount" class="text-cyan-400">0</span></span>
+                            <span>Chars: <span id="noteCharCount" class="text-cyan-400">0</span></span>
+                        </div>
+                    </div>
+                    <button onclick="addNote()" class="bg-cyan-600 px-8 py-2.5 rounded-xl font-bold hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20">Save To Vault</button>
                 </div>
             </div>
             <div id="notesList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         </section>
 
-        <!-- Note Modal -->
-        <div id="noteModal" class="fixed inset-0 bg-black/80 z-[100] hidden flex items-center justify-center p-2 md:p-4">
-            <div class="glass w-full max-w-4xl max-h-[95vh] md:max-h-[90vh] flex flex-col p-4 md:p-6 overflow-hidden">
-                <div class="flex justify-between items-center mb-4">
-                    <input id="editNoteId" type="hidden">
-                    <h3 class="text-lg md:text-xl font-bold">Edit Note</h3>
-                    <button onclick="closeNoteModal()" class="text-3xl">&times;</button>
+        <!-- Note Modal (Immersive Editor) -->
+        <div id="noteModal" class="fixed inset-0 bg-[#0f172a] z-[100] hidden flex flex-col animate-fadeIn">
+            <!-- Header -->
+            <div class="glass flex justify-between items-center px-6 py-4 border-b border-white/10">
+                <div class="flex items-center gap-4">
+                    <button onclick="closeNoteModal()" class="text-gray-400 hover:text-white transition"><i class="fas fa-arrow-left text-xl"></i></button>
+                    <div>
+                        <h3 class="text-lg font-black tracking-tighter text-cyan-400 uppercase">Immersive Editor</h3>
+                        <p id="editNoteMeta" class="text-[10px] text-gray-500 font-mono"></p>
+                    </div>
                 </div>
-                <div class="flex gap-2 mb-2 pb-2 border-b border-white/10 overflow-x-auto no-scrollbar text-[10px] md:text-xs">
-                    <button onclick="wrapText('editNoteText', '**', '**')" class="p-1"><i class="fas fa-bold"></i></button>
-                    <button onclick="wrapText('editNoteText', '*', '*')" class="p-1"><i class="fas fa-italic"></i></button>
-                    <button onclick="wrapText('editNoteText', '# ', '')" class="p-1">H1</button>
-                    <button onclick="wrapText('editNoteText', '## ', '')" class="p-1">H2</button>
-                    <button onclick="wrapText('editNoteText', '- ', '')" class="p-1"><i class="fas fa-list"></i></button>
-                    <button onclick="wrapText('editNoteText', '[', '](url)')" class="p-1"><i class="fas fa-link"></i></button>
-                    <button onclick="wrapText('editNoteText', '```\n', '\n```')" class="p-1"><i class="fas fa-code"></i></button>
+                <div class="flex items-center gap-4">
+                    <div class="hidden md:flex items-center gap-3 mr-4 border-r border-white/10 pr-6">
+                        <div class="text-[10px] text-gray-500 font-mono">
+                            WORDS: <span id="editWordCount" class="text-white">0</span>
+                        </div>
+                        <div class="text-[10px] text-gray-500 font-mono">
+                            CHARS: <span id="editCharCount" class="text-white">0</span>
+                        </div>
+                    </div>
+                    <button onclick="saveEditedNote()" class="bg-cyan-600 px-6 py-2 rounded-xl font-bold hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20">SAVE CHANGES</button>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-grow overflow-hidden">
-                    <textarea id="editNoteText" class="bg-black/20 p-3 rounded-xl border border-white/10 font-mono text-xs md:text-sm resize-none min-h-[150px] lg:h-full"></textarea>
-                    <div id="notePreview" class="bg-white/5 p-3 rounded-xl border border-white/10 overflow-y-auto markdown-body text-xs md:text-sm"></div>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="bg-black/20 px-6 py-2 flex gap-4 overflow-x-auto no-scrollbar border-b border-white/5">
+                <button onclick="wrapText('editNoteText', '**', '**')" class="text-xs text-gray-400 hover:text-cyan-400 p-2"><i class="fas fa-bold"></i></button>
+                <button onclick="wrapText('editNoteText', '*', '*')" class="text-xs text-gray-400 hover:text-cyan-400 p-2"><i class="fas fa-italic"></i></button>
+                <button onclick="wrapText('editNoteText', '# ', '')" class="text-xs text-gray-400 hover:text-cyan-400 p-2">H1</button>
+                <button onclick="wrapText('editNoteText', '## ', '')" class="text-xs text-gray-400 hover:text-cyan-400 p-2">H2</button>
+                <button onclick="wrapText('editNoteText', '### ', '')" class="text-xs text-gray-400 hover:text-cyan-400 p-2">H3</button>
+                <div class="w-px h-4 bg-white/10 self-center"></div>
+                <button onclick="wrapText('editNoteText', '- [ ] ', '')" class="text-xs text-gray-400 hover:text-cyan-400 p-2" title="Checklist"><i class="fas fa-tasks"></i></button>
+                <button onclick="wrapText('editNoteText', '- ', '')" class="text-xs text-gray-400 hover:text-cyan-400 p-2"><i class="fas fa-list-ul"></i></button>
+                <button onclick="wrapText('editNoteText', '1. ', '')" class="text-xs text-gray-400 hover:text-cyan-400 p-2"><i class="fas fa-list-ol"></i></button>
+                <button onclick="wrapText('editNoteText', '> ', '')" class="text-xs text-gray-400 hover:text-cyan-400 p-2"><i class="fas fa-quote-right"></i></button>
+                <div class="w-px h-4 bg-white/10 self-center"></div>
+                <button onclick="wrapText('editNoteText', '```\n', '\n```')" class="text-xs text-gray-400 hover:text-cyan-400 p-2"><i class="fas fa-code"></i></button>
+                <button onclick="wrapText('editNoteText', '[', '](url)')" class="text-xs text-gray-400 hover:text-cyan-400 p-2"><i class="fas fa-link"></i></button>
+            </div>
+
+            <!-- Editor Body -->
+            <div class="flex-grow flex flex-col lg:flex-row overflow-hidden bg-[#0f172a]">
+                <input id="editNoteId" type="hidden">
+                <div class="w-full lg:w-1/2 flex flex-col border-r border-white/5">
+                    <div class="p-4 bg-black/10 border-b border-white/5 flex items-center justify-between">
+                        <span class="text-[10px] text-gray-500 font-black uppercase tracking-widest">Source Editor</span>
+                        <div class="flex items-center gap-2">
+                            <label class="text-[10px] text-gray-500 font-bold uppercase">Deadline</label>
+                            <input id="editNoteDeadline" type="date" class="bg-gray-800 border border-white/10 rounded px-2 py-1 text-[10px] text-gray-300 outline-none">
+                        </div>
+                    </div>
+                    <textarea id="editNoteText" oninput="updateEditorStats(this)" class="flex-grow bg-transparent p-6 text-gray-200 font-mono text-sm leading-relaxed resize-none outline-none custom-scrollbar" placeholder="Enter Markdown content..."></textarea>
                 </div>
-                <div class="flex justify-end mt-4">
-                    <button onclick="saveEditedNote()" class="w-full md:w-auto bg-cyan-600 px-8 py-3 rounded-xl font-bold">Update</button>
+                <div class="hidden lg:flex w-1/2 flex-col bg-black/10">
+                    <div class="p-4 bg-black/10 border-b border-white/5">
+                        <span class="text-[10px] text-gray-500 font-black uppercase tracking-widest">Live Preview</span>
+                    </div>
+                    <div id="notePreview" class="flex-grow p-8 overflow-y-auto markdown-body custom-scrollbar"></div>
                 </div>
             </div>
         </div>

@@ -1,4 +1,26 @@
 /* --- Global Styles --- */
+.note-checkbox {
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-right: 0.5rem;
+    vertical-align: middle;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+/* Strike through and dim checked items in list */
+.markdown-body li:has(input[type="checkbox"]:checked),
+.prose li:has(input[type="checkbox"]:checked) {
+    text-decoration: line-through;
+    opacity: 0.4;
+    transition: all 0.3s ease;
+}
+
+.prose input[type="checkbox"]:checked + label, 
+.prose input[type="checkbox"]:checked ~ span {
+    text-decoration: line-through;
+    opacity: 0.5;
+}
 :root {
     --primary: #06b6d4; /* Cyan 500 */
     --secondary: #8b5cf6; /* Violet 500 */

@@ -91,7 +91,11 @@ export default async function handler(req, res) {
             }
             if (method === 'PATCH') {
                 const queryId = isNaN(query.id) ? query.id : Number(query.id);
-                await col.updateOne({ id: queryId }, { $set: { text: body.text } });
+                const update = {};
+                if (body.text !== undefined) update.text = body.text;
+                if (body.title !== undefined) update.title = body.title;
+                if (body.deadline !== undefined) update.deadline = body.deadline;
+                await col.updateOne({ id: queryId }, { $set: update });
                 return res.status(200).json({ success: true });
             }
         }
