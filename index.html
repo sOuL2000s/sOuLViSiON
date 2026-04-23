@@ -393,29 +393,134 @@
         </div>
 
         <!-- Randomizer Page -->
-        <section id="random" class="page text-center">
-            <h2 class="text-3xl font-bold mb-10">sOuLRANDOM</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="glass p-6">
-                    <h3 class="mb-4 font-bold">Number Range</h3>
-                    <div class="flex gap-2 mb-4">
-                        <input id="randMin" type="number" value="1" class="w-full bg-gray-800 p-2 rounded">
-                        <input id="randMax" type="number" value="100" class="w-full bg-gray-800 p-2 rounded">
+        <section id="random" class="page">
+            <div class="max-w-4xl mx-auto">
+                <div class="text-center mb-10">
+                    <h2 class="text-4xl font-black italic tracking-tighter">sOuLRANDOM</h2>
+                    <p class="text-gray-500 text-sm mt-2">The Ultimate Omni-Randomizer Engine</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Control Sidebar -->
+                    <div class="lg:col-span-1 space-y-6">
+                        <div class="glass p-6">
+                            <label class="block text-[10px] text-gray-500 font-black uppercase tracking-widest mb-3">Randomization Mode</label>
+                            <select id="randMode" onchange="updateRandomMode()" class="w-full bg-gray-800/50 border border-white/10 p-3 rounded-xl text-sm font-bold text-cyan-400 outline-none focus:border-cyan-500 transition">
+                                <option value="number">Numeric Range</option>
+                                <option value="list">List & Choices</option>
+                                <option value="color">Colors (Hex/RGB/HSL)</option>
+                                <option value="string">Secure Strings & Passwords</option>
+                                <option value="datetime">Dates & Times</option>
+                                <option value="dice">Dice & Coin Flip</option>
+                            </select>
+                        </div>
+
+                        <!-- Dynamic Config Panels -->
+                        <div id="randConfig" class="glass p-6 space-y-4">
+                            <!-- Numeric Config -->
+                            <div id="cfg_number" class="rand-cfg space-y-4">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="text-[10px] text-gray-500 uppercase font-bold">Min</label>
+                                        <input id="numMin" type="number" value="1" class="w-full bg-gray-900 border border-white/5 p-2 rounded text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="text-[10px] text-gray-500 uppercase font-bold">Max</label>
+                                        <input id="numMax" type="number" value="100" class="w-full bg-gray-900 border border-white/5 p-2 rounded text-sm">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase font-bold">Count</label>
+                                    <input id="numCount" type="number" value="1" min="1" class="w-full bg-gray-900 border border-white/5 p-2 rounded text-sm">
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <input type="checkbox" id="numUnique" checked class="accent-cyan-500">
+                                    <label for="numUnique" class="text-xs text-gray-400">Unique values only</label>
+                                </div>
+                            </div>
+
+                            <!-- List Config -->
+                            <div id="cfg_list" class="rand-cfg hidden space-y-4">
+                                <div class="flex justify-between items-center">
+                                    <label class="text-[10px] text-gray-500 uppercase font-bold">Enter items (comma or newline)</label>
+                                    <button onclick="saveCurrentList()" class="text-[9px] text-cyan-400 hover:underline"><i class="fas fa-save mr-1"></i> SAVE LIST</button>
+                                </div>
+                                <textarea id="listInput" class="w-full bg-gray-900 border border-white/5 p-3 rounded text-sm h-32 resize-none" placeholder="Option 1, Option 2..."></textarea>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <button onclick="pickFromList('pick')" class="bg-cyan-600/20 text-cyan-400 p-2 rounded-lg text-[10px] font-bold border border-cyan-500/20">PICK ONE</button>
+                                    <button onclick="pickFromList('shuffle')" class="bg-purple-600/20 text-purple-400 p-2 rounded-lg text-[10px] font-bold border border-purple-500/20">SHUFFLE ALL</button>
+                                </div>
+                            </div>
+
+                            <!-- Color Config -->
+                            <div id="cfg_color" class="rand-cfg hidden space-y-4">
+                                <label class="text-[10px] text-gray-500 uppercase font-bold">Format</label>
+                                <select id="colorFormat" class="w-full bg-gray-900 border border-white/5 p-2 rounded text-sm">
+                                    <option value="hex">HEX (#FFFFFF)</option>
+                                    <option value="rgb">RGB (255, 255, 255)</option>
+                                    <option value="hsl">HSL (360, 100%, 100%)</option>
+                                </select>
+                            </div>
+
+                            <!-- String Config -->
+                            <div id="cfg_string" class="rand-cfg hidden space-y-4">
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase font-bold">Length</label>
+                                    <input id="strLen" type="number" value="12" class="w-full bg-gray-900 border border-white/5 p-2 rounded text-sm">
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="flex items-center gap-2 text-xs text-gray-400"><input type="checkbox" id="strUpper" checked class="accent-cyan-500"> Uppercase (A-Z)</label>
+                                    <label class="flex items-center gap-2 text-xs text-gray-400"><input type="checkbox" id="strLower" checked class="accent-cyan-500"> Lowercase (a-z)</label>
+                                    <label class="flex items-center gap-2 text-xs text-gray-400"><input type="checkbox" id="strNum" checked class="accent-cyan-500"> Numbers (0-9)</label>
+                                    <label class="flex items-center gap-2 text-xs text-gray-400"><input type="checkbox" id="strSym" class="accent-cyan-500"> Symbols (!@#$%^&*)</label>
+                                </div>
+                            </div>
+
+                            <!-- Date/Time Config -->
+                            <div id="cfg_datetime" class="rand-cfg hidden space-y-4">
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase font-bold">Start Date</label>
+                                    <input id="dateStart" type="date" class="w-full bg-gray-900 border border-white/5 p-2 rounded text-sm text-white">
+                                </div>
+                                <div>
+                                    <label class="text-[10px] text-gray-500 uppercase font-bold">End Date</label>
+                                    <input id="dateEnd" type="date" class="w-full bg-gray-900 border border-white/5 p-2 rounded text-sm text-white">
+                                </div>
+                            </div>
+
+                            <!-- Dice Config -->
+                            <div id="cfg_dice" class="rand-cfg hidden space-y-4">
+                                <div class="grid grid-cols-2 gap-2">
+                                    <button onclick="rollDice(6)" class="bg-gray-800 p-3 rounded-xl border border-white/5 hover:border-cyan-500 transition">D6 Roll</button>
+                                    <button onclick="rollDice(20)" class="bg-gray-800 p-3 rounded-xl border border-white/5 hover:border-cyan-500 transition">D20 Roll</button>
+                                    <button onclick="rollDice(2)" class="bg-gray-800 p-3 rounded-xl border border-white/5 hover:border-cyan-500 transition col-span-2">Flip a Coin</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button onclick="generateOmniRandom()" id="mainGenBtn" class="w-full bg-cyan-600 py-4 rounded-2xl font-black tracking-widest uppercase hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20">Generate</button>
                     </div>
-                    <div id="numResult" class="text-4xl font-bold mb-4">-</div>
-                    <button onclick="genRandomNum()" class="w-full bg-blue-600 py-2 rounded">Generate</button>
-                </div>
-                <div class="glass p-6">
-                    <h3 class="mb-4 font-bold">Color Picker</h3>
-                    <div id="colorPreview" class="h-20 rounded mb-4 bg-gray-700"></div>
-                    <div id="colorHex" class="mb-4 font-mono">#000000</div>
-                    <button onclick="genRandomColor()" class="w-full bg-green-600 py-2 rounded">Generate</button>
-                </div>
-                <div class="glass p-6">
-                    <h3 class="mb-4 font-bold">Choice Picker</h3>
-                    <textarea id="randChoices" placeholder="Options separated by comma" class="w-full bg-gray-800 p-2 rounded h-20 mb-4 text-xs"></textarea>
-                    <div id="choiceResult" class="text-xl font-bold mb-4">-</div>
-                    <button onclick="pickRandom()" class="w-full bg-purple-600 py-2 rounded">Pick One</button>
+
+                    <!-- Result Panel -->
+                    <div class="lg:col-span-2 flex flex-col gap-6">
+                        <div class="glass flex-grow p-10 flex flex-col items-center justify-center relative overflow-hidden min-h-[400px]">
+                            <div id="omniResultPreview" class="absolute inset-0 opacity-10 pointer-events-none transition-all duration-500"></div>
+                            <div id="omniResultText" class="text-5xl md:text-7xl font-black text-center break-all text-white drop-shadow-lg z-10">...</div>
+                            <div id="omniResultMeta" class="mt-6 text-[10px] font-mono text-gray-500 uppercase tracking-[0.3em] z-10">Awaiting Simulation</div>
+                            
+                            <button onclick="copyOmniResult()" class="absolute bottom-6 right-6 text-gray-500 hover:text-cyan-400 transition" title="Copy to clipboard">
+                                <i class="far fa-copy text-xl"></i>
+                            </button>
+                        </div>
+
+                        <!-- History -->
+                        <div class="glass p-6">
+                            <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-4">Omni History</h3>
+                            <div id="omniHistory" class="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                                <p class="text-[10px] text-gray-600 italic">No history yet.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>

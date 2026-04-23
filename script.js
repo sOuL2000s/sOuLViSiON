@@ -420,11 +420,85 @@ async function syncAllData() {
             syncNotes(),
             syncAIHistory(),
             syncFunStats(),
-            syncCricketHistory()
+            syncCricketHistory(),
+            syncRandomHistory(),
+            syncMusicPlaylist()
         ]);
     } finally {
         setLoading(false);
     }
+}
+
+async function syncRandomHistory() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=random_history&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            const hist = document.getElementById('omniHistory');
+            hist.innerHTML = '';
+            
+            // Check for saved list content
+            const savedList = data.find(item => item.id === 'saved_list_input');
+            if (savedList && document.getElementById('listInput')) {
+                document.getElementById('listInput').value = savedList.value;
+            }
+
+            // Filter out the meta-record from visible history
+            const visibleHistory = data.filter(item => item.id !== 'saved_list_input');
+            visibleHistory.slice(0, 50).forEach(item => addOmniHistory(item.value, false));
+        }
+    } catch (e) { console.warn("Random history sync failed", e); }
+}
+
+async function saveCurrentList() {
+    if (!currentUser) return alert("Login to save your lists!");
+    const content = document.getElementById('listInput').value;
+    setLoading(true, "Saving List Content");
+    try {
+        await fetch(`/api/main?route=random_history&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: 'saved_list_input', value: content })
+        });
+        alert("List content saved to cloud!");
+    } finally {
+        setLoading(false);
+    }
+}
+
+async function saveMusicPlaylist() {
+    if (!currentUser) return;
+    // We only save non-blob tracks (YouTube or external URLs) to the cloud
+    const cloudTracks = musicList.filter(t => {
+        // YouTube tracks have 'type' property. External URLs have 'url' but not starting with 'blob:'
+        if (t.type === 'youtube') return true;
+        if (t.url && !t.url.startsWith('blob:')) return true;
+        return false;
+    });
+    
+    try {
+        await fetch(`/api/main?route=music_playlist&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: 'current_playlist', tracks: cloudTracks, timestamp: Date.now() })
+        });
+    } catch (e) { console.warn("Failed to save playlist to cloud", e); }
+}
+
+async function syncMusicPlaylist() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=music_playlist&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+            const cloudTracks = data[0].tracks || [];
+            // Preserve local tracks currently in the session
+            const localTracks = musicList.filter(t => t.url?.startsWith('blob:'));
+            musicList = [...cloudTracks, ...localTracks];
+            renderPlaylist();
+        }
+    } catch (e) { console.warn("Music playlist sync failed", e); }
 }
 
 function updateAuthUI() {
@@ -646,28 +720,149 @@ async function saveRandomHistory(type, value) {
     });
 }
 
-async function genRandomNum() {
-    const min = parseInt(document.getElementById('randMin').value);
-    const max = parseInt(document.getElementById('randMax').value);
-    const res = Math.floor(Math.random() * (max - min + 1)) + min;
-    document.getElementById('numResult').innerText = res;
-    await saveRandomHistory('number', res);
+function updateRandomMode() {
+    const mode = document.getElementById('randMode').value;
+    document.querySelectorAll('.rand-cfg').forEach(el => el.classList.add('hidden'));
+    document.getElementById(`cfg_${mode}`).classList.remove('hidden');
+    
+    // UI Reset
+    const btn = document.getElementById('mainGenBtn');
+    btn.classList.remove('hidden');
+    if (mode === 'dice' || mode === 'list') btn.classList.add('hidden');
 }
 
-async function genRandomColor() {
-    const color = '#' + Math.floor(Math.random()*16777215).toString(16);
-    document.getElementById('colorPreview').style.backgroundColor = color;
-    document.getElementById('colorHex').innerText = color.toUpperCase();
-    await saveRandomHistory('color', color.toUpperCase());
+async function generateOmniRandom() {
+    const mode = document.getElementById('randMode').value;
+    const resText = document.getElementById('omniResultText');
+    const resMeta = document.getElementById('omniResultMeta');
+    const preview = document.getElementById('omniResultPreview');
+    
+    let result = "";
+    let meta = "";
+    preview.style.backgroundColor = 'transparent';
+
+    if (mode === 'number') {
+        const min = parseInt(document.getElementById('numMin').value);
+        const max = parseInt(document.getElementById('numMax').value);
+        const count = parseInt(document.getElementById('numCount').value);
+        const unique = document.getElementById('numUnique').checked;
+        
+        let nums = [];
+        if (unique && count > (max - min + 1)) {
+            alert("Count cannot be larger than the range for unique numbers.");
+            return;
+        }
+
+        while (nums.length < count) {
+            let r = Math.floor(Math.random() * (max - min + 1)) + min;
+            if (!unique || !nums.includes(r)) nums.push(r);
+        }
+        result = nums.join(', ');
+        meta = `Generated ${count} number(s) [${min} to ${max}]`;
+    } 
+    else if (mode === 'color') {
+        const format = document.getElementById('colorFormat').value;
+        if (format === 'hex') {
+            result = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0').toUpperCase();
+        } else if (format === 'rgb') {
+            const r = Math.floor(Math.random()*256), g = Math.floor(Math.random()*256), b = Math.floor(Math.random()*256);
+            result = `rgb(${r}, ${g}, ${b})`;
+        } else {
+            const h = Math.floor(Math.random()*361), s = Math.floor(Math.random()*101), l = Math.floor(Math.random()*101);
+            result = `hsl(${h}, ${s}%, ${l}%)`;
+        }
+        preview.style.backgroundColor = result;
+        meta = `Random ${format.toUpperCase()} color`;
+    }
+    else if (mode === 'string') {
+        const len = parseInt(document.getElementById('strLen').value);
+        const u = document.getElementById('strUpper').checked ? 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' : '';
+        const l = document.getElementById('strLower').checked ? 'abcdefghijklmnopqrstuvwxyz' : '';
+        const n = document.getElementById('strNum').checked ? '0123456789' : '';
+        const s = document.getElementById('strSym').checked ? '!@#$%^&*()_+~`|}{[]:;?><,./-=' : '';
+        const pool = u + l + n + s;
+        if (!pool) return alert("Select at least one character type.");
+        
+        for (let i = 0; i < len; i++) result += pool.charAt(Math.floor(Math.random() * pool.length));
+        meta = `Secure string generated (${len} chars)`;
+    }
+    else if (mode === 'datetime') {
+        const start = new Date(document.getElementById('dateStart').value || '1970-01-01').getTime();
+        const end = new Date(document.getElementById('dateEnd').value || Date.now()).getTime();
+        const randTime = Math.floor(Math.random() * (end - start + 1)) + start;
+        const d = new Date(randTime);
+        result = d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        meta = "Random timestamp within range";
+    }
+
+    resText.innerText = result;
+    resMeta.innerText = meta;
+    addOmniHistory(result, true);
+    await saveRandomHistory(mode, result);
 }
 
-async function pickRandom() {
-    const raw = document.getElementById('randChoices').value;
-    const choices = raw.split(',').map(c => c.trim()).filter(c => c);
-    if(!choices.length) return;
-    const res = choices[Math.floor(Math.random() * choices.length)];
-    document.getElementById('choiceResult').innerText = res;
-    await saveRandomHistory('choice', res);
+function pickFromList(type) {
+    const raw = document.getElementById('listInput').value;
+    const items = raw.split(/[\n,]/).map(i => i.trim()).filter(i => i);
+    if (!items.length) return alert("Please enter some items.");
+
+    const resText = document.getElementById('omniResultText');
+    const resMeta = document.getElementById('omniResultMeta');
+    
+    if (type === 'pick') {
+        const res = items[Math.floor(Math.random() * items.length)];
+        resText.innerText = res;
+        resMeta.innerText = `Selected from ${items.length} items`;
+        addOmniHistory(res, true);
+        saveRandomHistory('list-pick', res);
+    } else {
+        const shuffled = [...items].sort(() => Math.random() - 0.5);
+        const resVal = shuffled.join(' → ');
+        resText.innerText = resVal;
+        resMeta.innerText = `Shuffled ${items.length} items`;
+        addOmniHistory(resVal, true);
+        saveRandomHistory('list-shuffle', shuffled.join(', '));
+    }
+}
+
+function rollDice(sides) {
+    const resText = document.getElementById('omniResultText');
+    const resMeta = document.getElementById('omniResultMeta');
+    
+    if (sides === 2) {
+        const res = Math.random() > 0.5 ? "HEADS" : "TAILS";
+        resText.innerText = res;
+        resMeta.innerText = "Coin Toss Result";
+    } else {
+        const res = Math.floor(Math.random() * sides) + 1;
+        resText.innerText = res;
+        resMeta.innerText = `D${sides} Dice Roll`;
+    }
+    addOmniHistory(resText.innerText, true);
+    saveRandomHistory('dice', resText.innerText);
+}
+
+function addOmniHistory(val, isNew = true) {
+    const hist = document.getElementById('omniHistory');
+    if (hist.querySelector('p')) hist.innerHTML = '';
+    const span = document.createElement('span');
+    span.className = "px-2 py-1 bg-white/5 border border-white/5 rounded text-[10px] text-gray-400 font-mono cursor-pointer hover:bg-white/10 transition max-w-[150px] truncate";
+    span.innerText = val;
+    span.onclick = () => {
+        document.getElementById('omniResultText').innerText = val;
+        navigator.clipboard.writeText(val);
+    };
+    hist.prepend(span);
+}
+
+function copyOmniResult() {
+    const txt = document.getElementById('omniResultText').innerText;
+    if (txt === "...") return;
+    navigator.clipboard.writeText(txt);
+    const meta = document.getElementById('omniResultMeta');
+    const oldMeta = meta.innerText;
+    meta.innerText = "Copied to Clipboard!";
+    setTimeout(() => meta.innerText = oldMeta, 2000);
 }
 
 // --- MUSIC PLAYER LOGIC ---
@@ -799,6 +994,14 @@ function handleSearchOrUrl() {
         renderPlaylist();
         if (musicList.length === 1) playTrack(0);
         document.getElementById('ytSearchInput').value = '';
+
+        const statusMsg = document.createElement('div');
+        statusMsg.className = "fixed bottom-24 right-4 bg-cyan-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg animate-bounce z-[100]";
+        statusMsg.innerText = "Added to sOuLPLAY Library";
+        document.body.appendChild(statusMsg);
+        setTimeout(() => statusMsg.remove(), 2000);
+
+        saveMusicPlaylist();
     } else {
         searchYT();
     }
@@ -835,6 +1038,15 @@ function addYTTrack(id, title, artist) {
     if (isShuffle) shuffledIndices.push(newIdx);
     renderPlaylist();
     if (musicList.length === 1) playTrack(0);
+    
+    // UI Feedback
+    const statusMsg = document.createElement('div');
+    statusMsg.className = "fixed bottom-24 right-4 bg-cyan-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg animate-bounce z-[100]";
+    statusMsg.innerText = "Added to sOuLPLAY Library";
+    document.body.appendChild(statusMsg);
+    setTimeout(() => statusMsg.remove(), 2000);
+
+    saveMusicPlaylist();
 }
 
 let isShuffle = false;
@@ -1010,6 +1222,7 @@ function deleteSelectedTracks() {
     
     renderPlaylist();
     updateMusicUI();
+    saveMusicPlaylist();
 }
 
 function deleteTrack(index) {
@@ -1042,6 +1255,7 @@ function deleteTrack(index) {
         currentTrackIndex--;
     }
     renderPlaylist();
+    saveMusicPlaylist();
 }
 
 function renameTrack(index) {
@@ -1052,6 +1266,7 @@ function renameTrack(index) {
             document.getElementById('trackName').innerText = newName.trim();
         }
         renderPlaylist();
+        saveMusicPlaylist();
     }
 }
 
@@ -1255,6 +1470,7 @@ function moveTrack(index, direction) {
     }
     
     renderPlaylist();
+    saveMusicPlaylist();
 }
 
 document.getElementById('ytSearchInput').addEventListener('keydown', (e) => {
