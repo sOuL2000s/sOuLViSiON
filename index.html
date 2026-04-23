@@ -289,13 +289,15 @@
                 <button onclick="syncNotes()" class="text-cyan-400 text-sm"><i class="fas fa-sync"></i> Sync with Cloud</button>
             </div>
             
-            <div class="glass p-4 mb-8">
-                <div class="flex items-center justify-between mb-4 border-b border-white/10 pb-2">
-                    <div class="flex bg-white/5 p-1 rounded-lg">
-                        <button onclick="setNoteInputType('note')" id="typeBtnNote" class="px-4 py-1.5 rounded-md text-[10px] font-bold bg-cyan-600 text-white">GENERAL NOTE</button>
-                        <button onclick="setNoteInputType('todo')" id="typeBtnTodo" class="px-4 py-1.5 rounded-md text-[10px] font-bold text-gray-400">TASK LIST</button>
+            <div class="glass p-4 md:p-6 mb-8">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-4 border-b border-white/10 pb-4 gap-4">
+                    <div class="flex bg-white/5 p-1 rounded-xl self-start">
+                        <button onclick="setNoteInputType('note')" id="typeBtnNote" class="px-4 py-2 rounded-lg text-[10px] font-black tracking-widest transition-all bg-cyan-600 text-white">GENERAL NOTE</button>
+                        <button onclick="setNoteInputType('todo')" id="typeBtnTodo" class="px-4 py-2 rounded-lg text-[10px] font-black tracking-widest transition-all text-gray-400">TASK LIST</button>
                     </div>
-                    <input id="noteTitle" type="text" placeholder="Title (Optional)" class="bg-transparent border-none outline-none text-sm font-bold text-cyan-400 w-1/2 text-right">
+                    <div class="flex-grow sm:max-w-[60%]">
+                        <input id="noteTitle" type="text" placeholder="Note Title (Optional)" class="w-full bg-transparent border-none outline-none text-xl md:text-2xl font-black tracking-tighter text-cyan-400 sm:text-right placeholder:text-gray-600 placeholder:font-normal placeholder:tracking-normal">
+                    </div>
                 </div>
                 
                 <div id="noteToolbar" class="flex gap-2 mb-2 pb-2 border-b border-white/10 overflow-x-auto text-xs">

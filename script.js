@@ -253,16 +253,16 @@ function setNoteInputType(type) {
     const toolbar = document.getElementById('noteToolbar');
 
     if (type === 'todo') {
-        btnTodo.className = "px-4 py-1.5 rounded-md text-[10px] font-bold bg-purple-600 text-white";
-        btnNote.className = "px-4 py-1.5 rounded-md text-[10px] font-bold text-gray-400";
+        btnTodo.className = "px-4 py-2 rounded-lg text-[10px] font-black tracking-widest transition-all bg-purple-600 text-white";
+        btnNote.className = "px-4 py-2 rounded-lg text-[10px] font-black tracking-widest transition-all text-gray-400";
         toolbar.classList.add('hidden');
         input.placeholder = "Enter your tasks...";
         if (!input.value.trim()) {
             input.value = "- [ ] ";
         }
     } else {
-        btnNote.className = "px-4 py-1.5 rounded-md text-[10px] font-bold bg-cyan-600 text-white";
-        btnTodo.className = "px-4 py-1.5 rounded-md text-[10px] font-bold text-gray-400";
+        btnNote.className = "px-4 py-2 rounded-lg text-[10px] font-black tracking-widest transition-all bg-cyan-600 text-white";
+        btnTodo.className = "px-4 py-2 rounded-lg text-[10px] font-black tracking-widest transition-all text-gray-400";
         toolbar.classList.remove('hidden');
         input.placeholder = "Start writing markdown...";
     }
