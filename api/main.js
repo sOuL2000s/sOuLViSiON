@@ -1,5 +1,6 @@
 const { MongoClient } = require('mongodb');
 const { OAuth2Client } = require('google-auth-library');
+const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const ytSearch = require('yt-search');
 const { HttpsProxyAgent } = require('https-proxy-agent');
@@ -56,7 +57,7 @@ export default async function handler(req, res) {
                     user = { 
                         email, 
                         name, 
-                        isAdmin: email.includes('admin@soulvision.com'),
+                        isAdmin: email === process.env.MAIL_USER, // Secure admin check
                         authSource: 'google'
                     };
                     await col.insertOne(user);
@@ -65,13 +66,23 @@ export default async function handler(req, res) {
             } else if (mode === 'register') {
                 const existing = await col.findOne({ email });
                 if (existing) return res.status(400).json({ error: "User already exists" });
-                const newUser = { email, password, name, isAdmin: email.includes('admin@soulvision.com') };
+                const hashedPassword = await bcrypt.hash(password, 10);
+                const newUser = { 
+                    email, 
+                    password: hashedPassword, 
+                    name, 
+                    isAdmin: email === process.env.MAIL_USER 
+                };
                 await col.insertOne(newUser);
-                return res.status(201).json(newUser);
+                const { password: _, ...userWithoutPass } = newUser;
+                return res.status(201).json(userWithoutPass);
             } else {
-                const user = await col.findOne({ email, password });
-                if (!user) return res.status(401).json({ error: "Invalid credentials" });
-                return res.status(200).json(user);
+                const user = await col.findOne({ email });
+                if (!user || !(await bcrypt.compare(password, user.password))) {
+                    return res.status(401).json({ error: "Invalid credentials" });
+                }
+                const { password: _, ...userWithoutPass } = user;
+                return res.status(200).json(userWithoutPass);
             }
         }
 
@@ -103,6 +114,13 @@ export default async function handler(req, res) {
 
         if (query.route === 'admin_config') {
             const col = db.collection('config');
+            // Server-side admin verification
+            const adminEmail = query.adminEmail;
+            const adminUser = await db.collection('users').findOne({ email: adminEmail });
+            if (!adminUser || !adminUser.isAdmin) {
+                return res.status(403).json({ error: "Unauthorized access" });
+            }
+
             if (method === 'GET') {
                 const config = (await col.findOne({ type: 'ai_settings' })) || {};
                 // Expose Razorpay Public Key from environment

@@ -4,6 +4,7 @@
   "description": "Multi-tool client-side web app",
   "main": "api/main.js",
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "google-auth-library": "^10.6.2",
     "https-proxy-agent": "5.0.1",
     "mongodb": "^7.1.1",

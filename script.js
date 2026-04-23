@@ -19,6 +19,7 @@ let currentKeyIndex = 0;
 let pendingFiles = [];
 let notes = [];
 let noteType = 'note';
+let sleepTimer = null;
 let noteFilter = 'all';
 let aiConversations = [];
 let selectedConversations = new Set();
@@ -146,6 +147,37 @@ async function toggleNoteCheckbox(noteId, isChecked, el) {
     } catch (e) { console.error("Checkbox Sync Error:", e); }
 }
 
+function filterNotes(query) {
+    const searchTerm = query.toLowerCase();
+    const list = document.getElementById('notesList');
+    
+    const filtered = notes.filter(n => {
+        const matchesSearch = (n.title && n.title.toLowerCase().includes(searchTerm)) || 
+                              (n.text && n.text.toLowerCase().includes(searchTerm));
+        const matchesType = noteFilter === 'all' || 
+                           (noteFilter === 'note' && (n.type === 'note' || !n.type)) ||
+                           (noteFilter === 'todo' && n.type === 'todo');
+        return matchesSearch && matchesType;
+    });
+
+    renderNotes(filtered);
+}
+
+function filterAIHistory(query) {
+    const searchTerm = query.toLowerCase();
+    const filtered = aiConversations.filter(c => c.name.toLowerCase().includes(searchTerm));
+    renderAIHistory(filtered);
+}
+
+let autoSaveTimeout;
+function debounceAutoSave() {
+    clearTimeout(autoSaveTimeout);
+    autoSaveTimeout = setTimeout(() => {
+        const modalVisible = !document.getElementById('noteModal').classList.contains('hidden');
+        if (modalVisible) saveEditedNote(true);
+    }, 2000);
+}
+
 function updateEditorStats(el) {
     const text = el.value || "";
     const words = text.trim() ? text.trim().split(/\s+/).length : 0;
@@ -154,10 +186,28 @@ function updateEditorStats(el) {
     if (el.id === 'noteInput') {
         document.getElementById('noteWordCount').innerText = words;
         document.getElementById('noteCharCount').innerText = chars;
+        // Draft Recovery
+        if (text.length > 5) {
+            sessionStorage.setItem('soul_note_draft', text);
+            document.getElementById('restoreDraftBtn').classList.remove('hidden');
+        }
     } else if (el.id === 'editNoteText') {
         document.getElementById('editWordCount').innerText = words;
         document.getElementById('editCharCount').innerText = chars;
         document.getElementById('notePreview').innerHTML = renderMD(text, document.getElementById('editNoteId').value);
+        debounceAutoSave();
+        // Draft for existing note
+        const noteId = document.getElementById('editNoteId').value;
+        if (noteId) sessionStorage.setItem(`soul_draft_${noteId}`, text);
+    }
+}
+
+function restoreDraft() {
+    const draft = sessionStorage.getItem('soul_note_draft');
+    if (draft) {
+        document.getElementById('noteInput').value = draft;
+        updateEditorStats(document.getElementById('noteInput'));
+        document.getElementById('restoreDraftBtn').classList.add('hidden');
     }
 }
 
@@ -558,6 +608,10 @@ async function addNote() {
     notes.unshift(note);
     renderNotes();
     
+    // Clear Draft
+    sessionStorage.removeItem('soul_note_draft');
+    document.getElementById('restoreDraftBtn').classList.add('hidden');
+    
     // Reset fields
     input.value = '';
     titleInput.value = '';
@@ -568,10 +622,11 @@ async function addNote() {
     await saveNotesToDB(note);
 }
 
-function renderNotes() {
+function renderNotes(providedNotes = null) {
     const list = document.getElementById('notesList');
+    const sourceData = providedNotes || notes;
     
-    const filteredNotes = notes.filter(n => {
+    const filteredNotes = providedNotes ? sourceData : sourceData.filter(n => {
         if (noteFilter === 'all') return true;
         if (noteFilter === 'note') return (n.type === 'note' || !n.type);
         if (noteFilter === 'todo') return n.type === 'todo';
@@ -640,6 +695,15 @@ function openNote(id) {
     const note = notes.find(n => n.id === id);
     if (!note) return;
 
+    const draft = sessionStorage.getItem(`soul_draft_${id}`);
+    if (draft && draft !== note.text) {
+        if (confirm("You have an unsaved draft for this note. Restore it?")) {
+            note.text = draft;
+        } else {
+            sessionStorage.removeItem(`soul_draft_${id}`);
+        }
+    }
+
     document.getElementById('editNoteId').value = id;
     document.getElementById('editNoteText').value = note.text;
     document.getElementById('editNoteDeadline').value = note.deadline || '';
@@ -656,7 +720,7 @@ function closeNoteModal() {
     document.body.style.overflow = '';
 }
 
-async function saveEditedNote() {
+async function saveEditedNote(isAutoSave = false) {
     const id = parseInt(document.getElementById('editNoteId').value);
     const text = document.getElementById('editNoteText').value;
     const deadline = document.getElementById('editNoteDeadline').value;
@@ -666,8 +730,13 @@ async function saveEditedNote() {
         notes[noteIdx].text = text;
         notes[noteIdx].deadline = deadline || null;
         renderNotes();
-        closeNoteModal();
-        setLoading(true, "Updating Cloud Vault");
+        
+        if (!isAutoSave) {
+            closeNoteModal();
+            sessionStorage.removeItem(`soul_draft_${id}`);
+        }
+        
+        if (!isAutoSave) setLoading(true, "Updating Cloud Vault");
         try {
             await fetch(`/api/main?route=notes&id=${id}`, {
                 method: 'PATCH',
@@ -675,7 +744,7 @@ async function saveEditedNote() {
                 body: JSON.stringify({ text, deadline: deadline || null })
             });
         } finally {
-            setLoading(false);
+            if (!isAutoSave) setLoading(false);
         }
     }
 }
@@ -904,8 +973,9 @@ function onYouTubeIframeAPIReady() {
 }
 
 function onPlayerReady(event) {
-    if (musicList.length > 0 && musicList[currentTrackIndex].type === 'youtube') {
-        // Ready
+    const savedVol = localStorage.getItem('soulVolume');
+    if (savedVol !== null) {
+        event.target.setVolume(parseFloat(savedVol) * 100);
     }
 }
 
@@ -1381,6 +1451,25 @@ function setPlaybackSpeed(speed) {
     }
 }
 
+function setSleepTimer(minutes) {
+    if (sleepTimer) {
+        clearTimeout(sleepTimer);
+        sleepTimer = null;
+    }
+    
+    if (minutes === 0) {
+        alert("Sleep timer disabled.");
+        return;
+    }
+    
+    alert(`Sleep timer set for ${minutes} minutes.`);
+    sleepTimer = setTimeout(() => {
+        if (isMusicPlaying) toggleMusic();
+        alert("Sleep timer active: Music paused.");
+        sleepTimer = null;
+    }, minutes * 60000);
+}
+
 function toggleFullScreen(id) {
     const el = document.getElementById(id);
     if (!document.fullscreenElement) {
@@ -1465,6 +1554,7 @@ document.getElementById('volumeControl').addEventListener('input', (e) => {
     const vol = e.target.value;
     audioPlayer.volume = vol;
     if (ytPlayer && ytPlayer.setVolume) ytPlayer.setVolume(vol * 100);
+    localStorage.setItem('soulVolume', vol);
 });
 
 function moveTrack(index, direction) {
@@ -1507,7 +1597,8 @@ function updateMusicUI() {
 
 // --- AI LOGIC (Key Rotation) ---
 async function loadConfig() {
-    const res = await fetch('/api/main?route=admin_config');
+    const adminEmail = currentUser ? currentUser.email : '';
+    const res = await fetch(`/api/main?route=admin_config&adminEmail=${encodeURIComponent(adminEmail)}`);
     const data = await res.json();
     if(data) {
         aiConfig.keys = data.keys || [];
@@ -1589,11 +1680,12 @@ function loadConversation(id) {
     if(window.innerWidth < 1024) document.getElementById('aiSidebar').classList.add('hidden');
 }
 
-function renderAIHistory() {
+function renderAIHistory(providedHistory = null) {
     const list = document.getElementById('chatHistoryList');
     const bulkBar = document.getElementById('aiBulkActions');
+    const displayData = providedHistory || aiConversations;
     
-    if (aiConversations.length === 0) {
+    if (displayData.length === 0) {
         list.innerHTML = '<p class="text-[10px] text-gray-500 text-center py-4">No chat history.</p>';
         bulkBar?.classList.add('hidden');
         selectedConversations.clear();
@@ -1607,7 +1699,7 @@ function renderAIHistory() {
     const selectAllEl = document.getElementById('selectAllAI');
     if (selectAllEl) selectAllEl.checked = (selectedConversations.size === aiConversations.length && aiConversations.length > 0);
 
-    list.innerHTML = aiConversations.map(c => {
+    list.innerHTML = displayData.map(c => {
         const isSelected = selectedConversations.has(Number(c.id));
         return `
             <div class="relative group flex items-center gap-2">
@@ -1690,7 +1782,7 @@ async function deleteConversation(id) {
                 method: 'DELETE'
             });
         } finally {
-            setLoading(false);
+            if (!isAutoSave) setLoading(false);
         }
     }
     if (currentChatId === id) {
@@ -2074,7 +2166,8 @@ document.getElementById('chatInput').addEventListener('paste', (e) => {
 
 async function askAI() {
     const inputEl = document.getElementById('chatInput');
-    const input = inputEl.value;
+    const persona = document.getElementById('personaSelect').value;
+    let input = inputEl.value;
     if(!input.trim() && pendingFiles.length === 0) return;
     
     if(!currentChatId) newConversation();
@@ -2089,7 +2182,12 @@ async function askAI() {
         conv.name = input.substring(0, 25) || "New Conversation";
     }
     
-    const parts = [{ text: input || " " }];
+    const parts = [];
+    if (persona && (!conv || conv.messages.length === 0)) {
+        parts.push({ text: persona + "\n\n" + (input || " ") });
+    } else {
+        parts.push({ text: input || " " });
+    }
     pendingFiles.forEach(f => parts.push({ inline_data: { mime_type: f.mime_type, data: f.data } }));
     
     const messageObj = { role: 'user', content: userMsg, parts };
@@ -2254,6 +2352,7 @@ let clickCount = 0;
 let clickTime = 10;
 let clickActive = false;
 function startClicker() {
+    if (window.navigator.vibrate) window.navigator.vibrate(5);
     if(clickActive) { clickCount++; document.getElementById('clickCounter').innerText = clickCount; return; }
     clickActive = true; clickCount = 1; clickTime = 10;
     document.getElementById('clickCounter').innerText = "1";
@@ -2378,6 +2477,7 @@ async function startMatch() {
 
 function playCricket() {
     if(match.isOver) return;
+    if (window.navigator.vibrate) window.navigator.vibrate(10);
     const battingTeam = match.teams[match.currentInnings];
     const bowlingTeam = match.teams[match.currentInnings === 0 ? 1 : 0];
     const maxBalls = match.maxOvers * 6;
@@ -2846,13 +2946,20 @@ async function handleContact(e) {
 }
 
 // --- ADMIN ---
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('soul_theme', theme);
+}
+
 async function saveAdminConfig() {
     const keys = document.getElementById('apiKeys').value.split(',').map(k => k.trim());
     const models = JSON.parse(document.getElementById('modelList').value);
     const miniChatModel = document.getElementById('miniChatModelId').value.trim();
+    const adminEmail = currentUser ? currentUser.email : '';
+    
     setLoading(true, "Applying Admin Settings");
     try {
-        const res = await fetch('/api/main?route=admin_config', {
+        const res = await fetch(`/api/main?route=admin_config&adminEmail=${encodeURIComponent(adminEmail)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ type: 'ai_settings', keys, models, miniChatModel })
@@ -2907,6 +3014,18 @@ function initGoogleLogin() {
 // --- INIT ---
 window.onload = async () => {
     updateAuthUI();
+    
+    // Load Theme
+    const savedTheme = localStorage.getItem('soul_theme') || 'midnight';
+    setTheme(savedTheme);
+
+    const savedVol = localStorage.getItem('soulVolume');
+    if (savedVol !== null) {
+        const vol = parseFloat(savedVol);
+        audioPlayer.volume = vol;
+        document.getElementById('volumeControl').value = vol;
+        // YT volume set happens once player is ready
+    }
     initGoogleLogin();
     if (currentUser) {
         await syncAllData();
