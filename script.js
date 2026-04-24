@@ -346,12 +346,23 @@ function setNoteFilter(filter) {
     renderNotes();
 }
 
-// --- NAVIGATION ---
-function showPage(pageId) {
+// --- NAVIGATION & ROUTING ---
+function showPage(pageId, pushState = true) {
+    const validPages = ['home', 'notes', 'ai', 'play', 'random', 'cricket', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal'];
+    if (!validPages.includes(pageId)) pageId = 'home';
+
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     const page = document.getElementById(pageId);
     if(page) page.classList.add('active');
     
+    // History & URL Management
+    if (pushState) {
+        const path = pageId === 'home' ? '/' : `/${pageId}`;
+        if (window.location.pathname !== path) {
+            history.pushState({ pageId }, "", path);
+        }
+    }
+
     // Toggle Floating AI Widget visibility based on current page
     const widget = document.getElementById('aiWidget');
     const mini = document.getElementById('miniChat');
@@ -370,6 +381,17 @@ function showPage(pageId) {
     
     window.scrollTo(0, 0);
 }
+
+// Browser Navigation Handler (Back/Forward)
+window.addEventListener('popstate', (event) => {
+    if (event.state && event.state.pageId) {
+        showPage(event.state.pageId, false);
+    } else {
+        // Fallback to URL path detection if state is missing
+        const path = window.location.pathname.substring(1) || 'home';
+        showPage(path, false);
+    }
+});
 
 function loadDashboard() {
     if (!currentUser) return showPage('login');
@@ -3110,6 +3132,10 @@ function initGoogleLogin() {
 
 // --- INIT ---
 window.onload = async () => {
+    // Initial Route Detection
+    const initialPath = window.location.pathname.substring(1) || 'home';
+    showPage(initialPath, false); // false because the initial state is already in history
+
     updateAuthUI();
 
     // Set dynamic year in footer

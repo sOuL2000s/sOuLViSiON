@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://soulvision-all-in-one.vercel.app/sitemap.xml
