@@ -51,25 +51,25 @@
     </aside>
 
     <!-- Navigation -->
-    <nav class="glass sticky top-0 z-50 p-4 flex justify-between items-center px-4 md:px-8">
-        <div class="flex items-center gap-4">
+    <nav class="glass sticky top-0 z-50 p-4 flex justify-between items-center px-4 md:px-8 gap-4">
+        <div class="flex items-center gap-4 shrink-0">
             <button onclick="toggleSidebar()" class="md:hidden text-xl p-2"><i class="fas fa-bars"></i></button>
             <h1 class="text-xl md:text-2xl font-bold tracking-tighter text-cyan-400 cursor-pointer" onclick="showPage('home')">sOuLViSiON</h1>
         </div>
         
-        <div class="hidden md:flex space-x-2 md:space-x-4">
-            <button onclick="showPage('home')" class="text-sm font-medium hover:text-cyan-400">Home</button>
-            <button onclick="showPage('notes')" class="text-sm font-medium hover:text-cyan-400">Notes</button>
-            <button onclick="showPage('ai')" class="text-sm font-medium hover:text-cyan-400">AI</button>
-            <button onclick="showPage('play')" class="text-sm font-medium hover:text-cyan-400">Music</button>
-            <button id="dashboardBtn" onclick="showPage('dashboard')" class="hidden text-sm font-medium hover:text-cyan-400">Dashboard</button>
-            <button onclick="showPage('support')" class="text-sm font-medium hover:text-cyan-400">Support</button>
-            <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400 text-sm font-medium">Admin</button>
+        <div class="hidden md:flex items-center gap-1 lg:gap-4 overflow-hidden">
+            <button onclick="showPage('home')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Home</button>
+            <button onclick="showPage('notes')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Notes</button>
+            <button onclick="showPage('ai')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">AI</button>
+            <button onclick="showPage('play')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Music</button>
+            <button id="dashboardBtn" onclick="showPage('dashboard')" class="hidden text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Dashboard</button>
+            <button onclick="showPage('support')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Support</button>
+            <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400 text-xs lg:text-sm font-medium px-2 py-1 border border-red-500/20 rounded-md bg-red-500/5">Admin</button>
         </div>
 
-        <div id="userProfile" class="flex items-center gap-4">
-            <span id="userNameDisplay" class="text-sm hidden lg:block font-mono text-gray-400"></span>
-            <button id="authBtn" onclick="showPage('login')" class="bg-cyan-600/20 text-cyan-400 border border-cyan-600/30 px-4 py-1.5 rounded-lg text-sm font-bold hover:bg-cyan-600 hover:text-white transition-all">Login</button>
+        <div id="userProfile" class="flex items-center gap-2 md:gap-4 shrink-0">
+            <span id="userNameDisplay" class="text-xs hidden xl:block font-mono text-gray-400 truncate max-w-[100px]"></span>
+            <button id="authBtn" onclick="showPage('login')" class="bg-cyan-600/20 text-cyan-400 border border-cyan-600/30 px-3 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold hover:bg-cyan-600 hover:text-white transition-all whitespace-nowrap">Login</button>
         </div>
     </nav>
 
@@ -725,29 +725,45 @@
                 </div>
                 <!-- Chat Window -->
                 <div class="flex-grow flex flex-col glass overflow-hidden relative border-l border-white/5 min-h-[400px] h-[75vh] lg:h-auto">
-                    <div class="p-3 md:p-4 border-b border-white/10 flex flex-wrap gap-2 md:gap-4 justify-between items-center bg-white/5">
-                        <div class="flex items-center gap-2 md:gap-3">
-                            <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-                                <i class="fas fa-brain text-white text-xs md:text-base"></i>
+                    <div class="p-2 md:p-4 border-b border-white/10 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-between items-start sm:items-center bg-white/5">
+                        <div class="flex items-center gap-2 md:gap-3 w-full sm:w-auto justify-between sm:justify-start">
+                            <div class="flex items-center gap-2 md:gap-3">
+                                <div class="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-500/20 shrink-0">
+                                    <i class="fas fa-brain text-white text-xs md:text-base"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xs md:text-sm font-black tracking-tighter text-white leading-none">sOuLAI</h2>
+                                    <p class="text-[8px] md:text-[10px] text-purple-400 font-mono uppercase tracking-widest mt-1">Intelligence Core</p>
+                                </div>
                             </div>
-                            <div>
-                                <h2 class="text-xs md:text-sm font-black tracking-tighter text-white leading-none">sOuLAI</h2>
-                                <p class="text-[8px] md:text-[10px] text-purple-400 font-mono uppercase tracking-widest mt-1">Intelligence Core</p>
+                            <div class="flex sm:hidden items-center gap-2 bg-black/20 p-1 rounded-lg border border-white/10">
+                                <label class="relative inline-flex items-center cursor-pointer scale-90">
+                                    <input type="checkbox" id="streamToggleMobile" class="sr-only peer" checked onchange="toggleStreamMode(this.checked)">
+                                    <div class="w-7 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
                             </div>
                         </div>
-                        <div class="flex items-center gap-1 md:gap-3">
-                            <select id="personaSelect" class="bg-gray-800/50 border border-white/10 p-2 rounded-lg text-[8px] md:text-[10px] font-bold text-purple-300 focus:ring-1 ring-purple-500 outline-none cursor-pointer">
+                        
+                        <div class="flex flex-wrap items-center gap-1.5 md:gap-3 w-full sm:w-auto">
+                            <div class="hidden sm:flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/10">
+                                <span class="text-[8px] font-bold text-gray-500">STREAM</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="streamToggle" class="sr-only peer" checked onchange="toggleStreamMode(this.checked)">
+                                    <div class="w-7 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+                            <select id="personaSelect" class="bg-gray-800/50 border border-white/10 p-2 rounded-lg text-[8px] md:text-[10px] font-bold text-purple-300 focus:ring-1 ring-purple-500 outline-none cursor-pointer flex-grow sm:flex-grow-0 max-w-[120px] md:max-w-none">
                                 <option value="">Default Persona</option>
                                 <option value="You are a Senior Software Engineer. Give concise, technical answers with best practices.">Senior Coder</option>
                                 <option value="You are a creative writer and poet. Use evocative language and metaphors.">Poet</option>
                                 <option value="You are a strict professional translator. Provide accurate translations and grammatical context.">Translator</option>
                                 <option value="You are a helpful tutor. Explain concepts simply as if talking to a 10-year-old.">Simple Tutor</option>
                             </select>
+                            <select id="modelSelect" class="bg-gray-800/50 border border-white/10 p-2 rounded-lg text-[8px] md:text-[10px] font-bold text-gray-300 focus:ring-1 ring-purple-500 outline-none max-w-[80px] md:max-w-none cursor-pointer hover:bg-gray-800 transition flex-grow sm:flex-grow-0"></select>
                             <div class="relative group/export">
-                                <button class="bg-cyan-600/10 border border-cyan-500/30 p-2 rounded-lg text-xs text-cyan-400 hover:bg-cyan-600 hover:text-white transition-all shadow-sm" title="Export Chat Data">
+                                <button class="bg-cyan-600/10 border border-cyan-500/30 p-2 rounded-lg text-[10px] md:text-xs text-cyan-400 hover:bg-cyan-600 hover:text-white transition-all shadow-sm" title="Export Chat Data">
                                     <i class="fas fa-download"></i>
                                 </button>
-                                <!-- The pt-2 on this div acts as a hover bridge -->
                                 <div class="absolute top-full right-0 pt-2 hidden group-hover/export:flex flex-col z-50 animate-fadeIn">
                                     <div class="bg-gray-900 border border-white/10 rounded-xl shadow-2xl py-2 min-w-[120px] overflow-hidden">
                                         <button onclick="exportData('chat', currentChatId, 'pdf')" class="w-full px-4 py-2 text-left hover:bg-cyan-600/20 text-[10px] font-bold flex items-center gap-2"><i class="fas fa-file-pdf text-red-400"></i> As PDF</button>
@@ -756,8 +772,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <select id="modelSelect" class="bg-gray-800/50 border border-white/10 p-2 rounded-lg text-[8px] md:text-[10px] font-bold text-gray-300 focus:ring-1 ring-purple-500 outline-none max-w-[80px] md:max-w-none cursor-pointer hover:bg-gray-800 transition"></select>
-                            <button onclick="clearChat()" class="bg-red-600/10 border border-red-500/30 p-2 rounded-lg text-xs text-red-400 hover:bg-red-600 hover:text-white transition-all shadow-sm" title="Purge Current View">
+                            <button onclick="clearChat()" class="bg-red-600/10 border border-red-500/30 p-2 rounded-lg text-[10px] md:text-xs text-red-400 hover:bg-red-600 hover:text-white transition-all shadow-sm shrink-0" title="Purge Current View">
                                 <i class="fas fa-trash-can"></i>
                             </button>
                         </div>
@@ -765,9 +780,11 @@
                     <div class="bg-purple-500/5 px-4 py-1 text-center border-b border-white/5">
                          <span class="text-[10px] font-mono text-purple-300/60 uppercase tracking-[0.2em]" id="currentConvName">Ready for Prompt</span>
                     </div>
-                    <div id="chatBox" class="flex-grow overflow-y-auto p-4 md:p-6 flex flex-col gap-6 scroll-smooth custom-scrollbar">
+                    <div class="flex-grow overflow-hidden flex flex-col relative">
+                        <!-- AI Status moved above ChatBox to stay pinned at the top during generation -->
+                        <div id="aiStatus" class="hidden"></div>
+                        <div id="chatBox" class="flex-grow overflow-y-auto p-4 md:p-6 flex flex-col gap-6 scroll-smooth custom-scrollbar"></div>
                     </div>
-                    <div id="aiStatus" class="px-4 py-2 text-[10px] text-gray-500 font-mono hidden"></div>
                     <div id="aiAttachmentPreview" class="px-4 py-2 flex gap-2 flex-wrap empty:hidden"></div>
                     <div class="p-2 md:p-4 border-t border-white/10 bg-black/20 flex gap-2 md:gap-3 items-center">
                         <input type="file" id="aiFileInput" class="hidden" multiple onchange="handleAIFile(event)">
@@ -1054,12 +1071,34 @@
 
     <!-- Floating Mini Chat -->
     <div id="miniChat" class="mini-chat glass p-4">
-        <div class="flex justify-between items-center mb-2 border-b border-gray-700 pb-2">
-            <span class="font-bold">sOuLAI Mini</span>
-            <button onclick="toggleMiniChat()"><i class="fas fa-times"></i></button>
+        <div class="flex justify-between items-center mb-2 border-b border-white/10 pb-2">
+            <div class="flex items-center gap-3">
+                <span class="font-black text-[10px] tracking-widest text-purple-400 uppercase">sOuLAI Mini</span>
+                <div class="flex items-center gap-2 px-2 py-1 bg-white/5 rounded-lg border border-white/10">
+                    <label class="relative inline-flex items-center cursor-pointer scale-75">
+                        <input type="checkbox" id="miniStreamToggle" class="sr-only peer" checked onchange="toggleStreamMode(this.checked)">
+                        <div class="w-7 h-4 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                    <span class="text-[8px] font-bold text-gray-500">STREAM</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="clearMiniChat()" class="w-6 h-6 flex items-center justify-center bg-red-500/10 text-red-400 rounded-md hover:bg-red-500 hover:text-white transition-all text-[10px]" title="Clear Chat"><i class="fas fa-trash-alt"></i></button>
+                <div class="relative group/miniexport">
+                    <button class="w-6 h-6 flex items-center justify-center bg-cyan-500/10 text-cyan-400 rounded-md hover:bg-cyan-500 hover:text-white transition-all text-[10px]"><i class="fas fa-download"></i></button>
+                    <div class="absolute bottom-full right-0 mb-2 hidden group-hover/miniexport:flex flex-col bg-gray-900 border border-white/10 rounded-xl shadow-2xl py-1 z-[110] min-w-[80px] overflow-hidden animate-fadeIn">
+                        <button onclick="exportMiniChat('pdf')" class="px-3 py-2 text-left hover:bg-cyan-600/20 text-[8px] font-black border-b border-white/5">PDF</button>
+                        <button onclick="exportMiniChat('markdown')" class="px-3 py-2 text-left hover:bg-cyan-600/20 text-[8px] font-black">MD</button>
+                    </div>
+                </div>
+                <button onclick="toggleMiniChat()" class="text-gray-500 hover:text-white ml-1"><i class="fas fa-times"></i></button>
+            </div>
         </div>
-        <div id="miniChatBox" class="flex-grow overflow-y-auto flex flex-col gap-2 mb-2 p-2"></div>
-        <div id="miniAiStatus" class="px-2 py-1 text-[8px] text-gray-500 font-mono hidden border-t border-white/5"></div>
+        <div class="flex-grow overflow-hidden flex flex-col relative">
+            <!-- AI Status moved above MiniChatBox to stay pinned at the top during generation -->
+            <div id="miniAiStatus" class="hidden"></div>
+            <div id="miniChatBox" class="flex-grow overflow-y-auto flex flex-col gap-2 p-2 custom-scrollbar"></div>
+        </div>
         <div id="miniAttachmentPreview" class="px-2 pb-1 flex gap-1 overflow-x-auto empty:hidden"></div>
         <div class="flex gap-1 items-center">
             <input type="file" id="miniFileInput" class="hidden" multiple onchange="handleAIFile(event, true)">

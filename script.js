@@ -1,5 +1,20 @@
 // --- STATE MANAGEMENT ---
 let currentUser = JSON.parse(localStorage.getItem('soulUser')) || null;
+let isStreamingMode = true;
+
+function toggleStreamMode(val) {
+    isStreamingMode = val;
+    // Sync toggles across UI
+    const mainToggle = document.getElementById('streamToggle');
+    const mainToggleMobile = document.getElementById('streamToggleMobile');
+    const miniToggle = document.getElementById('miniStreamToggle');
+    if (mainToggle) mainToggle.checked = val;
+    if (mainToggleMobile) mainToggleMobile.checked = val;
+    if (miniToggle) miniToggle.checked = val;
+    
+    const status = isStreamingMode ? "Streaming Active" : "Instant Delivery Mode";
+    console.log(status);
+}
 
 // UI Helpers
 function setLoading(show, text = "Synchronizing") {
@@ -337,6 +352,16 @@ function showPage(pageId) {
     const page = document.getElementById(pageId);
     if(page) page.classList.add('active');
     
+    // Toggle Floating AI Widget visibility based on current page
+    const widget = document.getElementById('aiWidget');
+    const mini = document.getElementById('miniChat');
+    if (pageId === 'ai') {
+        widget?.classList.add('hidden');
+        mini?.classList.remove('show');
+    } else {
+        widget?.classList.remove('hidden');
+    }
+
     if (pageId === 'dashboard') loadDashboard();
     
     // Close sidebar on navigation (mobile)
@@ -2227,18 +2252,54 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
     if(!aiConfig.keys.length) return alert("Please configure API Keys in Admin panel.");
 
     const statusEl = document.getElementById(targetBoxId === 'chatBox' ? 'aiStatus' : 'miniAiStatus');
+    const loadingPhrases = isStreamingMode ? [
+        "Establishing neural stream...",
+        "Buffering consciousness...",
+        "Decoding tokenized reality...",
+        "Synapsing response nodes...",
+        "Venturing into latent space..."
+    ] : [
+        "Analyzing intent vectors...",
+        "Querying sOuL-Core matrix...",
+        "Synthesizing multi-dimensional context...",
+        "Optimizing synaptic weights...",
+        "Decrypting intelligence protocols...",
+        "Resolving probabilistic outputs...",
+        "Formulating definitive response..."
+    ];
+    let phraseIdx = 0;
+    let loadingInterval = null;
+
     if(statusEl) { 
-        statusEl.innerHTML = `<div class="flex items-center gap-2"><div class="typing-indicator"><span></span><span></span><span></span></div> Connecting to Neural Link...</div>`; 
+        statusEl.innerHTML = `
+            <div class="neural-loader">
+                <div class="neural-grid">
+                    <div class="grid-dot"></div>
+                    <div class="grid-dot"></div>
+                    <div class="grid-dot"></div>
+                    <div class="grid-dot"></div>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-[9px] font-black tracking-[0.2em] text-purple-400 uppercase flex items-center gap-2">
+                        <span class="status-dot"></span>
+                        ${isStreamingMode ? 'Streaming Core Active' : 'Static Computation'}
+                    </span>
+                    <span class="neural-text text-[8px] text-gray-500 font-mono mt-0.5">Initializing uplink...</span>
+                </div>
+                <div class="ml-auto flex gap-1">
+                    <div class="pulse-bar"></div>
+                    <div class="pulse-bar"></div>
+                    <div class="pulse-bar"></div>
+                </div>
+            </div>`; 
         statusEl.classList.remove('hidden'); 
     }
 
-    // Map history to Gemini format
     const contents = history.map(m => ({
         role: m.role === 'user' ? 'user' : 'model',
         parts: m.parts || [{ text: m.content }]
     }));
 
-    // Add current prompt if history doesn't already contain it
     if (contents.length === 0 || contents[contents.length-1].role === 'model') {
         const currentParts = [{ text: text }];
         attachments.forEach(a => currentParts.push({ inline_data: { mime_type: a.mime_type, data: a.data } }));
@@ -2246,7 +2307,8 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
     }
 
     try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${aiConfig.keys[currentKeyIndex]}`, {
+        const endpoint = isStreamingMode ? 'streamGenerateContent' : 'generateContent';
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${aiConfig.keys[currentKeyIndex]}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ contents })
@@ -2257,67 +2319,77 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
             throw new Error(errData.error?.message || "API Error");
         }
 
-        if(statusEl) statusEl.innerHTML = `<div class="flex items-center gap-2"><div class="typing-indicator"><span></span><span></span><span></span></div> Receiving Intelligence...</div>`;
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder("utf-8");
+        if (statusEl) {
+            const neuralText = statusEl.querySelector('.neural-text');
+            loadingInterval = setInterval(() => {
+                if(neuralText) neuralText.innerText = loadingPhrases[phraseIdx] + "...";
+                phraseIdx = (phraseIdx + 1) % loadingPhrases.length;
+                // Keep scrolling so status stays visible
+                const box = document.getElementById(targetBoxId);
+                if(box) box.scrollTop = box.scrollHeight;
+            }, 1200);
+        }
+
         let fullContent = "";
-        appendAIMessage('ai', '<div class="typing-dots"><span></span><span></span><span></span></div>', targetBoxId, true);
         
-        let buffer = "";
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-                // Process any remaining buffer
-                if (buffer.trim()) processBuffer(buffer.trim());
-                break;
-            }
+        if (isStreamingMode) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            appendAIMessage('ai', '<div class="typing-dots"><span></span><span></span><span></span></div>', targetBoxId, true);
             
-            buffer += decoder.decode(value, { stream: true });
-            buffer = processBuffer(buffer);
-        }
-
-        function processBuffer(data) {
-            let tempBuffer = data;
+            let buffer = "";
             while (true) {
-                let startIdx = tempBuffer.indexOf('{');
-                if (startIdx === -1) break;
-                
-                let braceCount = 0;
-                let endIdx = -1;
-                for (let i = startIdx; i < tempBuffer.length; i++) {
-                    if (tempBuffer[i] === '{') braceCount++;
-                    else if (tempBuffer[i] === '}') braceCount--;
-                    
-                    if (braceCount === 0) {
-                        endIdx = i;
-                        break;
-                    }
+                const { done, value } = await reader.read();
+                if (done) {
+                    if (buffer.trim()) processBuffer(buffer.trim());
+                    break;
                 }
-                
-                if (endIdx === -1) break; // Incomplete JSON object
-                
-                const chunkStr = tempBuffer.substring(startIdx, endIdx + 1);
-                try {
-                    const chunk = JSON.parse(chunkStr);
-                    const textPart = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                    if (textPart) {
-                        fullContent += textPart;
-                        appendAIMessage('ai', fullContent, targetBoxId, true);
-                    }
-                } catch (e) {
-                    // Log but continue
-                }
-                tempBuffer = tempBuffer.substring(endIdx + 1).trim();
-                if (tempBuffer.startsWith(',')) tempBuffer = tempBuffer.substring(1).trim();
+                buffer += decoder.decode(value, { stream: true });
+                buffer = processBuffer(buffer);
             }
-            return tempBuffer;
+
+            function processBuffer(data) {
+                let tempBuffer = data;
+                while (true) {
+                    let startIdx = tempBuffer.indexOf('{');
+                    if (startIdx === -1) break;
+                    let braceCount = 0;
+                    let endIdx = -1;
+                    for (let i = startIdx; i < tempBuffer.length; i++) {
+                        if (tempBuffer[i] === '{') braceCount++;
+                        else if (tempBuffer[i] === '}') braceCount--;
+                        if (braceCount === 0) { endIdx = i; break; }
+                    }
+                    if (endIdx === -1) break;
+                    const chunkStr = tempBuffer.substring(startIdx, endIdx + 1);
+                    try {
+                        const chunk = JSON.parse(chunkStr);
+                        const textPart = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                        if (textPart) {
+                            fullContent += textPart;
+                            appendAIMessage('ai', fullContent, targetBoxId, true);
+                        }
+                    } catch (e) {}
+                    tempBuffer = tempBuffer.substring(endIdx + 1).trim();
+                    if (tempBuffer.startsWith(',')) tempBuffer = tempBuffer.substring(1).trim();
+                }
+                return tempBuffer;
+            }
+        } else {
+            const data = await response.json();
+            fullContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
         }
 
-        appendAIMessage('ai', fullContent, targetBoxId, false); // Final transition
+        if (loadingInterval) clearInterval(loadingInterval);
+        appendAIMessage('ai', fullContent, targetBoxId, false);
+        
         if(statusEl) {
-            statusEl.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i> Sequence Complete`;
-            setTimeout(() => statusEl.classList.add('hidden'), 2000);
+            statusEl.innerHTML = `
+                <div class="flex items-center gap-2 animate-fadeOut">
+                    <i class="fas fa-check-circle text-green-500 text-xs"></i>
+                    <span class="text-[9px] font-black tracking-widest text-green-500/80 uppercase">Intelligence Received</span>
+                </div>`;
+            setTimeout(() => statusEl.classList.add('hidden'), 1500);
         }
 
         if (targetBoxId === 'chatBox' && currentChatId) {
@@ -2328,10 +2400,10 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
             }
         }
     } catch (err) {
+        if (loadingInterval) clearInterval(loadingInterval);
         console.warn(`Key ${currentKeyIndex} error: ${err.message}.`);
         if (aiConfig.keys.length > 1) {
             currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
-            if(statusEl) statusEl.innerText = `Retrying with Key ${currentKeyIndex}...`;
             return await callGeminiAPI(text, targetBoxId, history, attachments);
         }
         if(statusEl) statusEl.classList.add('hidden');
@@ -2340,7 +2412,31 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
 }
 
 // AI logic replaced by unified streaming/file functions above
-function clearChat() { document.getElementById('chatBox').innerHTML = ''; }
+function clearChat() { 
+    if(confirm("Purge all visible messages in this view?")) {
+        document.getElementById('chatBox').innerHTML = ''; 
+    }
+}
+
+function clearMiniChat() {
+    document.getElementById('miniChatBox').innerHTML = '';
+}
+
+async function exportMiniChat(format) {
+    const box = document.getElementById('miniChatBox');
+    const messages = [];
+    box.querySelectorAll('.message').forEach(msg => {
+        const role = msg.classList.contains('user-msg') ? 'user' : 'ai';
+        const content = msg.querySelector('.markdown-body').innerText;
+        messages.push({ role, content });
+    });
+    
+    if(messages.length === 0) return alert("Nothing to export!");
+    
+    const data = { id: Date.now(), name: "Mini Chat Conversation", messages };
+    await exportData('chat', data.id, format);
+}
+
 function toggleAIHistory() {
     const sidebar = document.getElementById('aiSidebar');
     sidebar.classList.toggle('hidden');

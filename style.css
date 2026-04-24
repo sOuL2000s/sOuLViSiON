@@ -170,12 +170,22 @@ nav button:hover {
 }
 
 /* --- sOuLAI Chat Bubbles --- */
-#ai {
+#ai.active {
     height: calc(100vh - 140px);
+    display: flex;
+    flex-direction: column;
 }
 
+/* Ensure the main chat container doesn't overflow the viewport */
 @media (max-width: 1024px) {
-    #ai { height: auto; min-height: 85vh; }
+    #ai { height: 80vh; min-height: 500px; }
+}
+
+/* Force chatBox to handle scrolling and keep status/input pinned at bottom */
+#chatBox, #miniChatBox {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    min-height: 0;
 }
 
 #chatBox {
@@ -318,6 +328,16 @@ nav button:hover {
 .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
 .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
 
+.instant-loading-pulse {
+    animation: pulseGlow 1.5s infinite;
+}
+
+@keyframes pulseGlow {
+    0% { filter: drop-shadow(0 0 2px var(--secondary)); opacity: 0.7; }
+    50% { filter: drop-shadow(0 0 10px var(--secondary)); opacity: 1; }
+    100% { filter: drop-shadow(0 0 2px var(--secondary)); opacity: 0.7; }
+}
+
 @keyframes typing {
     0%, 100% { transform: translateY(0); opacity: 0.3; }
     50% { transform: translateY(-4px); opacity: 1; }
@@ -335,25 +355,103 @@ nav button:hover {
     100% { background-position: -200% 0; }
 }
 
-#aiStatus {
-    background: rgba(139, 92, 246, 0.05);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+#aiStatus, #miniAiStatus {
+    background: linear-gradient(to right, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(139, 92, 246, 0.4);
     color: var(--secondary);
     position: relative;
     overflow: hidden;
+    padding: 12px 20px;
+    z-index: 50;
+    flex-shrink: 0;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    animation: slideDownFade 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-#aiStatus::after {
-    content: '';
-    position: absolute;
-    top: 0; left: -100%;
-    width: 50%; height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.1), transparent);
-    animation: statusShine 2s infinite;
+@keyframes slideDownFade {
+    from { transform: translateY(-10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
-@keyframes statusShine {
-    to { left: 200%; }
+.neural-loader {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: relative;
+}
+
+.neural-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+    width: 14px;
+    height: 14px;
+}
+
+.grid-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--secondary);
+    border-radius: 1px;
+    animation: grid-pulse 1s infinite alternate;
+}
+
+.grid-dot:nth-child(2) { animation-delay: 0.2s; }
+.grid-dot:nth-child(3) { animation-delay: 0.4s; }
+.grid-dot:nth-child(4) { animation-delay: 0.6s; }
+
+@keyframes grid-pulse {
+    0% { transform: scale(0.6); opacity: 0.3; background: var(--secondary); }
+    100% { transform: scale(1.1); opacity: 1; background: var(--primary); }
+}
+
+.status-dot {
+    width: 4px;
+    height: 4px;
+    background: var(--primary);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--primary);
+}
+
+.pulse-bar {
+    width: 2px;
+    height: 12px;
+    background: rgba(139, 92, 246, 0.2);
+    border-radius: 1px;
+    animation: bar-pulse 0.6s infinite alternate;
+}
+
+.pulse-bar:nth-child(1) { animation-delay: 0s; }
+.pulse-bar:nth-child(2) { animation-delay: 0.2s; }
+.pulse-bar:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes bar-pulse {
+    from { height: 4px; background: rgba(139, 92, 246, 0.2); }
+    to { height: 16px; background: var(--primary); }
+}
+
+.animate-fadeOut {
+    animation: fadeOut 1s forwards;
+}
+
+@keyframes fadeOut {
+    0% { opacity: 1; }
+    70% { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-5px); }
+}
+
+.neural-text {
+    letter-spacing: 0.05em;
+    animation: text-flicker 3s infinite;
+}
+
+@keyframes text-flicker {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+    55% { opacity: 0.9; }
+    60% { opacity: 0.4; }
 }
 .markdown-body code {
     font-family: 'Fira Code', monospace;
