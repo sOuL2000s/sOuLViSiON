@@ -2942,7 +2942,7 @@ async function payNow() {
         "amount": amount * 100,
         "currency": "INR",
         "name": "sOuLViSiON Support",
-        "description": remark || "Donation for sOuLViSiON",
+        "description": remark || "Support for sOuLViSiON Development",
         "prefill": {
             "name": currentUser?.name || "",
             "email": currentUser?.email || ""
@@ -2957,13 +2957,14 @@ async function payNow() {
                         name: currentUser?.name || 'Anonymous', 
                         amount, 
                         remark,
-                        paymentId: response.razorpay_payment_id
+                        paymentId: response.razorpay_payment_id,
+                        timestamp: Date.now()
                     })
                 });
-                alert("Thank you for your support!");
+                alert("Thank you for your support! Your contribution was successful.");
                 loadFeedbacks();
             } catch (e) {
-                alert("Payment recorded, but failed to update wall.");
+                alert("Payment successful, but failed to update wall. We have recorded your contribution internally.");
             } finally {
                 setLoading(false);
             }
@@ -2996,14 +2997,14 @@ async function loadFeedbacks() {
                     <span class="font-bold text-cyan-400">${f.name}</span>
                     <span class="bg-cyan-500/20 text-cyan-400 text-[10px] px-2 py-0.5 rounded-full font-bold">₹${f.amount}</span>
                 </div>
-                <p class="text-sm text-gray-300 italic">"${f.remark || 'Helping sOuLViSiON grow!'}"</p>
+                <p class="text-sm text-gray-300 italic">"${f.remark || 'Supporting sOuLViSiON development!'}"</p>
             </div>
         `).join('');
     } else {
         wall.innerHTML = `
             <div class="text-center py-20 opacity-50">
-                <i class="fas fa-heart-broken text-4xl mb-4"></i>
-                <p>No donations yet. Be the pioneer!</p>
+                <i class="fas fa-mug-hot text-4xl mb-4"></i>
+                <p>No supporters yet. Be the first!</p>
             </div>
         `;
     }
@@ -3110,6 +3111,10 @@ function initGoogleLogin() {
 // --- INIT ---
 window.onload = async () => {
     updateAuthUI();
+
+    // Set dynamic year in footer
+    const yearEl = document.getElementById('currentYear');
+    if (yearEl) yearEl.innerText = new Date().getFullYear();
     
     // Load Theme
     const savedTheme = localStorage.getItem('soul_theme') || 'midnight';
