@@ -4511,6 +4511,8 @@ function filterAdminUsers(query) {
 }
 
 let visitorMap = null;
+let heatmapLayer = null;
+
 async function loadVisitorMap() {
     if (!currentUser || !currentUser.isAdmin) return;
     
@@ -4518,7 +4520,6 @@ async function loadVisitorMap() {
     if (!mapEl) return;
 
     if (!visitorMap) {
-        // Initialize map with a dark-mode friendly theme
         visitorMap = L.map('visitorMap', {
             zoomControl: false,
             attributionControl: false
@@ -4530,67 +4531,114 @@ async function loadVisitorMap() {
         }).addTo(visitorMap);
     }
 
-    // Force map to recalculate dimensions after page transitions
+    // Fix for hidden containers in SPAs
     setTimeout(() => {
-        if (visitorMap) {
-            visitorMap.invalidateSize(true);
-            requestAnimationFrame(() => visitorMap.invalidateSize());
-        }
+        if (visitorMap) visitorMap.invalidateSize();
     }, 400);
 
     try {
         const res = await fetch(`/api/main?route=users&adminEmail=${encodeURIComponent(currentUser.email)}`);
         const users = await res.json();
         
-        // Remove old markers
+        // 1. Clear existing layers
         visitorMap.eachLayer((layer) => {
-            if (layer instanceof L.CircleMarker) visitorMap.removeLayer(layer);
+            if (layer instanceof L.CircleMarker || layer === heatmapLayer) {
+                visitorMap.removeLayer(layer);
+            }
         });
 
-        let markerCount = 0;
+        const heatData = [];
+        const markers = [];
+        
         users.forEach(user => {
-            // Check for lat/lon in different formats (DB might store as string or number)
             const lat = parseFloat(user.lastGeo?.lat);
             const lon = parseFloat(user.lastGeo?.lon);
 
             if (!isNaN(lat) && !isNaN(lon)) {
-                markerCount++;
+                // Add to Heatmap data
+                heatData.push([lat, lon, 1]); 
+
+                // Add Marker
                 const marker = L.circleMarker([lat, lon], {
-                    radius: 7,
-                    fillColor: "#ef4444",
+                    radius: 6,
+                    fillColor: "#06b6d4",
                     color: "#fff",
-                    weight: 2,
+                    weight: 1.5,
                     opacity: 1,
-                    fillOpacity: 0.9,
+                    fillOpacity: 0.8,
                     className: 'visitor-marker-pulse'
                 }).addTo(visitorMap);
 
-                const time = user.joinedAt ? new Date(user.joinedAt).toLocaleDateString() : 'Unknown';
+                const time = user.joinedAt ? new Date(user.joinedAt).toLocaleDateString() : 'Legacy';
                 marker.bindPopup(`
-                    <div class="p-1 min-w-[120px]">
-                        <p class="text-[11px] font-black text-red-500 uppercase tracking-widest mb-1">Family Member</p>
+                    <div class="p-1 min-w-[140px]">
+                        <p class="text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-1">Core Member</p>
                         <p class="text-sm font-bold text-white mb-1">${user.name}</p>
-                        <p class="text-[9px] text-gray-400 uppercase">${user.lastGeo.city || 'Private Location'}, ${user.lastGeo.country || ''}</p>
-                        <p class="text-[8px] text-gray-500 mt-2">Member Since: ${time}</p>
+                        <p class="text-[9px] text-gray-400 uppercase">${user.lastGeo.city || 'Unknown'}, ${user.lastGeo.country || ''}</p>
+                        <p class="text-[8px] text-gray-500 mt-2">Established: ${time}</p>
                     </div>
-                `, {
-                    className: 'soul-map-popup'
-                });
+                `, { className: 'soul-map-popup' });
+                
+                markers.push(marker.getLatLng());
             }
         });
 
-        if (markerCount === 0) {
-            console.warn("No users with valid geo data found for mapping.");
-        } else {
-            // Auto-pan to show all markers if there are multiple
-            const markers = [];
-            visitorMap.eachLayer(l => { if(l instanceof L.CircleMarker) markers.push(l.getLatLng()); });
-            if(markers.length > 1) visitorMap.fitBounds(L.latLngBounds(markers), { padding: [50, 50] });
+        // 2. Add Heatmap Layer for density visualization
+        if (heatData.length > 0 && typeof L.heatLayer === 'function') {
+            heatmapLayer = L.heatLayer(heatData, {
+                radius: 25,
+                blur: 15,
+                maxZoom: 10,
+                gradient: { 0.4: 'blue', 0.65: 'cyan', 1: 'lime' }
+            }).addTo(visitorMap);
+        }
+
+        // 3. Render Rank Statistics
+        renderVisitorStats(users);
+
+        // 4. Auto-zoom to audience
+        if (markers.length > 1) {
+            visitorMap.fitBounds(L.latLngBounds(markers), { padding: [40, 40] });
         }
     } catch (e) {
-        console.error("Map Synchronization Error:", e);
-        showToast("Map update failed.", "error");
+        console.error("Map Load Error:", e);
     }
+}
+
+function renderVisitorStats(users) {
+    const statsList = document.getElementById('visitorStatsList');
+    if (!statsList) return;
+
+    const countryMap = {};
+    users.forEach(u => {
+        const country = u.lastGeo?.country || 'Unknown';
+        countryMap[country] = (countryMap[country] || 0) + 1;
+    });
+
+    const sorted = Object.entries(countryMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8);
+
+    if (sorted.length === 0) {
+        statsList.innerHTML = '<p class="text-[10px] text-gray-600 italic">No region data detected.</p>';
+        return;
+    }
+
+    const total = users.length;
+    statsList.innerHTML = sorted.map(([country, count]) => {
+        const percent = Math.round((count / total) * 100);
+        return `
+            <div class="group">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="text-[11px] font-bold text-gray-300 uppercase">${country}</span>
+                    <span class="text-[10px] font-black text-cyan-400">${count} (${percent}%)</span>
+                </div>
+                <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                    <div class="h-full bg-cyan-600 transition-all duration-1000" style="width: ${percent}%"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 async function sendAnnouncement() {
