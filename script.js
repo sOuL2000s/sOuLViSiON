@@ -104,6 +104,66 @@ function toggleStreamMode(val) {
 }
 
 // UI Helpers
+let isCheckingHealth = false;
+async function checkSystemHealth() {
+    if (isCheckingHealth) return;
+    isCheckingHealth = true;
+    
+    const start = Date.now();
+    const dot = document.getElementById('healthDot');
+    const text = document.getElementById('healthText');
+    const indicator = document.getElementById('globalHealthIndicator');
+    const latencyEl = document.getElementById('healthLatency');
+    const cloudEl = document.getElementById('healthCloudStatus');
+
+    if (currentUser && currentUser.isAdmin) indicator?.classList.remove('hidden');
+
+    try {
+        // Ping config to check DB and Server connectivity
+        const res = await fetch(`/api/main?route=admin_config`, { priority: 'low' });
+        const latency = Date.now() - start;
+        
+        if (res.ok) {
+            const data = await res.json();
+            const hasKeys = data.keys && data.keys.length > 0;
+            
+            if (dot) {
+                dot.className = "relative inline-flex rounded-full h-2 w-2 " + (hasKeys ? "bg-green-500" : "bg-yellow-500");
+                const ping = dot.previousElementSibling;
+                if (ping) ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 " + (hasKeys ? "bg-green-400" : "bg-yellow-400");
+            }
+            if (text) text.innerText = hasKeys ? "Stable" : "Degraded";
+            if (latencyEl) {
+                latencyEl.innerText = `${latency}ms`;
+                latencyEl.className = `text-xl font-black ${latency < 200 ? 'text-green-400' : 'text-yellow-400'}`;
+            }
+            if (cloudEl) {
+                cloudEl.innerText = "ACTIVE";
+                cloudEl.className = "text-xl font-black text-green-400";
+            }
+        } else {
+            throw new Error();
+        }
+    } catch (e) {
+        if (dot) {
+            dot.className = "relative inline-flex rounded-full h-2 w-2 bg-red-500";
+            const ping = dot.previousElementSibling;
+            if (ping) ping.className = "animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75";
+        }
+        if (text) text.innerText = "Offline";
+        if (latencyEl) {
+            latencyEl.innerText = "ERR";
+            latencyEl.className = "text-xl font-black text-red-500";
+        }
+        if (cloudEl) {
+            cloudEl.innerText = "FAILED";
+            cloudEl.className = "text-xl font-black text-red-500";
+        }
+    } finally {
+        isCheckingHealth = false;
+    }
+}
+
 function setLoading(show, text = "Synchronizing") {
     const loader = document.getElementById('globalLoader');
     const txt = document.getElementById('loaderText');
@@ -115,6 +175,22 @@ function setLoading(show, text = "Synchronizing") {
             loader.classList.add('hidden');
         }
     }
+}
+
+function showBetterError(msg) {
+    const overlay = document.getElementById('errorOverlay');
+    const desc = document.getElementById('errorDescription');
+    if (overlay && desc) {
+        desc.innerText = msg;
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+    }
+    setLoading(false);
+}
+
+function closeErrorOverlay() {
+    const overlay = document.getElementById('errorOverlay');
+    if (overlay) overlay.classList.add('hidden');
 }
 let aiConfig = { keys: [], models: [] };
 let currentKeyIndex = 0;
@@ -438,13 +514,24 @@ function setNoteFilter(filter) {
 }
 
 // --- NAVIGATION & ROUTING ---
+const pageCache = new Map();
+
 function showPage(pageId, pushState = true) {
     const validPages = ['home', 'notes', 'ai', 'play', 'random', 'cricket', 'snake', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass'];
     if (!validPages.includes(pageId)) pageId = 'home';
 
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    // Optimization: Don't re-render/re-toggle if already active
+    const currentPage = document.querySelector('.page.active');
+    if (currentPage && currentPage.id === pageId) return;
+
+    if (currentPage) currentPage.classList.remove('active');
+    
     const page = document.getElementById(pageId);
-    if(page) page.classList.add('active');
+    if(page) {
+        page.classList.add('active');
+        // Smooth entry for better perceived performance
+        if (pageId !== 'home') window.scrollTo({ top: 0, behavior: 'auto' });
+    }
     
     // History & URL Management
     if (pushState) {
@@ -454,33 +541,40 @@ function showPage(pageId, pushState = true) {
         }
     }
 
-    // Toggle Floating AI Widget visibility based on current page
-    const widget = document.getElementById('aiWidget');
-    const mini = document.getElementById('miniChat');
-    if (pageId === 'ai') {
-        widget?.classList.add('hidden');
-        mini?.classList.remove('show');
-    } else {
-        widget?.classList.remove('hidden');
-    }
+    // UI State Sync
+    requestAnimationFrame(() => {
+        const widget = document.getElementById('aiWidget');
+        const mini = document.getElementById('miniChat');
+        if (pageId === 'ai') {
+            widget?.classList.add('hidden');
+            mini?.classList.remove('show');
+        } else {
+            widget?.classList.remove('hidden');
+        }
 
-    if (pageId === 'snake') {
-        initSnake();
-        syncSnakeLeaderboard();
-    } else {
-        quitSnake();
-    }
-    if (pageId === 'dashboard') loadDashboard();
-    if (pageId === 'manage' && currentUser?.isAdmin) {
-        loadConfig();
-        loadAdminUsers();
-    }
-    
-    // Close sidebar on navigation (mobile)
-    const sidebar = document.getElementById('mobileSidebar');
-    if (sidebar && sidebar.classList.contains('translate-x-0')) toggleSidebar();
-    
-    window.scrollTo(0, 0);
+        // Lazy Initializations
+        if (pageId === 'snake') {
+            initSnake();
+            syncSnakeLeaderboard();
+        } else {
+            quitSnake();
+        }
+        
+        if (pageId === 'dashboard') loadDashboard();
+        
+        if (pageId === 'manage' && currentUser?.isAdmin) {
+            loadConfig();
+            loadAdminUsers();
+            // Delay map loading slightly to ensure container is fully rendered and has dimensions
+            setTimeout(loadVisitorMap, 300);
+        }
+        
+        if (pageId === 'support') loadFeedbacks();
+        
+        // Close sidebar on navigation (mobile)
+        const sidebar = document.getElementById('mobileSidebar');
+        if (sidebar && sidebar.classList.contains('translate-x-0')) toggleSidebar();
+    });
 }
 
 // Browser Navigation Handler (Back/Forward)
@@ -531,7 +625,7 @@ async function updateUserProfile() {
             throw new Error(data.error || "Failed to update profile");
         }
     } catch (e) {
-        alert(e.message);
+        showBetterError(e.message);
     } finally {
         setLoading(false);
     }
@@ -605,8 +699,16 @@ async function handleAuth() {
         updateAuthUI();
         await syncAllData();
         showPage('home');
+        if (mode === 'register') {
+            // Extended delay to ensure page elements are fully painted
+            setTimeout(() => {
+                if (document.getElementById('home').classList.contains('active')) {
+                    startWelcomeTour();
+                }
+            }, 2500);
+        }
     } catch (err) {
-        alert(err.message);
+        showBetterError(err.message);
     } finally {
         setLoading(false);
     }
@@ -717,11 +819,12 @@ function updateAuthUI() {
     const adminBtnSide = document.getElementById('adminBtnSide');
     const dashBtn = document.getElementById('dashboardBtn');
     const dashBtnSide = document.getElementById('dashboardBtnSide');
+    const authBtn = document.getElementById('authBtn');
     
     if (currentUser) {
         document.getElementById('userNameDisplay').innerText = `Hey, ${currentUser.name}`;
-        document.getElementById('authBtn').innerText = 'Logout';
-        document.getElementById('authBtn').onclick = logout;
+        authBtn.innerHTML = '<i class="fas fa-sign-out-alt md:hidden"></i><span class="hidden md:inline">Logout</span>';
+        authBtn.onclick = logout;
         dashBtn?.classList.remove('hidden');
         dashBtnSide?.classList.remove('hidden');
         if(currentUser.isAdmin) {
@@ -732,8 +835,8 @@ function updateAuthUI() {
         dashBtn?.classList.add('hidden');
         dashBtnSide?.classList.add('hidden');
         document.getElementById('userNameDisplay').innerText = '';
-        document.getElementById('authBtn').innerText = 'Login';
-        document.getElementById('authBtn').onclick = () => showPage('login');
+        authBtn.innerHTML = '<i class="fas fa-sign-in-alt md:hidden"></i><span class="hidden md:inline">Login</span>';
+        authBtn.onclick = () => showPage('login');
         adminBtn?.classList.add('hidden');
         adminBtnSide?.classList.add('hidden');
     }
@@ -2182,16 +2285,17 @@ function toggleSTT(isMini = false) {
         }
     };
 
-    recognition.onerror = () => {
-        sttForceStop = true;
-        btn.innerHTML = `<i class="fas fa-microphone ${isMini ? 'text-xs' : ''}"></i>`;
-        btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
-        recognition.active = false;
+    recognition.onerror = (event) => {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            sttForceStop = true;
+            showToast("Microphone access denied or service unavailable.", "error");
+        }
+        console.warn("STT Error:", event.error);
     };
 
     recognition.onend = () => {
         if (!sttForceStop) {
-            recognition.start();
+            try { recognition.start(); } catch(e) { console.warn("STT restart failed:", e); }
         } else {
             btn.innerHTML = `<i class="fas fa-microphone ${isMini ? 'text-xs' : ''}"></i>`;
             btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
@@ -2632,7 +2736,12 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
             return await callGeminiAPI(text, targetBoxId, history, attachments);
         }
         if(statusEl) statusEl.classList.add('hidden');
-        appendAIMessage('ai', `**System Failure:** ${err.message}`, targetBoxId);
+        
+        if (err.message.includes("quota") || err.message.includes("API key")) {
+            showBetterError("The Intelligence Core is exhausted or misconfigured. Admin attention required.");
+        } else {
+            appendAIMessage('ai', `**System Failure:** ${err.message}`, targetBoxId);
+        }
     }
 }
 
@@ -3385,7 +3494,7 @@ async function deleteCricketMatch(id) {
             throw new Error("Failed to delete record");
         }
     } catch (e) {
-        alert(e.message);
+        showBetterError(e.message);
     } finally {
         setLoading(false);
     }
@@ -3747,24 +3856,54 @@ async function loadAdminUsers() {
 function renderAdminUsers(users) {
     const list = document.getElementById('adminUserList');
     if (!users.length) {
-        list.innerHTML = '<p class="text-xs text-gray-500">No users found.</p>';
+        list.innerHTML = '<p class="text-xs text-gray-500 text-center py-10 italic">No members found in the sOuLViSiON family core.</p>';
         return;
     }
-    list.innerHTML = users.map(user => `
-        <div class="bg-white/5 p-3 rounded-lg flex justify-between items-center border border-white/5 group">
-            <div class="overflow-hidden">
-                <p class="text-xs font-bold text-white truncate">${user.name}</p>
-                <p class="text-[10px] text-gray-500 truncate">${user.email}</p>
-                <div class="flex gap-2 mt-1">
-                    ${user.isAdmin ? '<span class="text-[8px] bg-red-500/20 text-red-400 px-1 rounded font-bold">ADMIN</span>' : ''}
-                    ${user.authSource === 'google' ? '<span class="text-[8px] bg-blue-500/20 text-blue-400 px-1 rounded font-bold">GOOGLE</span>' : ''}
+    list.innerHTML = users.map(user => {
+        let joinedDate = "Legacy Member";
+        if (user.joinedAt) {
+            joinedDate = new Date(user.joinedAt).toLocaleDateString();
+        } else if (user._id && typeof user._id === 'string' && user._id.length === 24) {
+            joinedDate = new Date(parseInt(user._id.substring(0, 8), 16) * 1000).toLocaleDateString();
+        }
+
+        const isSelf = user.email === currentUser.email;
+
+        return `
+            <div class="bg-white/5 p-3 md:p-4 rounded-xl flex justify-between items-center border border-white/5 group hover:bg-white/10 hover:border-red-500/20 transition-all duration-300">
+                <div class="overflow-hidden flex items-center gap-3 md:gap-4">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-red-500 font-black text-sm shrink-0 border border-white/5 shadow-inner">
+                        ${user.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div class="overflow-hidden">
+                        <p class="text-[13px] font-black text-white truncate flex items-center gap-2">
+                            ${user.name}
+                            ${isSelf ? '<span class="text-[8px] px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 border border-cyan-500/20">YOU</span>' : ''}
+                        </p>
+                        <p class="text-[10px] text-gray-500 truncate font-mono">${user.email}</p>
+                        <div class="flex flex-wrap items-center gap-2 mt-1.5">
+                            <span class="text-[8px] text-gray-600 font-black uppercase tracking-tighter">EST: ${joinedDate}</span>
+                            ${user.isAdmin ? '<span class="text-[7px] font-black bg-red-600/10 text-red-500 px-1.5 py-0.5 rounded border border-red-500/20 uppercase">Core Admin</span>' : ''}
+                            ${user.authSource === 'google' ? '<i class="fab fa-google text-[9px] text-gray-500" title="Google Auth"></i>' : ''}
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center">
+                    ${!isSelf ? `
+                        <button onclick="adminDeleteUser('${user.email}')" 
+                                class="w-10 h-10 flex items-center justify-center rounded-xl bg-red-600/5 text-gray-600 hover:bg-red-600 hover:text-white hover:scale-110 active:scale-95 transition-all duration-300 border border-transparent hover:border-red-500 group/term" 
+                                title="Terminate Member Access">
+                            <i class="fas fa-user-xmark text-sm group-hover/term:animate-pulse"></i>
+                        </button>
+                    ` : `
+                        <div class="w-10 h-10 flex items-center justify-center text-gray-700 opacity-20">
+                            <i class="fas fa-shield-halved text-sm"></i>
+                        </div>
+                    `}
                 </div>
             </div>
-            <button onclick="adminDeleteUser('${user.email}')" class="text-gray-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-2">
-                <i class="fas fa-user-slash"></i>
-            </button>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function filterAdminUsers(query) {
@@ -3773,6 +3912,182 @@ function filterAdminUsers(query) {
         u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
     );
     renderAdminUsers(filtered);
+}
+
+let visitorMap = null;
+async function loadVisitorMap() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    
+    const mapEl = document.getElementById('visitorMap');
+    if (!mapEl) return;
+
+    if (!visitorMap) {
+        // Initialize map with a dark-mode friendly theme
+        visitorMap = L.map('visitorMap', {
+            zoomControl: false,
+            attributionControl: false
+        }).setView([20, 0], 2);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(visitorMap);
+    }
+
+    // Force map to recalculate dimensions after page transitions
+    setTimeout(() => {
+        if (visitorMap) {
+            visitorMap.invalidateSize(true);
+            requestAnimationFrame(() => visitorMap.invalidateSize());
+        }
+    }, 400);
+
+    try {
+        const res = await fetch(`/api/main?route=users&adminEmail=${encodeURIComponent(currentUser.email)}`);
+        const users = await res.json();
+        
+        // Remove old markers
+        visitorMap.eachLayer((layer) => {
+            if (layer instanceof L.CircleMarker) visitorMap.removeLayer(layer);
+        });
+
+        let markerCount = 0;
+        users.forEach(user => {
+            // Check for lat/lon in different formats (DB might store as string or number)
+            const lat = parseFloat(user.lastGeo?.lat);
+            const lon = parseFloat(user.lastGeo?.lon);
+
+            if (!isNaN(lat) && !isNaN(lon)) {
+                markerCount++;
+                const marker = L.circleMarker([lat, lon], {
+                    radius: 7,
+                    fillColor: "#ef4444",
+                    color: "#fff",
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9,
+                    className: 'visitor-marker-pulse'
+                }).addTo(visitorMap);
+
+                const time = user.joinedAt ? new Date(user.joinedAt).toLocaleDateString() : 'Unknown';
+                marker.bindPopup(`
+                    <div class="p-1 min-w-[120px]">
+                        <p class="text-[11px] font-black text-red-500 uppercase tracking-widest mb-1">Family Member</p>
+                        <p class="text-sm font-bold text-white mb-1">${user.name}</p>
+                        <p class="text-[9px] text-gray-400 uppercase">${user.lastGeo.city || 'Private Location'}, ${user.lastGeo.country || ''}</p>
+                        <p class="text-[8px] text-gray-500 mt-2">Member Since: ${time}</p>
+                    </div>
+                `, {
+                    className: 'soul-map-popup'
+                });
+            }
+        });
+
+        if (markerCount === 0) {
+            console.warn("No users with valid geo data found for mapping.");
+        } else {
+            // Auto-pan to show all markers if there are multiple
+            const markers = [];
+            visitorMap.eachLayer(l => { if(l instanceof L.CircleMarker) markers.push(l.getLatLng()); });
+            if(markers.length > 1) visitorMap.fitBounds(L.latLngBounds(markers), { padding: [50, 50] });
+        }
+    } catch (e) {
+        console.error("Map Synchronization Error:", e);
+        showToast("Map update failed.", "error");
+    }
+}
+
+async function sendAnnouncement() {
+    const input = document.getElementById('announcementInput');
+    const duration = document.getElementById('announcementDuration').value;
+    const text = input.value.trim();
+    if (!text) return;
+
+    setLoading(true, "Broadcasting Announcement");
+    try {
+        const res = await fetch(`/api/main?route=announcement&adminEmail=${encodeURIComponent(currentUser.email)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                text, 
+                duration: parseInt(duration),
+                timestamp: Date.now()
+            })
+        });
+        if (res.ok) {
+            showToast("Broadcast active.", "success");
+            input.value = '';
+            checkAnnouncement();
+        }
+    } finally {
+        setLoading(false);
+    }
+}
+
+async function deleteAnnouncement() {
+    if (!confirm("Stop this broadcast and remove it for all users?")) return;
+    setLoading(true, "Removing Broadcast");
+    try {
+        await fetch(`/api/main?route=announcement&adminEmail=${encodeURIComponent(currentUser.email)}`, {
+            method: 'DELETE'
+        });
+        showToast("Broadcast terminated.", "warning");
+        // Clear inputs
+        document.getElementById('announcementInput').value = '';
+        checkAnnouncement();
+    } finally {
+        setLoading(false);
+    }
+}
+
+function editAnnouncement() {
+    const activeText = document.getElementById('activeAnnounceText').innerText;
+    if (activeText) {
+        document.getElementById('announcementInput').value = activeText;
+        document.getElementById('announcementInput').focus();
+        showToast("Announcement loaded into editor.", "info");
+    }
+}
+
+async function checkAnnouncement() {
+    try {
+        const res = await fetch('/api/main?route=announcement');
+        const data = await res.json();
+        const banner = document.getElementById('announcementBanner');
+        const text = document.getElementById('announcementText');
+        const adminInfo = document.getElementById('activeAnnouncementInfo');
+        const adminText = document.getElementById('activeAnnounceText');
+
+        if (data && data.text) {
+            // Update admin UI if visible
+            if (adminInfo) {
+                adminInfo.classList.remove('hidden');
+                adminText.innerText = data.text;
+            }
+            
+            const dismissed = localStorage.getItem('soul_dismissed_announcement');
+            if (dismissed === data.timestamp.toString()) {
+                banner.classList.add('hidden');
+                return;
+            }
+            text.innerText = data.text;
+            banner.classList.remove('hidden');
+            banner.dataset.timestamp = data.timestamp;
+        } else {
+            banner.classList.add('hidden');
+            if (adminInfo) adminInfo.classList.add('hidden');
+        }
+    } catch (e) {
+        console.warn("Announcement check failed", e);
+    }
+}
+
+function dismissAnnouncement() {
+    const banner = document.getElementById('announcementBanner');
+    if (banner.dataset.timestamp) {
+        localStorage.setItem('soul_dismissed_announcement', banner.dataset.timestamp);
+    }
+    banner.classList.add('hidden');
 }
 
 async function adminDeleteUser(email) {
@@ -3823,7 +4138,7 @@ async function requestResetOTP() {
             throw new Error(data.error || "Failed to send code.");
         }
     } catch (e) {
-        alert(e.message);
+        showBetterError(e.message);
     } finally {
         setLoading(false);
     }
@@ -3852,7 +4167,7 @@ async function verifyAndResetPassword() {
             throw new Error(data.error || "Reset failed.");
         }
     } catch (e) {
-        alert(e.message);
+        showBetterError(e.message);
     } finally {
         setLoading(false);
     }
@@ -3903,6 +4218,7 @@ function initGoogleLogin() {
 function initCustomCursor() {
     const cursor = document.getElementById('custom-cursor');
     if (!cursor) return;
+    document.body.classList.add('cursor-active');
 
     let mouseX = 0, mouseY = 0;
     let isHidden = true;
@@ -3996,6 +4312,179 @@ function lockCurrentNote() {
     showToast(code ? "Note Locked" : "Note Unlocked", "info");
 }
 
+// --- WELCOME TOUR LOGIC ---
+let currentTourStep = 0;
+let activeTourSteps = [];
+
+const desktopTourSteps = [
+    {
+        selector: 'nav .text-cyan-400.cursor-pointer',
+        text: "Hi! I'm sOuL-ie, your guide. Welcome to sOuLViSiON - your new digital sanctuary!",
+        pos: { top: '20%', left: '50%' }
+    },
+    {
+        selector: 'nav div.hidden.md\\:flex button[onclick*="notes"]',
+        text: "In sOuLNOTES, you can write markdown notes and lock them with secret codes.",
+        pos: { top: '40%', left: '30%' }
+    },
+    {
+        selector: 'nav div.hidden.md\\:flex button[onclick*="ai"]',
+        text: "Meet sOuLAI. Powerful models ready to assist your creative process.",
+        pos: { top: '40%', left: '50%' }
+    },
+    {
+        selector: 'nav div.hidden.md\\:flex button[onclick*="play"]',
+        text: "Relax with sOuLPLAY. Stream from YouTube or play local files with vinyl vibes.",
+        pos: { top: '40%', left: '70%' }
+    },
+    {
+        selector: '#userProfile',
+        text: "Keep track of your stats and system health here in the Dashboard.",
+        pos: { top: '15%', left: '80%' }
+    },
+    {
+        selector: 'nav div.hidden.md\\:flex button[onclick*="support"]',
+        text: "Love sOuLViSiON? Support our journey to stay free and private for everyone!",
+        pos: { top: '80%', left: '50%' }
+    }
+];
+
+const mobileTourSteps = [
+    {
+        selector: 'nav h1',
+        text: "Welcome to sOuLViSiON Mobile! I'm sOuL-ie, let me show you around.",
+        pos: { top: '20%', left: '50%' }
+    },
+    {
+        selector: 'button[onclick="toggleSidebar()"]',
+        text: "Tap the Menu to access all your tools like Notes, AI, and Music.",
+        pos: { top: '10%', left: '10%' }
+    },
+    {
+        selector: '#aiWidget',
+        text: "This bubble is your AI assistant. Tap it for quick help on any page!",
+        pos: { top: '85%', left: '85%' }
+    },
+    {
+        selector: '#userProfile',
+        text: "Check your system health and manage your profile here.",
+        pos: { top: '10%', left: '85%' }
+    }
+];
+
+function startWelcomeTour() {
+    // Force wait if loader is currently active
+    const loader = document.getElementById('globalLoader');
+    if (loader && !loader.classList.contains('hidden')) {
+        setTimeout(startWelcomeTour, 1000);
+        return;
+    }
+
+    if (localStorage.getItem('soul_tour_done')) return;
+    
+    // Detect device for tour content
+    activeTourSteps = window.innerWidth < 768 ? mobileTourSteps : desktopTourSteps;
+    
+    currentTourStep = 0;
+    const overlay = document.getElementById('tourOverlay');
+    overlay.classList.remove('hidden');
+    overlay.classList.add('flex'); 
+    
+    setTimeout(() => {
+        document.getElementById('tourBackdrop').classList.add('opacity-100');
+    }, 50);
+
+    renderTourStep();
+}
+
+function renderTourStep() {
+    const step = activeTourSteps[currentTourStep];
+    const ghost = document.getElementById('ghostGuide');
+    const text = document.getElementById('tourText');
+    const tooltip = document.getElementById('tourTooltip');
+    const prevHighlight = document.querySelector('.tour-highlight');
+    if (prevHighlight) prevHighlight.classList.remove('tour-highlight');
+
+    const target = document.querySelector(step.selector);
+    let ghostCenterX;
+
+    if (target && target.offsetParent !== null) { // Ensure target exists and is visible
+        target.classList.add('tour-highlight');
+        const rect = target.getBoundingClientRect();
+        
+        // Calculate safe top position (prevent off-screen)
+        let topPos = rect.top - 180;
+        if (topPos < 20) topPos = rect.bottom + 20; 
+        
+        ghostCenterX = rect.left + rect.width / 2;
+        ghost.style.top = `${topPos}px`;
+        ghost.style.left = `${ghostCenterX}px`;
+        ghost.style.transform = 'translateX(-50%)';
+    } else {
+        ghost.style.top = step.pos.top;
+        ghost.style.left = step.pos.left;
+        ghost.style.transform = 'translate(-50%, -50%)';
+        
+        // Estimate center X for percentage based positions
+        const percent = parseFloat(step.pos.left) || 50;
+        ghostCenterX = (percent / 100) * window.innerWidth;
+    }
+
+    // Smart Horizontal Positioning for Tooltip
+    // Reset classes/styles to prevent conflicts
+    tooltip.classList.remove('left-1/2', '-translate-x-1/2', 'left-0', 'right-0');
+    tooltip.style.left = '';
+    tooltip.style.right = '';
+    tooltip.style.transform = '';
+
+    const tooltipWidth = 256; // Matching w-64 in Tailwind
+    const margin = 20;
+
+    if (ghostCenterX - (tooltipWidth / 2) < margin) {
+        // Too close to left edge
+        tooltip.classList.add('left-0');
+        tooltip.style.transform = 'translateX(0)';
+    } else if (ghostCenterX + (tooltipWidth / 2) > window.innerWidth - margin) {
+        // Too close to right edge
+        tooltip.classList.add('right-0');
+        tooltip.style.left = 'auto';
+        tooltip.style.transform = 'translateX(0)';
+    } else {
+        // Centered
+        tooltip.classList.add('left-1/2', '-translate-x-1/2');
+    }
+
+    text.innerText = step.text;
+}
+
+function nextTourStep() {
+    currentTourStep++;
+    if (currentTourStep >= activeTourSteps.length) {
+        finishTour();
+    } else {
+        renderTourStep();
+    }
+}
+
+function skipTour() {
+    finishTour();
+}
+
+function finishTour() {
+    const overlay = document.getElementById('tourOverlay');
+    const backdrop = document.getElementById('tourBackdrop');
+    const highlight = document.querySelector('.tour-highlight');
+    
+    if (highlight) highlight.classList.remove('tour-highlight');
+    backdrop.classList.remove('opacity-100');
+    localStorage.setItem('soul_tour_done', 'true');
+    
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+        showToast("Enjoy your journey, Soul Seeker!", "info");
+    }, 500);
+}
+
 function updateGoalProgress() {
     const goal = parseInt(document.getElementById('wordGoal').value) || 0;
     const current = parseInt(document.getElementById('editWordCount').innerText) || 0;
@@ -4059,61 +4548,106 @@ function toggleSTTNote(inputId) {
         }
     };
 
+    recognition.onerror = (event) => {
+        if (event.error === 'not-allowed') sttForceStop = true;
+        console.warn("STT Note Error:", event.error);
+    };
+
     recognition.onend = () => {
-        btn.innerHTML = `<i class="fas fa-microphone"></i>`;
-        recognition.active = false;
+        if (!sttForceStop) {
+            try { recognition.start(); } catch(e) {}
+        } else {
+            btn.innerHTML = `<i class="fas fa-microphone"></i>`;
+            recognition.active = false;
+        }
     };
 
     recognition.start();
 }
 
 // --- INIT ---
-window.onload = async () => {
-    initCustomCursor();
-    // Initial Route Detection
-    const initialPath = window.location.pathname.substring(1) || 'home';
-    showPage(initialPath, false); // false because the initial state is already in history
-
-    updateAuthUI();
-
-    // Set dynamic year in footer
-    const yearEl = document.getElementById('currentYear');
-    if (yearEl) yearEl.innerText = new Date().getFullYear();
-    
-    // Load Theme
+// Performance optimized initialization sequence
+const initApp = async () => {
+    // 1. Critical UI setup (Immediate)
     const savedTheme = (currentUser && currentUser.theme) ? currentUser.theme : (localStorage.getItem('soul_theme') || 'midnight');
     setTheme(savedTheme);
-
-    const savedVol = localStorage.getItem('soulVolume');
-    if (savedVol !== null) {
-        const vol = parseFloat(savedVol);
-        audioPlayer.volume = vol;
-        document.getElementById('volumeControl').value = vol;
-        // YT volume set happens once player is ready
-    }
-    initGoogleLogin();
-    if (currentUser) {
-        await syncAllData();
-        await loadCricketSetup();
-    }
-    loadConfig();
-    loadFeedbacks();
-    renderAIHistory();
-    syncSnakeLeaderboard();
-
-    // Init Greetings
-    const aiWelcome = "### Greetings.\nI am the **sOuLAI** interface. How can I assist your vision today?";
-    appendAIMessage('ai', aiWelcome, 'chatBox');
-    appendAIMessage('ai', "Hello! I am your quick AI assistant. Ask me anything.", 'miniChatBox');
-
-    document.getElementById('aiWidget').onclick = toggleMiniChat;
     
-    // Marked.js options
-    marked.setOptions({
-        highlight: function(code, lang) {
-            return hljs.highlightAuto(code).value;
-        },
-        breaks: true,
-        gfm: true
+    const initialPath = window.location.pathname.substring(1) || 'home';
+    showPage(initialPath, false);
+    
+    updateAuthUI();
+    initCustomCursor();
+
+    // 2. Non-critical metadata
+    const yearEl = document.getElementById('currentYear');
+    if (yearEl) yearEl.innerText = new Date().getFullYear();
+
+    // 3. Deferred/Async Logic
+    requestAnimationFrame(async () => {
+        // Marked.js options
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({
+                highlight: (code) => typeof hljs !== 'undefined' ? hljs.highlightAuto(code).value : code,
+                breaks: true,
+                gfm: true
+            });
+        }
+
+        const savedVol = localStorage.getItem('soulVolume');
+        if (savedVol !== null) {
+            const vol = parseFloat(savedVol);
+            audioPlayer.volume = vol;
+            if (document.getElementById('volumeControl')) document.getElementById('volumeControl').value = vol;
+        }
+
+        // Parallel non-blocking data fetching
+        const backgroundTasks = [
+            loadConfig(),
+            loadFeedbacks(),
+            checkAnnouncement(),
+            checkSystemHealth()
+        ];
+
+        if (currentUser) {
+            backgroundTasks.push(syncAllData());
+            backgroundTasks.push(loadCricketSetup());
+            
+            // Re-trigger tour if user registered but didn't finish/see it
+            if (!localStorage.getItem('soul_tour_done')) {
+                setTimeout(startWelcomeTour, 4000);
+            }
+        }
+
+        await Promise.all(backgroundTasks);
+
+        // UI specific secondary setups
+        renderAIHistory();
+        initGoogleLogin();
+        
+        // Setup Greetings if not already present
+        const chatBox = document.getElementById('chatBox');
+        if (chatBox && !chatBox.innerHTML.trim()) {
+            appendAIMessage('ai', "### Greetings.\nI am the **sOuLAI** interface. How can I assist your vision today?", 'chatBox');
+        }
+        
+        const miniChatBox = document.getElementById('miniChatBox');
+        if (miniChatBox && !miniChatBox.innerHTML.trim()) {
+            appendAIMessage('ai', "Hello! I am your quick AI assistant. Ask me anything.", 'miniChatBox');
+        }
+
+        document.getElementById('aiWidget').onclick = toggleMiniChat;
+
+        // Start polling/monitoring
+        setInterval(checkSystemHealth, 30000);
+        setInterval(checkAnnouncement, 60000);
+        
+        if (initialPath === 'snake') syncSnakeLeaderboard();
     });
 };
+
+// Use DOMContentLoaded instead of window.onload for faster initial execution
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}

@@ -47,6 +47,13 @@ export default async function handler(req, res) {
                 return res.status(200).json({ success: true });
             }
 
+            const geoData = {
+                city: req.headers['x-vercel-ip-city'] || 'Local',
+                country: req.headers['x-vercel-ip-country'] || 'Local',
+                lat: req.headers['x-vercel-ip-latitude'] || null,
+                lon: req.headers['x-vercel-ip-longitude'] || null
+            };
+
             if (mode === 'google') {
                 const { credential } = body;
                 const ticket = await googleClient.verifyIdToken({
@@ -62,10 +69,14 @@ export default async function handler(req, res) {
                     user = { 
                         email, 
                         name, 
-                        isAdmin: email === process.env.MAIL_USER, // Secure admin check
-                        authSource: 'google'
+                        isAdmin: email === process.env.MAIL_USER,
+                        authSource: 'google',
+                        lastGeo: geoData,
+                        joinedAt: Date.now()
                     };
                     await col.insertOne(user);
+                } else {
+                    await col.updateOne({ email }, { $set: { lastGeo: geoData } });
                 }
                 return res.status(200).json(user);
             } else if (mode === 'register') {
@@ -76,7 +87,9 @@ export default async function handler(req, res) {
                     email, 
                     password: hashedPassword, 
                     name, 
-                    isAdmin: email === process.env.MAIL_USER 
+                    isAdmin: email === process.env.MAIL_USER,
+                    lastGeo: geoData,
+                    joinedAt: Date.now()
                 };
                 await col.insertOne(newUser);
                 const { password: _, ...userWithoutPass } = newUser;
@@ -86,6 +99,7 @@ export default async function handler(req, res) {
                 if (!user || !(await bcrypt.compare(password, user.password))) {
                     return res.status(401).json({ error: "Invalid credentials" });
                 }
+                await col.updateOne({ email }, { $set: { lastGeo: geoData } });
                 const { password: _, ...userWithoutPass } = user;
                 return res.status(200).json(userWithoutPass);
             }
@@ -206,6 +220,39 @@ export default async function handler(req, res) {
                 await usersCol.updateOne({ email }, { $set: { password: hashedPassword } });
                 await tokensCol.deleteOne({ email });
                 
+                return res.status(200).json({ success: true });
+            }
+        }
+
+        if (query.route === 'announcement') {
+            const col = db.collection('announcements');
+            if (method === 'GET') {
+                const latest = await col.find().sort({ timestamp: -1 }).limit(1).toArray();
+                const announce = latest[0];
+                if (announce && announce.expiresAt && announce.expiresAt < Date.now()) {
+                    return res.status(200).json(null);
+                }
+                return res.status(200).json(announce || null);
+            }
+            
+            const adminEmail = query.adminEmail;
+            const adminUser = await db.collection('users').findOne({ email: adminEmail });
+            if (!adminUser || !adminUser.isAdmin) return res.status(403).json({ error: "Unauthorized" });
+
+            if (method === 'POST') {
+                const { text, duration, timestamp } = body;
+                let expiresAt = null;
+                if (duration > 0) {
+                    expiresAt = timestamp + (duration * 60 * 60 * 1000);
+                }
+                const doc = { text, timestamp, expiresAt };
+                await col.deleteMany({}); // Only one active announcement at a time
+                await col.insertOne(doc);
+                return res.status(201).json(doc);
+            }
+            
+            if (method === 'DELETE') {
+                await col.deleteMany({});
                 return res.status(200).json({ success: true });
             }
         }
@@ -394,6 +441,11 @@ export default async function handler(req, res) {
                         const doc = new PDFDocument({ margin: 50, size: 'A4' });
                         let chunks = [];
 
+                        doc.on('error', err => {
+                            console.error("PDFKit Stream Error:", err);
+                            resolve();
+                        });
+
                         doc.on('data', chunk => chunks.push(chunk));
                         doc.on('end', () => {
                             const result = Buffer.concat(chunks);
@@ -457,7 +509,8 @@ export default async function handler(req, res) {
             let searchOptions = {
                 query: q,
                 hl: 'en',
-                gl: 'US'
+                gl: 'US',
+                timeout: 10000 // 10 second timeout for faster failure recovery
             };
 
             let proxyUrl = null;

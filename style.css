@@ -1,24 +1,31 @@
 /* --- Custom Cursor Global Suppression --- */
-*, *::before, *::after {
-    cursor: none !important;
-}
+@media (pointer: fine) {
+    body.cursor-active, 
+    body.cursor-active *, 
+    body.cursor-active *::before, 
+    body.cursor-active *::after {
+        cursor: none !important;
+    }
 
-html, body {
-    cursor: none !important;
-    min-height: 100vh;
-}
+    /* Force hide on special elements and custom scrollbars */
+    body.cursor-active iframe, 
+    body.cursor-active video, 
+    body.cursor-active canvas, 
+    body.cursor-active input, 
+    body.cursor-active select, 
+    body.cursor-active textarea, 
+    body.cursor-active button, 
+    body.cursor-active .custom-scrollbar {
+        cursor: none !important;
+    }
 
-/* Force hide on special elements and custom scrollbars */
-iframe, video, canvas, input, select, textarea, button, .custom-scrollbar {
-    cursor: none !important;
-}
-
-/* Hide on scrollbars for Webkit browsers */
-::-webkit-scrollbar,
-::-webkit-scrollbar-thumb,
-::-webkit-scrollbar-track,
-::-webkit-scrollbar-corner {
-    cursor: none !important;
+    /* Hide on scrollbars for Webkit browsers */
+    body.cursor-active ::-webkit-scrollbar,
+    body.cursor-active ::-webkit-scrollbar-thumb,
+    body.cursor-active ::-webkit-scrollbar-track,
+    body.cursor-active ::-webkit-scrollbar-corner {
+        cursor: none !important;
+    }
 }
 
 /* --- Global Styles --- */
@@ -830,7 +837,36 @@ nav button:hover {
     to { height: 100%; }
 }
 
-/* --- Retro Snake Responsiveness --- */
+/* --- Admin Visitor Map --- */
+#visitorMap {
+    z-index: 10;
+    filter: grayscale(0.5) contrast(1.2);
+}
+.leaflet-container {
+    background: #000 !important;
+}
+/* Leaflet Popup Styling */
+.soul-map-popup .leaflet-popup-content-wrapper {
+    background: rgba(15, 23, 42, 0.95) !important;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fff !important;
+    border-radius: 12px;
+}
+.soul-map-popup .leaflet-popup-tip {
+    background: rgba(15, 23, 42, 0.95) !important;
+}
+
+@keyframes marker-pulse {
+    0% { transform: scale(1); filter: drop-shadow(0 0 0px #ef4444); }
+    50% { transform: scale(1.2); filter: drop-shadow(0 0 10px #ef4444); }
+    100% { transform: scale(1); filter: drop-shadow(0 0 0px #ef4444); }
+}
+.visitor-marker-pulse {
+    animation: marker-pulse 2s infinite ease-in-out;
+}
+
+/* --- retro snake responsiveness --- */
 #snakeGameContainer.fullscreen {
     position: fixed;
     top: 0;
@@ -896,6 +932,134 @@ nav button:hover {
     animation: flash 0.5s infinite;
 }
 
+/* Welcome Tour Styles */
+.ghost-float {
+    animation: ghostFloat 3s ease-in-out infinite;
+}
+
+@keyframes ghostFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-15px); }
+}
+
+.ghost-eye {
+    animation: ghostBlink 4s infinite;
+}
+
+@keyframes ghostBlink {
+    0%, 95%, 100% { transform: scaleY(1); }
+    97.5% { transform: scaleY(0.1); }
+}
+
+#ghostGuide {
+    filter: drop-shadow(0 0 20px rgba(6, 182, 212, 0.3));
+}
+
+.tour-highlight {
+    position: relative !important;
+    z-index: 400 !important;
+    box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.75), 0 0 0 4px var(--primary) !important;
+    pointer-events: none;
+    border-radius: 4px;
+}
+
+/* Better Errors Robot Styling */
+.robot-container {
+    position: relative;
+    width: 100px;
+    height: 120px;
+}
+
+.robot-head {
+    width: 60px;
+    height: 50px;
+    background: #334155;
+    border: 3px solid #64748b;
+    border-radius: 12px;
+    position: absolute;
+    top: 0;
+    left: 20px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 10px;
+    animation: robotHeadBob 2s infinite ease-in-out;
+}
+
+.robot-eye {
+    width: 8px;
+    height: 8px;
+    background: #22d3ee;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #22d3ee;
+    animation: robotBlink 4s infinite;
+}
+
+.robot-mouth {
+    width: 20px;
+    height: 4px;
+    background: #1e293b;
+    position: absolute;
+    bottom: 10px;
+    border-radius: 2px;
+}
+
+.robot-body {
+    width: 80px;
+    height: 60px;
+    background: #475569;
+    border: 3px solid #64748b;
+    border-radius: 8px;
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+}
+
+.robot-arm {
+    width: 20px;
+    height: 8px;
+    background: #64748b;
+    position: absolute;
+    top: 20px;
+}
+
+.robot-arm.left { left: -15px; transform: rotate(-20deg); animation: robotLeftArm 1s infinite alternate; }
+.robot-arm.right { right: -15px; transform: rotate(20deg); animation: robotRightArm 1s infinite alternate; }
+
+.wrench-icon {
+    position: absolute;
+    top: -10px;
+    right: -20px;
+    color: #94a3b8;
+    font-size: 24px;
+    animation: wrenchSpin 2s infinite linear;
+}
+
+@keyframes robotHeadBob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-5px); }
+}
+
+@keyframes robotBlink {
+    0%, 90%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0); }
+}
+
+@keyframes robotLeftArm {
+    from { transform: rotate(-20deg); }
+    to { transform: rotate(-50deg); }
+}
+
+@keyframes robotRightArm {
+    from { transform: rotate(20deg); }
+    to { transform: rotate(50deg); }
+}
+
+@keyframes wrenchSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .diff-btn {
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -925,7 +1089,13 @@ nav button:hover {
 @media (max-width: 640px) {
     .mini-chat {
         bottom: 70px;
-        height: 70vh;
+        right: 5px;
+        left: 5px;
+        height: 75vh;
+        padding: 0.75rem !important;
+    }
+    #miniChatBox {
+        padding: 0.5rem !important;
     }
 }
 
