@@ -68,6 +68,17 @@
     text-decoration: line-through;
     opacity: 0.5;
 }
+
+
+
+/* Pin Animation */
+@keyframes pinBounce {
+    0%, 100% { transform: translateY(0) rotate(45deg); }
+    50% { transform: translateY(-5px) rotate(45deg); }
+}
+.pinned-icon {
+    animation: pinBounce 2s infinite ease-in-out;
+}
 :root[data-theme="midnight"] {
     --primary: #06b6d4;
     --secondary: #8b5cf6;

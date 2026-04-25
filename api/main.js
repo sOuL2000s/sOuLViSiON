@@ -94,24 +94,34 @@ export default async function handler(req, res) {
         if (query.route === 'notes') {
             const col = db.collection('notes');
             if (method === 'GET') {
-                const notes = await col.find({ userId: query.userId }).sort({id: -1}).toArray();
+                const showTrash = query.trash === 'true';
+                const filter = { userId: query.userId };
+                if (showTrash) {
+                    filter.isDeleted = true;
+                } else {
+                    filter.isDeleted = { $ne: true };
+                }
+                const notes = await col.find(filter).sort({ isPinned: -1, id: -1 }).toArray();
                 return res.status(200).json(notes);
             }
             if (method === 'POST') {
-                await col.insertOne(body);
+                await col.insertOne({ ...body, isDeleted: false, isPinned: false });
                 return res.status(201).json({ success: true });
             }
             if (method === 'DELETE') {
                 const queryId = isNaN(query.id) ? query.id : Number(query.id);
-                await col.deleteOne({ id: queryId });
+                const permanent = query.perm === 'true';
+                if (permanent) {
+                    await col.deleteOne({ id: queryId });
+                } else {
+                    await col.updateOne({ id: queryId }, { $set: { isDeleted: true, deletedAt: Date.now() } });
+                }
                 return res.status(200).json({ success: true });
             }
             if (method === 'PATCH') {
                 const queryId = isNaN(query.id) ? query.id : Number(query.id);
-                const update = {};
-                if (body.text !== undefined) update.text = body.text;
-                if (body.title !== undefined) update.title = body.title;
-                if (body.deadline !== undefined) update.deadline = body.deadline;
+                const update = { ...body };
+                delete update.id;
                 await col.updateOne({ id: queryId }, { $set: update });
                 return res.status(200).json({ success: true });
             }

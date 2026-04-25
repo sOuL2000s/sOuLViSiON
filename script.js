@@ -22,6 +22,72 @@ function showToast(message, type = 'success', duration = 3000) {
     }, duration);
 }
 let isStreamingMode = true;
+let currentAbortController = null;
+
+function stopAIStream() {
+    if (currentAbortController) {
+        currentAbortController.abort();
+        currentAbortController = null;
+        
+        // Clear UI indicators
+        const statusEl = document.getElementById('aiStatus');
+        const miniStatusEl = document.getElementById('miniAiStatus');
+        if (statusEl) statusEl.classList.add('hidden');
+        if (miniStatusEl) miniStatusEl.classList.add('hidden');
+        
+        const quietBtn = document.getElementById('quietBtn');
+        const miniQuietBtn = document.getElementById('miniQuietBtn');
+        if (quietBtn) quietBtn.classList.add('hidden');
+        if (miniQuietBtn) miniQuietBtn.classList.add('hidden');
+
+        showToast("AI silenced.", "warning");
+    }
+}
+
+function stripMarkdown(text) {
+    return text
+        .replace(/```(?:\w+)?\n?([\s\S]*?)```/g, '$1') // Code blocks - keep content
+        .replace(/`(.+?)`/g, '$1')                    // Inline code - keep content
+        .replace(/(\*\*|__)(.*?)\1/g, '$2')           // Bold
+        .replace(/(\*|_)(.*?)\1/g, '$2')              // Italic
+        .replace(/#+\s+(.*?)(?:\n|$)/g, '$1 ')        // Headers
+        .replace(/\[(.*?)\]\(.*?\)/g, '$1')           // Links
+        .replace(/>\s+(.*?)(?:\n|$)/g, '$1 ')         // Quotes
+        .replace(/- \[( |x)\] /g, '')                 // Task lists
+        .replace(/[-*+]\s+/g, '')                     // Unordered lists
+        .replace(/\d+\.\s+/g, '')                     // Ordered lists
+        .replace(/\n+/g, ' ')                         // Newlines to spaces for better TTS flow
+        .trim();
+}
+
+function speakAIMessage(text, btn) {
+    if ('speechSynthesis' in window) {
+        if (window.speechSynthesis.speaking) {
+            window.speechSynthesis.cancel();
+            btn.innerHTML = '<i class="fas fa-volume-up text-[10px]"></i>';
+            btn.classList.remove('text-cyan-400');
+            return;
+        }
+
+        const utterance = new SpeechSynthesisUtterance(stripMarkdown(text));
+        utterance.rate = 1;
+        utterance.pitch = 1;
+        
+        utterance.onstart = () => {
+            btn.innerHTML = '<i class="fas fa-stop-circle text-[10px] animate-pulse"></i>';
+            btn.classList.add('text-cyan-400');
+        };
+        
+        utterance.onend = () => {
+            btn.innerHTML = '<i class="fas fa-volume-up text-[10px]"></i>';
+            btn.classList.remove('text-cyan-400');
+        };
+
+        window.speechSynthesis.speak(utterance);
+    } else {
+        showToast("TTS not supported in this browser.", "error");
+    }
+}
 
 function toggleStreamMode(val) {
     isStreamingMode = val;
@@ -357,15 +423,18 @@ function setNoteInputType(type) {
 
 function setNoteFilter(filter) {
     noteFilter = filter;
-    ['filterAll', 'filterNotes', 'filterTodos'].forEach(id => {
+    ['filterAll', 'filterNotes', 'filterTodos', 'filterTrash'].forEach(id => {
         const el = document.getElementById(id);
-        el.className = "text-[10px] font-bold px-3 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10";
+        if (el) el.className = "text-[10px] font-bold px-3 py-1 rounded-full bg-white/5 text-gray-400 border border-white/10";
     });
     
-    const activeId = filter === 'all' ? 'filterAll' : filter === 'note' ? 'filterNotes' : 'filterTodos';
-    document.getElementById(activeId).className = "text-[10px] font-bold px-3 py-1 rounded-full bg-cyan-600 text-white border border-cyan-500";
+    const ids = { all: 'filterAll', note: 'filterNotes', todo: 'filterTodos', trash: 'filterTrash' };
+    const activeId = ids[filter];
+    if (document.getElementById(activeId)) {
+        document.getElementById(activeId).className = "text-[10px] font-bold px-3 py-1 rounded-full bg-cyan-600 text-white border border-cyan-500";
+    }
     
-    renderNotes();
+    syncNotes(true, filter === 'trash');
 }
 
 // --- NAVIGATION & ROUTING ---
@@ -716,6 +785,8 @@ function renderNotes(providedNotes = null) {
     const sourceData = providedNotes || notes;
     
     const filteredNotes = providedNotes ? sourceData : sourceData.filter(n => {
+        if (noteFilter === 'trash') return n.isDeleted;
+        if (n.isDeleted) return false;
         if (noteFilter === 'all') return true;
         if (noteFilter === 'note') return (n.type === 'note' || !n.type);
         if (noteFilter === 'todo') return n.type === 'todo';
@@ -741,18 +812,29 @@ function renderNotes(providedNotes = null) {
 
         const isTodo = n.type === 'todo';
         const displayTitle = n.title || (isTodo ? 'Task List' : 'Untitled Note');
+        const isLocked = !!n.lockCode;
+        const isPinned = !!n.isPinned;
+        const isTrash = !!n.isDeleted;
 
         return `
-            <div onclick="openNote('${n.id}')" class="glass p-5 rounded-2xl border ${isTodo ? 'border-purple-500/20' : 'border-white/5'} flex flex-col h-full cursor-pointer hover:border-cyan-500/30 transition-all group relative overflow-hidden">
-                <div class="absolute top-0 right-0 p-3 flex gap-2">
+            <div onclick="openNote('${n.id}')" class="glass p-5 rounded-2xl border ${isPinned ? 'border-yellow-500 shadow-lg shadow-yellow-500/10' : (isTodo ? 'border-purple-500/20' : 'border-white/5')} flex flex-col h-full cursor-pointer hover:border-cyan-500/30 transition-all group relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-3 flex gap-2 z-10">
                     ${deadlineBadge}
+                    ${isPinned ? '<i class="fas fa-thumbtack text-yellow-500 pinned-icon transform rotate-45"></i>' : ''}
                 </div>
                 <div class="mb-3">
                     <span class="text-[9px] font-black uppercase tracking-widest ${isTodo ? 'text-purple-400' : 'text-cyan-400'}">${isTodo ? 'Task List' : 'Note'}</span>
                     <h3 class="text-sm font-bold truncate pr-16">${displayTitle}</h3>
                 </div>
                 <div class="prose prose-invert prose-sm max-h-48 overflow-hidden mb-6 flex-grow">
-                    ${renderMD(n.text, n.id)}
+                    ${isLocked ? `
+                        <div class="flex flex-col items-center justify-center py-4 text-gray-500 opacity-50">
+                            <i class="fas fa-lock text-3xl mb-2"></i>
+                            <p class="text-[10px] font-bold uppercase">Encrypted sOuLNOTE</p>
+                        </div>
+                    ` : `
+                        ${renderMD(n.text, n.id)}
+                    `}
                 </div>
                 <div class="flex justify-between items-center text-[10px] text-gray-500 pt-4 border-t border-white/5">
                     <div class="flex items-center gap-2">
@@ -760,9 +842,10 @@ function renderNotes(providedNotes = null) {
                         <span>${new Date(n.id).toLocaleDateString()}</span>
                     </div>
                     <div class="flex gap-4">
+                        ${!isTrash ? `
+                        <button onclick="event.stopPropagation(); togglePin('${n.id}')" class="text-gray-500 hover:text-yellow-500 transition text-sm" title="Pin Note"><i class="fas fa-thumbtack"></i></button>
                         <div class="relative group/export">
                             <button onclick="event.stopPropagation()" class="text-gray-500 hover:text-cyan-400 transition text-sm" title="Export Note"><i class="fas fa-file-export"></i></button>
-                            <!-- The pb-2 on this div acts as a hover bridge for bottom-full -->
                             <div class="absolute bottom-full right-0 pb-2 hidden group-hover/export:flex flex-col z-50 animate-fadeIn">
                                 <div class="bg-gray-900 border border-white/10 rounded-xl shadow-2xl py-2 min-w-[100px] overflow-hidden">
                                     <button onclick="event.stopPropagation(); exportData('note', '${n.id}', 'pdf')" class="w-full px-4 py-2 text-left hover:bg-cyan-600/20 text-[10px] font-bold">PDF</button>
@@ -771,7 +854,10 @@ function renderNotes(providedNotes = null) {
                                 </div>
                             </div>
                         </div>
-                        <button onclick="event.stopPropagation(); deleteNote('${n.id}')" class="text-gray-500 hover:text-red-400 transition text-sm" title="Delete Note"><i class="fas fa-trash-can"></i></button>
+                        ` : `
+                        <button onclick="event.stopPropagation(); restoreFromTrash('${n.id}')" class="text-green-400 hover:text-green-300 transition text-sm" title="Restore"><i class="fas fa-undo"></i></button>
+                        `}
+                        <button onclick="event.stopPropagation(); deleteNote('${n.id}', ${isTrash})" class="text-gray-500 hover:text-red-400 transition text-sm" title="${isTrash ? 'Permanent Delete' : 'Move to Trash'}"><i class="fas ${isTrash ? 'fa-fire' : 'fa-trash-can'}"></i></button>
                     </div>
                 </div>
             </div>
@@ -783,6 +869,14 @@ function openNote(id) {
     id = Number(id);
     const note = notes.find(n => n.id === id);
     if (!note) return;
+
+    if (note.lockCode) {
+        const code = prompt("This note is protected. Enter access code:");
+        if (code !== note.lockCode) {
+            showToast("Access Denied", "error");
+            return;
+        }
+    }
 
     const draft = sessionStorage.getItem(`soul_draft_${id}`);
     if (draft && draft !== note.text) {
@@ -797,8 +891,10 @@ function openNote(id) {
     document.getElementById('editNoteText').value = note.text;
     document.getElementById('editNoteDeadline').value = note.deadline || '';
     document.getElementById('editNoteMeta').innerText = `CREATED: ${new Date(id).toLocaleString()}`;
+    document.getElementById('wordGoal').value = note.wordGoal || 0;
     
     updateEditorStats(document.getElementById('editNoteText'));
+    updateGoalProgress();
     
     document.getElementById('noteModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden'; // Lock background scroll
@@ -813,11 +909,18 @@ async function saveEditedNote(isAutoSave = false) {
     const id = parseInt(document.getElementById('editNoteId').value);
     const text = document.getElementById('editNoteText').value;
     const deadline = document.getElementById('editNoteDeadline').value;
+    const wordGoal = parseInt(document.getElementById('wordGoal').value) || 0;
+
     const noteIdx = notes.findIndex(n => n.id === id);
     
     if (noteIdx > -1) {
-        notes[noteIdx].text = text;
-        notes[noteIdx].deadline = deadline || null;
+        const updatedFields = { 
+            text, 
+            deadline: deadline || null, 
+            wordGoal
+        };
+
+        Object.assign(notes[noteIdx], updatedFields);
         renderNotes();
         
         if (!isAutoSave) {
@@ -826,39 +929,57 @@ async function saveEditedNote(isAutoSave = false) {
             showToast("Changes committed to cloud.", "success");
         }
         
-        if (!isAutoSave) setLoading(true, "Updating Cloud Vault");
         try {
             await fetch(`/api/main?route=notes&id=${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, deadline: deadline || null })
+                body: JSON.stringify(updatedFields)
             });
-        } finally {
-            if (!isAutoSave) setLoading(false);
+        } catch (e) { console.error("Cloud sync error:", e); }
+    }
+}
+
+async function deleteNote(id, permanent = false) {
+    id = Number(id);
+    const msg = permanent ? "Permanently delete this note? This cannot be undone." : "Move this note to Trash? It will be kept for 30 days.";
+    if(!confirm(msg)) return;
+    
+    if (permanent) {
+        notes = notes.filter(n => n.id !== id);
+    } else {
+        const note = notes.find(n => n.id === id);
+        if (note) {
+            note.isDeleted = true;
+            note.deletedAt = Date.now();
         }
     }
-}
-
-async function deleteNote(id) {
-    id = Number(id);
-    if(!confirm("Delete this note?")) return;
-    notes = notes.filter(n => n.id !== id);
+    
     renderNotes();
-    showToast("Note purged from history.", "warning");
-    setLoading(true, "Deleting Note");
+    showToast(permanent ? "Note purged." : "Note moved to Trash.", "warning");
+    
     try {
-        await fetch(`/api/main?route=notes&id=${id}`, { method: 'DELETE' });
-    } finally {
-        setLoading(false);
+        await fetch(`/api/main?route=notes&id=${id}&perm=${permanent}`, { method: 'DELETE' });
+    } catch (e) { console.error("Delete failed:", e); }
+}
+
+async function restoreFromTrash(id) {
+    id = Number(id);
+    const note = notes.find(n => n.id === id);
+    if (note) {
+        note.isDeleted = false;
+        renderNotes();
+        await fetch(`/api/main?route=notes&id=${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isDeleted: false })
+        });
+        showToast("Note restored from trash.", "success");
     }
 }
 
-async function syncNotes(silent = true) {
-    if(!currentUser) {
-        if(!silent) alert("Login to sync notes!");
-        return;
-    }
-    const res = await fetch(`/api/main?route=notes&userId=${encodeURIComponent(currentUser.email)}`);
+async function syncNotes(silent = true, showTrash = false) {
+    if(!currentUser) return;
+    const res = await fetch(`/api/main?route=notes&userId=${encodeURIComponent(currentUser.email)}&trash=${showTrash}`);
     const data = await res.json();
     if(Array.isArray(data)) {
         notes = data;
@@ -1955,6 +2076,13 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
             setTimeout(() => copyText.innerHTML = '<i class="far fa-copy text-[10px]"></i>', 2000);
         };
 
+        const speakBtn = document.createElement('button');
+        speakBtn.className = btnClass;
+        speakBtn.title = "Read Aloud";
+        speakBtn.innerHTML = '<i class="fas fa-volume-up text-[10px]"></i>';
+        speakBtn.onclick = () => speakAIMessage(content, speakBtn);
+
+        copyGroup.appendChild(speakBtn);
         copyGroup.appendChild(copyMD);
         copyGroup.appendChild(copyText);
         
@@ -2339,7 +2467,12 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
     let phraseIdx = 0;
     let loadingInterval = null;
 
+    const quietBtn = document.getElementById('quietBtn');
+    const miniQuietBtn = document.getElementById('miniQuietBtn');
+
     if(statusEl) { 
+        if (quietBtn) quietBtn.classList.remove('hidden');
+        if (miniQuietBtn) miniQuietBtn.classList.remove('hidden');
         statusEl.innerHTML = `
             <div class="neural-loader">
                 <div class="neural-grid">
@@ -2375,12 +2508,14 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         contents.push({ role: 'user', parts: currentParts });
     }
 
+    currentAbortController = new AbortController();
     try {
         const endpoint = isStreamingMode ? 'streamGenerateContent' : 'generateContent';
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${aiConfig.keys[currentKeyIndex]}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents })
+            body: JSON.stringify({ contents }),
+            signal: currentAbortController.signal
         });
         
         if (!response.ok) {
@@ -2452,6 +2587,10 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         if (loadingInterval) clearInterval(loadingInterval);
         appendAIMessage('ai', fullContent, targetBoxId, false);
         
+        if (quietBtn) quietBtn.classList.add('hidden');
+        if (miniQuietBtn) miniQuietBtn.classList.add('hidden');
+        currentAbortController = null;
+        
         if(statusEl) {
             statusEl.innerHTML = `
                 <div class="flex items-center gap-2 animate-fadeOut">
@@ -2472,6 +2611,15 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         }
     } catch (err) {
         if (loadingInterval) clearInterval(loadingInterval);
+        if (quietBtn) quietBtn.classList.add('hidden');
+        if (miniQuietBtn) miniQuietBtn.classList.add('hidden');
+        
+        if (err.name === 'AbortError') {
+            currentAbortController = null;
+            if (statusEl) statusEl.classList.add('hidden');
+            return;
+        }
+        
         console.warn(`Key ${currentKeyIndex} error: ${err.message}.`);
         if (aiConfig.keys.length > 1) {
             currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
@@ -3363,6 +3511,105 @@ function initCustomCursor() {
     document.addEventListener('mouseup', () => {
         cursor.style.transform = 'translate(-50%, -50%) scale(1)';
     });
+}
+
+// --- sOuLNOTES NEW FEATURES ---
+
+async function togglePin(id) {
+    id = Number(id);
+    const note = notes.find(n => n.id === id);
+    if (!note) return;
+    
+    note.isPinned = !note.isPinned;
+    renderNotes();
+    
+    await fetch(`/api/main?route=notes&id=${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPinned: note.isPinned })
+    });
+}
+
+function lockCurrentNote() {
+    const id = document.getElementById('editNoteId').value;
+    const note = notes.find(n => n.id == id);
+    if (!note) return;
+    
+    const code = prompt("Set a secret access code for this note (Empty to unlock):");
+    note.lockCode = code || null;
+    saveEditedNote();
+    showToast(code ? "Note Locked" : "Note Unlocked", "info");
+}
+
+function updateGoalProgress() {
+    const goal = parseInt(document.getElementById('wordGoal').value) || 0;
+    const current = parseInt(document.getElementById('editWordCount').innerText) || 0;
+    const bar = document.getElementById('goalProgress');
+    
+    if (goal <= 0) {
+        bar.parentElement.classList.add('hidden');
+        return;
+    }
+    
+    bar.parentElement.classList.remove('hidden');
+    const percent = Math.min((current / goal) * 100, 100);
+    bar.style.width = percent + '%';
+    
+    if (percent >= 100) {
+        bar.classList.replace('bg-cyan-500', 'bg-green-500');
+        if (percent === 100 && !bar.dataset.notified) {
+            showToast("Writing Goal Achieved! 🏆", "success");
+            bar.dataset.notified = "true";
+        }
+    } else {
+        bar.classList.replace('bg-green-500', 'bg-cyan-500');
+        delete bar.dataset.notified;
+    }
+}
+
+
+
+function toggleSTTNote(inputId) {
+    const btnId = inputId === 'noteInput' ? 'noteInputSttBtn' : 'editNoteSttBtn';
+    const btn = document.getElementById(btnId);
+    const input = document.getElementById(inputId);
+
+    if (!('webkitSpeechRecognition' in window)) return alert("Speech recognition not supported.");
+
+    if (recognition && recognition.active) {
+        sttForceStop = true;
+        recognition.stop();
+        return;
+    }
+
+    sttForceStop = false;
+    recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => {
+        btn.innerHTML = `<i class="fas fa-stop-circle text-red-500 animate-pulse"></i>`;
+        recognition.active = true;
+    };
+
+    recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) transcript += event.results[i][0].transcript;
+        }
+        if (transcript) {
+            input.value += (input.value ? " " : "") + transcript;
+            updateEditorStats(input);
+        }
+    };
+
+    recognition.onend = () => {
+        btn.innerHTML = `<i class="fas fa-microphone"></i>`;
+        recognition.active = false;
+    };
+
+    recognition.start();
 }
 
 // --- INIT ---
