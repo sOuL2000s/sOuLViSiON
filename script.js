@@ -3297,8 +3297,41 @@ function initGoogleLogin() {
     );
 }
 
+// --- CUSTOM CURSOR LOGIC ---
+function initCustomCursor() {
+    const cursor = document.getElementById('custom-cursor');
+    if (!cursor) return;
+
+    window.addEventListener('mousemove', (e) => {
+        cursor.style.left = e.clientX + 'px';
+        cursor.style.top = e.clientY + 'px';
+    });
+
+    const interactiveElements = 'a, button, input, textarea, select, .cursor-pointer, [onclick]';
+    document.addEventListener('mouseover', (e) => {
+        if (e.target.closest(interactiveElements)) {
+            cursor.classList.add('active');
+        }
+    });
+
+    document.addEventListener('mouseout', (e) => {
+        if (e.target.closest(interactiveElements)) {
+            cursor.classList.remove('active');
+        }
+    });
+
+    document.addEventListener('mousedown', () => {
+        cursor.style.transform = 'translate(-50%, -50%) scale(0.8)';
+    });
+
+    document.addEventListener('mouseup', () => {
+        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+    });
+}
+
 // --- INIT ---
 window.onload = async () => {
+    initCustomCursor();
     // Initial Route Detection
     const initialPath = window.location.pathname.substring(1) || 'home';
     showPage(initialPath, false); // false because the initial state is already in history

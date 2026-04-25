@@ -103,6 +103,18 @@
     border: 1px solid #cbd5e1 !important;
 }
 
+/* Header branding and visibility fixes */
+[data-theme="minimalist"] .text-white { color: #0f172a !important; }
+[data-theme="minimalist"] .bg-white\/5 { background-color: rgba(0, 0, 0, 0.05) !important; }
+[data-theme="minimalist"] .border-white\/10 { border-color: rgba(0, 0, 0, 0.1) !important; }
+
+/* Custom Cursor Minimalist visibility */
+[data-theme="minimalist"] .custom-cursor {
+    mix-blend-mode: normal;
+    background: radial-gradient(circle, var(--primary) 0%, transparent 85%);
+    box-shadow: 0 0 10px rgba(37, 99, 235, 0.3);
+}
+
 :root {
     --primary: #06b6d4;
     --secondary: #8b5cf6;
@@ -123,6 +135,34 @@ body {
     color: #f8fafc;
     overflow-x: hidden;
     min-height: 100vh;
+    cursor: none;
+}
+
+a, button, input, textarea, select, [onclick] {
+    cursor: none;
+}
+
+.custom-cursor {
+    width: 20px;
+    height: 20px;
+    background: radial-gradient(circle, var(--primary) 0%, transparent 70%);
+    border: 2px solid var(--primary);
+    border-radius: 50%;
+    position: fixed;
+    pointer-events: none;
+    z-index: 9999;
+    transition: transform 0.1s ease-out, width 0.2s, height 0.2s, background 0.2s;
+    box-shadow: 0 0 15px var(--primary), 0 0 30px var(--primary);
+    transform: translate(-50%, -50%);
+    mix-blend-mode: screen;
+}
+
+.custom-cursor.active {
+    width: 40px;
+    height: 40px;
+    background: radial-gradient(circle, var(--secondary) 0%, transparent 70%);
+    border-color: var(--secondary);
+    box-shadow: 0 0 25px var(--secondary), 0 0 50px var(--secondary);
 }
 
 /* --- Custom Scrollbar --- */
@@ -181,16 +221,38 @@ body {
 /* --- Page Transitions --- */
 .page {
     display: none;
-    animation: fadeIn 0.4s ease-out;
+    will-change: transform, opacity, filter;
 }
 
 .page.active {
     display: block;
+    animation: cinematicIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes cinematicIn {
+    0% { 
+        opacity: 0; 
+        transform: translateY(30px) scale(0.96);
+        filter: blur(15px) brightness(0.5);
+    }
+    60% {
+        opacity: 1;
+        filter: blur(5px) brightness(1.2);
+    }
+    100% { 
+        opacity: 1; 
+        transform: translateY(0) scale(1);
+        filter: blur(0) brightness(1);
+    }
 }
 
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fadeIn {
+    animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
 /* --- Navigation --- */

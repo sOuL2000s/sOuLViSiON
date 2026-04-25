@@ -709,13 +709,15 @@
                                     <div class="flex items-center gap-2">
                                         <div class="relative group/timer">
                                             <button class="text-gray-500 hover:text-cyan-400 transition"><i class="fas fa-clock text-sm"></i></button>
-                                            <div class="absolute bottom-full right-0 mb-2 hidden group-hover/timer:block bg-gray-900 border border-white/10 rounded-lg p-2 z-50">
-                                                <p class="text-[8px] font-bold mb-2 uppercase text-center">Sleep Timer</p>
-                                                <div class="flex flex-col gap-1">
-                                                    <button onclick="setSleepTimer(15)" class="px-3 py-1 hover:bg-cyan-600 rounded text-[10px]">15m</button>
-                                                    <button onclick="setSleepTimer(30)" class="px-3 py-1 hover:bg-cyan-600 rounded text-[10px]">30m</button>
-                                                    <button onclick="setSleepTimer(60)" class="px-3 py-1 hover:bg-cyan-600 rounded text-[10px]">60m</button>
-                                                    <button onclick="setSleepTimer(0)" class="px-3 py-1 hover:bg-red-600 rounded text-[10px]">Off</button>
+                                            <div class="absolute bottom-full right-0 pb-2 hidden group-hover/timer:block z-50 animate-fadeIn">
+                                                <div class="bg-gray-900 border border-white/10 rounded-lg p-2 shadow-2xl">
+                                                    <p class="text-[8px] font-bold mb-2 uppercase text-center">Sleep Timer</p>
+                                                    <div class="flex flex-col gap-1">
+                                                        <button onclick="setSleepTimer(15)" class="px-3 py-1 hover:bg-cyan-600 rounded text-[10px]">15m</button>
+                                                        <button onclick="setSleepTimer(30)" class="px-3 py-1 hover:bg-cyan-600 rounded text-[10px]">30m</button>
+                                                        <button onclick="setSleepTimer(60)" class="px-3 py-1 hover:bg-cyan-600 rounded text-[10px]">60m</button>
+                                                        <button onclick="setSleepTimer(0)" class="px-3 py-1 hover:bg-red-600 rounded text-[10px]">Off</button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -1232,9 +1234,11 @@
                 <button onclick="clearMiniChat()" class="w-6 h-6 flex items-center justify-center bg-red-500/10 text-red-400 rounded-md hover:bg-red-500 hover:text-white transition-all text-[10px]" title="Clear Chat"><i class="fas fa-trash-alt"></i></button>
                 <div class="relative group/miniexport">
                     <button class="w-6 h-6 flex items-center justify-center bg-cyan-500/10 text-cyan-400 rounded-md hover:bg-cyan-500 hover:text-white transition-all text-[10px]"><i class="fas fa-download"></i></button>
-                    <div class="absolute bottom-full right-0 mb-2 hidden group-hover/miniexport:flex flex-col bg-gray-900 border border-white/10 rounded-xl shadow-2xl py-1 z-[110] min-w-[80px] overflow-hidden animate-fadeIn">
-                        <button onclick="exportMiniChat('pdf')" class="px-3 py-2 text-left hover:bg-cyan-600/20 text-[8px] font-black border-b border-white/5">PDF</button>
-                        <button onclick="exportMiniChat('markdown')" class="px-3 py-2 text-left hover:bg-cyan-600/20 text-[8px] font-black">MD</button>
+                    <div class="absolute bottom-full right-0 pb-2 hidden group-hover/miniexport:flex flex-col z-[110] animate-fadeIn">
+                        <div class="bg-gray-900 border border-white/10 rounded-xl shadow-2xl py-1 min-w-[80px] overflow-hidden">
+                            <button onclick="exportMiniChat('pdf')" class="w-full px-3 py-2 text-left hover:bg-cyan-600/20 text-[8px] font-black border-b border-white/5 block">PDF</button>
+                            <button onclick="exportMiniChat('markdown')" class="w-full px-3 py-2 text-left hover:bg-cyan-600/20 text-[8px] font-black block">MD</button>
+                        </div>
                     </div>
                 </div>
                 <button onclick="toggleMiniChat()" class="text-gray-500 hover:text-white ml-1"><i class="fas fa-times"></i></button>
@@ -1281,6 +1285,7 @@
         <p class="mt-4 text-cyan-400 font-mono text-xs tracking-widest animate-pulse uppercase" id="loaderText">Synchronizing</p>
     </div>
 
+    <div id="custom-cursor" class="custom-cursor"></div>
     <script src="script.js"></script>
 </body>
 </html>
