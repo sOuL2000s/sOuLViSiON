@@ -264,6 +264,10 @@ export default async function handler(req, res) {
                 const config = (await col.findOne({ type: 'ai_settings' })) || {};
                 // Expose Razorpay Public Key from environment
                 config.razorpayKey = process.env.RAZORPAY_KEY_ID;
+                // Handle legacy field mapping if necessary
+                if (!config.unifiedModel && config.miniChatModel) {
+                    config.unifiedModel = config.miniChatModel;
+                }
                 return res.status(200).json(config);
             }
 
@@ -275,6 +279,10 @@ export default async function handler(req, res) {
             }
 
             if (method === 'POST') {
+                // Ensure field is renamed if present in payload
+                if (body.miniChatModel && !body.unifiedModel) {
+                    body.unifiedModel = body.miniChatModel;
+                }
                 await col.updateOne({ type: 'ai_settings' }, { $set: body }, { upsert: true });
                 return res.status(200).json({ success: true });
             }
@@ -342,8 +350,32 @@ export default async function handler(req, res) {
             }
         }
 
-        // Persistence for AI, Cricket, Fun, Random, Music
-        if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist'].includes(query.route)) {
+        if (query.route === 'quiz_leaderboard') {
+            const col = db.collection('users');
+            if (method === 'GET') {
+                const board = await col.find({ totalSoulScore: { $gt: 0 } })
+                                     .sort({ totalSoulScore: -1 })
+                                     .limit(10)
+                                     .project({ name: 1, totalSoulScore: 1 })
+                                     .toArray();
+                return res.status(200).json(board);
+            }
+        }
+
+        if (query.route === 'quiz_score' && method === 'POST') {
+            const userId = query.userId;
+            const { score } = body;
+            const users = db.collection('users');
+            const quizCol = db.collection('quiz_score');
+            
+            await quizCol.insertOne({ ...body, userId, timestamp: Date.now() });
+            await users.updateOne({ email: userId }, { $inc: { totalSoulScore: score } });
+            
+            return res.status(201).json({ success: true });
+        }
+
+        // Persistence for AI, Cricket, Fun, Random, Music, Reports
+        if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist', 'user_reports', 'quiz_score'].includes(query.route)) {
             const col = db.collection(query.route);
             const userId = query.userId;
 
@@ -456,11 +488,11 @@ export default async function handler(req, res) {
                             resolve();
                         });
 
-                        doc.font('Helvetica');
+                        doc.font('Helvetica-Bold');
                         doc.fillColor('#06b6d4').fontSize(24).text(`sOuLViSiON`, { align: 'center' });
                         doc.fillColor('#333333').fontSize(10).text(`${type.toUpperCase()} EXPORT`, { align: 'center' });
                         doc.moveDown(0.5);
-                        doc.fontSize(8).fillColor('#999999').text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
+                        doc.fontSize(8).font('Helvetica').fillColor('#999999').text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
                         doc.moveDown();
                         doc.strokeColor('#eeeeee').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
                         doc.moveDown(2);
@@ -468,19 +500,42 @@ export default async function handler(req, res) {
                         if (type === 'chat' && data.messages) {
                             data.messages.forEach(m => {
                                 doc.fillColor(m.role === 'user' ? '#7c3aed' : '#06b6d4')
-                                   .fontSize(10).text(m.role.toUpperCase(), { continued: true })
-                                   .fillColor('#999999').text(`  |  ${new Date().toLocaleTimeString()}`);
+                                   .fontSize(10).font('Helvetica-Bold').text(m.role.toUpperCase(), { continued: true })
+                                   .fillColor('#999999').font('Helvetica').text(`  |  ${new Date().toLocaleTimeString()}`);
                                 doc.moveDown(0.5);
                                 doc.fillColor('#333333').fontSize(11).text(cleanStr(m.content), { align: 'left', lineGap: 2 });
                                 doc.moveDown(1.5);
                             });
                         } else if (type === 'note') {
-                            doc.fillColor('#06b6d4').fontSize(18).text(cleanStr(data.title) || 'Untitled Note');
-                            doc.fillColor('#999999').fontSize(9).text(`Type: ${(data.type || 'Note').toUpperCase()} | Deadline: ${data.deadline || 'None'}`);
+                            doc.fillColor('#06b6d4').fontSize(18).font('Helvetica-Bold').text(cleanStr(data.title) || 'Untitled Note');
+                            doc.fillColor('#999999').fontSize(9).font('Helvetica').text(`Type: ${(data.type || 'Note').toUpperCase()} | Deadline: ${data.deadline || 'None'}`);
                             doc.moveDown();
                             doc.strokeColor('#eeeeee').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
                             doc.moveDown();
                             doc.fillColor('#333333').fontSize(12).text(cleanStr(data.text), { lineGap: 3 });
+                        } else if (type === 'report') {
+                            doc.fillColor('#ef4444').fontSize(22).font('Helvetica-Bold').text(`SPIRITUAL PROGRESS REPORT`, { align: 'center' });
+                            doc.moveDown();
+                            doc.fillColor('#333333').fontSize(14).font('Helvetica-Bold').text(`Metrics & Abundance`, { underline: true });
+                            doc.fontSize(10).font('Helvetica').text(`Vitality (Health): ${data.metrics.health}`);
+                            doc.fontSize(10).text(`Prosperity (Wealth): ${data.metrics.wealth}`);
+                            doc.moveDown();
+                            doc.fillColor('#06b6d4').fontSize(14).font('Helvetica-Bold').text(`Soul Wisdom`, { underline: true });
+                            doc.fillColor('#444444').fontSize(11).font('Helvetica-Oblique').text(cleanStr(data.advice));
+                            doc.moveDown();
+                            doc.fillColor('#7c3aed').fontSize(14).font('Helvetica-Bold').text(`Inner Reflections`, { underline: true });
+                            data.qna.forEach(item => {
+                                doc.fillColor('#333333').fontSize(10).font('Helvetica-Bold').text(`Q: ${cleanStr(item.question)}`);
+                                doc.fillColor('#666666').fontSize(10).font('Helvetica').text(`A: ${cleanStr(item.answer)}`);
+                                doc.moveDown(0.5);
+                            });
+                            doc.moveDown();
+                            doc.fillColor('#333333').fontSize(14).font('Helvetica-Bold').text(`Journal Logs`, { underline: true });
+                            data.journals.forEach(j => {
+                                doc.fontSize(8).fillColor('#999999').font('Helvetica').text(new Date(j.id).toLocaleDateString());
+                                doc.fontSize(10).fillColor('#444444').text(cleanStr(j.content));
+                                doc.moveDown(0.5);
+                            });
                         }
                         doc.end();
                     } catch (pdfErr) {

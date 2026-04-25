@@ -1,6 +1,17 @@
 // --- STATE MANAGEMENT ---
 let currentUser = JSON.parse(localStorage.getItem('soulUser')) || null;
 
+let quizState = {
+    active: false,
+    questions: [],
+    currentIndex: 0,
+    score: 0,
+    timer: null,
+    timeLeft: 0,
+    category: '',
+    results: []
+};
+
 function showToast(message, type = 'success', duration = 3000) {
     const container = document.getElementById('toastContainer');
     if (!container) return;
@@ -517,7 +528,7 @@ function setNoteFilter(filter) {
 const pageCache = new Map();
 
 function showPage(pageId, pushState = true) {
-    const validPages = ['home', 'notes', 'ai', 'play', 'random', 'cricket', 'snake', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass'];
+    const validPages = ['home', 'notes', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz'];
     if (!validPages.includes(pageId)) pageId = 'home';
 
     // Optimization: Don't re-render/re-toggle if already active
@@ -559,8 +570,20 @@ function showPage(pageId, pushState = true) {
         } else {
             quitSnake();
         }
+
+        if (pageId === 'quiz') {
+            resetQuiz();
+            syncQuizLeaderboard();
+        } else {
+            quizState.active = false;
+            if (quizState.timer) clearInterval(quizState.timer);
+        }
         
         if (pageId === 'dashboard') loadDashboard();
+
+        if (pageId === 'focus') {
+            initFocusPage();
+        }
         
         if (pageId === 'manage' && currentUser?.isAdmin) {
             loadConfig();
@@ -724,7 +747,9 @@ async function syncAllData() {
             syncFunStats(),
             syncCricketHistory(),
             syncRandomHistory(),
-            syncMusicPlaylist()
+            syncMusicPlaylist(),
+            syncFocusData(),
+            syncQuizLeaderboard()
         ];
         
         if (currentUser.isAdmin) {
@@ -820,11 +845,21 @@ function updateAuthUI() {
     const dashBtn = document.getElementById('dashboardBtn');
     const dashBtnSide = document.getElementById('dashboardBtnSide');
     const authBtn = document.getElementById('authBtn');
+    const authBtnSide = document.getElementById('authBtnSide');
     
     if (currentUser) {
         document.getElementById('userNameDisplay').innerText = `Hey, ${currentUser.name}`;
-        authBtn.innerHTML = '<i class="fas fa-sign-out-alt md:hidden"></i><span class="hidden md:inline">Logout</span>';
+        
+        // Header Nav
+        authBtn.innerHTML = '<i class="fas fa-power-off md:hidden"></i><span class="hidden md:inline">Logout</span>';
         authBtn.onclick = logout;
+
+        // Sidebar
+        if (authBtnSide) {
+            authBtnSide.innerHTML = '<i class="fas fa-power-off w-8"></i> Logout';
+            authBtnSide.onclick = logout;
+        }
+
         dashBtn?.classList.remove('hidden');
         dashBtnSide?.classList.remove('hidden');
         if(currentUser.isAdmin) {
@@ -834,11 +869,19 @@ function updateAuthUI() {
     } else {
         dashBtn?.classList.add('hidden');
         dashBtnSide?.classList.add('hidden');
-        document.getElementById('userNameDisplay').innerText = '';
-        authBtn.innerHTML = '<i class="fas fa-sign-in-alt md:hidden"></i><span class="hidden md:inline">Login</span>';
-        authBtn.onclick = () => showPage('login');
         adminBtn?.classList.add('hidden');
         adminBtnSide?.classList.add('hidden');
+        document.getElementById('userNameDisplay').innerText = '';
+        
+        // Header Nav
+        authBtn.innerHTML = '<i class="fas fa-sign-in-alt md:hidden"></i><span class="hidden md:inline">Login</span>';
+        authBtn.onclick = () => showPage('login');
+
+        // Sidebar
+        if (authBtnSide) {
+            authBtnSide.innerHTML = '<i class="fas fa-sign-in-alt w-8"></i> Login';
+            authBtnSide.onclick = () => showPage('login');
+        }
     }
 }
 
@@ -1916,13 +1959,13 @@ async function loadConfig() {
     if(data) {
         aiConfig.keys = data.keys || [];
         aiConfig.models = data.models || [];
-        aiConfig.miniChatModel = data.miniChatModel || "gemini-1.5-flash";
+        aiConfig.unifiedModel = data.unifiedModel || "gemini-2.5-flash";
         aiConfig.razorpayKey = data.razorpayKey;
         updateAIUI();
         if (document.getElementById('statKeys')) document.getElementById('statKeys').innerText = aiConfig.keys.length;
         if (document.getElementById('apiKeys')) document.getElementById('apiKeys').value = aiConfig.keys.join(', ');
         if (document.getElementById('modelList')) document.getElementById('modelList').value = JSON.stringify(aiConfig.models);
-        if (document.getElementById('miniChatModelId')) document.getElementById('miniChatModelId').value = aiConfig.miniChatModel;
+        if (document.getElementById('unifiedModelId')) document.getElementById('unifiedModelId').value = aiConfig.unifiedModel;
     }
 }
 
@@ -2405,17 +2448,19 @@ function saveLargeEditor() {
     toggleLargeEditor();
 }
 
-async function exportData(type, id, format) {
-    if (!id) {
+async function exportData(type, id, format, providedData = null) {
+    if (!id && !providedData) {
         alert("Selection required for export.");
         return;
     }
-    let payload = null;
+    let payload = providedData;
     
-    if (type === 'chat') {
-        payload = aiConversations.find(c => c.id === Number(id));
-    } else {
-        payload = notes.find(n => n.id === Number(id));
+    if (!payload) {
+        if (type === 'chat') {
+            payload = aiConversations.find(c => c.id === Number(id));
+        } else if (type === 'note') {
+            payload = notes.find(n => n.id === Number(id));
+        }
     }
     
     if (!payload) return;
@@ -2550,7 +2595,7 @@ async function askMiniAI() {
 async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attachments = []) {
     let model = "gemini-1.5-flash";
     if (targetBoxId === 'miniChatBox') {
-        model = aiConfig.miniChatModel || "gemini-1.5-flash";
+        model = aiConfig.unifiedModel || "gemini-1.5-flash";
     } else {
         const modelSelect = document.getElementById('modelSelect');
         model = (modelSelect && modelSelect.value) ? modelSelect.value : (aiConfig.models[0]?.id || "gemini-1.5-flash");
@@ -2774,6 +2819,40 @@ async function exportMiniChat(format) {
     await exportData('chat', data.id, format);
 }
 
+function copyChatAsMarkdown(chatId) {
+    if (!chatId) return showToast("No active chat selected.", "warning");
+    const conv = aiConversations.find(c => c.id === Number(chatId));
+    if (!conv || !conv.messages || conv.messages.length === 0) {
+        return showToast("Nothing to copy!", "warning");
+    }
+
+    const md = conv.messages.map(m => `**${m.role === 'user' ? 'User' : 'AI'}:** ${m.content}`).join('\n\n');
+    navigator.clipboard.writeText(md).then(() => {
+        showToast("Chat copied to clipboard as Markdown!", "success");
+    }).catch(err => {
+        showToast("Failed to copy chat.", "error");
+    });
+}
+
+function copyMiniChatAsMarkdown() {
+    const box = document.getElementById('miniChatBox');
+    const messages = [];
+    box.querySelectorAll('.message').forEach(msg => {
+        const role = msg.classList.contains('user-msg') ? 'User' : 'AI';
+        const content = msg.querySelector('.markdown-body').innerText;
+        messages.push(`**${role}:** ${content}`);
+    });
+
+    if (messages.length === 0) return showToast("Nothing to copy!", "warning");
+
+    const md = messages.join('\n\n');
+    navigator.clipboard.writeText(md).then(() => {
+        showToast("Chat copied to clipboard as Markdown!", "success");
+    }).catch(err => {
+        showToast("Failed to copy chat.", "error");
+    });
+}
+
 function toggleAIHistory() {
     const sidebar = document.getElementById('aiSidebar');
     sidebar.classList.toggle('hidden');
@@ -2826,6 +2905,208 @@ function flipCoinFun() {
     setTimeout(() => {
         showToast(`Result: ${result.toUpperCase()}`, 'info');
     }, 2000);
+}
+
+// --- sOuLQUIZ LOGIC ---
+async function startQuiz(category) {
+    if (!currentUser) return showPage('login');
+    
+    quizState = {
+        active: true,
+        questions: [],
+        currentIndex: 0,
+        score: 0,
+        timer: null,
+        category: category,
+        results: []
+    };
+
+    document.getElementById('quizIntro').classList.add('hidden');
+    document.getElementById('quizSummary').classList.add('hidden');
+    document.getElementById('quizQuestionBox').classList.add('hidden');
+    document.getElementById('quizLoading').classList.remove('hidden');
+    document.getElementById('quizScoreDisplay').innerText = '000';
+    
+    try {
+        const prompt = `Generate 10 multiple-choice questions for the category: "${category}". 
+        Return ONLY a JSON array of objects with keys: "q" (the question), "o" (array of 4 options), "a" (index of correct option 0-3). 
+        Do not include markdown blocks or any text other than the JSON. Ensure questions are challenging and diverse.`;
+        
+        const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+        const key = aiConfig.keys[currentKeyIndex];
+        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        
+        const data = await res.json();
+        let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        // Clean markdown if AI insisted
+        text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+        
+        quizState.questions = JSON.parse(text);
+        if (!Array.isArray(quizState.questions)) throw new Error("Invalid Format");
+
+        document.getElementById('quizLoading').classList.add('hidden');
+        document.getElementById('quizQuestionBox').classList.remove('hidden');
+        renderQuizQuestion();
+    } catch (e) {
+        console.error(e);
+        showToast("The Oracle failed to generate questions. Try another category.", "error");
+        resetQuiz();
+    }
+}
+
+function renderQuizQuestion() {
+    const q = quizState.questions[quizState.currentIndex];
+    document.getElementById('quizProgressText').innerText = `Question ${quizState.currentIndex + 1} / ${quizState.questions.length}`;
+    document.getElementById('quizCategoryLabel').innerText = quizState.category.toUpperCase();
+    document.getElementById('quizQuestionText').innerText = q.q;
+    
+    const optionsBox = document.getElementById('quizOptions');
+    optionsBox.innerHTML = q.o.map((opt, idx) => `
+        <button onclick="handleQuizAnswer(${idx})" class="quiz-opt-btn" id="opt-${idx}">
+            <span class="w-6 h-6 rounded bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold group-hover:bg-indigo-500 transition-colors">${String.fromCharCode(65 + idx)}</span>
+            <span class="flex-grow text-left">${opt}</span>
+        </button>
+    `).join('');
+
+    startQuizTimer();
+}
+
+function startQuizTimer() {
+    if (quizState.timer) clearInterval(quizState.timer);
+    quizState.timeLeft = 100;
+    document.getElementById('quizTimerBox').classList.remove('hidden');
+    
+    quizState.timer = setInterval(() => {
+        quizState.timeLeft -= 0.5;
+        document.getElementById('quizTimerBar').style.width = quizState.timeLeft + '%';
+        if (quizState.timeLeft <= 0) {
+            clearInterval(quizState.timer);
+            handleQuizAnswer(-1); // Timeout
+        }
+    }, 50);
+}
+
+async function handleQuizAnswer(idx) {
+    clearInterval(quizState.timer);
+    const correctIdx = quizState.questions[quizState.currentIndex].a;
+    const isCorrect = idx === correctIdx;
+    
+    // UI feedback
+    const btns = document.querySelectorAll('.quiz-opt-btn');
+    btns.forEach(b => b.disabled = true);
+    
+    if (idx !== -1) {
+        document.getElementById(`opt-${idx}`).classList.add(isCorrect ? 'quiz-correct' : 'quiz-wrong');
+    }
+    document.getElementById(`opt-${correctIdx}`).classList.add('quiz-correct');
+
+    if (isCorrect) {
+        const bonus = Math.round(quizState.timeLeft / 10);
+        quizState.score += (10 + bonus);
+        document.getElementById('quizScoreDisplay').innerText = quizState.score.toString().padStart(3, '0');
+        if (window.navigator.vibrate) window.navigator.vibrate(20);
+    } else {
+        if (window.navigator.vibrate) window.navigator.vibrate([30, 30, 30]);
+    }
+
+    quizState.results.push({ q: quizState.questions[quizState.currentIndex].q, correct: isCorrect });
+
+    setTimeout(() => {
+        if (quizState.currentIndex < quizState.questions.length - 1) {
+            quizState.currentIndex++;
+            renderQuizQuestion();
+        } else {
+            finishQuiz();
+        }
+    }, 1200);
+}
+
+async function finishQuiz() {
+    quizState.active = false;
+    document.getElementById('quizQuestionBox').classList.add('hidden');
+    document.getElementById('quizTimerBox').classList.add('hidden');
+    document.getElementById('quizLoading').classList.remove('hidden');
+
+    const totalScore = quizState.score;
+    const correctCount = quizState.results.filter(r => r.correct).length;
+    
+    try {
+        // Get AI Evaluation
+        const prompt = `The user completed a "${quizState.category}" quiz. Score: ${totalScore}/200. Correct: ${correctCount}/${quizState.questions.length}. 
+        Give a single, concise, and mystical/intellectual one-sentence evaluation of their performance.`;
+        
+        const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+        const key = aiConfig.keys[currentKeyIndex];
+        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        const insight = data.candidates?.[0]?.content?.parts?.[0]?.text || "Your journey through the lattice of knowledge continues.";
+
+        document.getElementById('quizLoading').classList.add('hidden');
+        document.getElementById('quizSummary').classList.remove('hidden');
+        document.getElementById('summaryFinalScore').innerText = totalScore;
+        document.getElementById('summaryInsight').innerText = insight;
+
+        if (currentUser) {
+            await fetch(`/api/main?route=quiz_score&userId=${encodeURIComponent(currentUser.email)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    category: quizState.category, 
+                    score: totalScore, 
+                    correct: correctCount, 
+                    total: quizState.questions.length 
+                })
+            });
+            syncQuizLeaderboard();
+        }
+    } catch (e) {
+        console.error(e);
+        document.getElementById('quizLoading').classList.add('hidden');
+        document.getElementById('quizSummary').classList.remove('hidden');
+    }
+}
+
+async function syncQuizLeaderboard() {
+    const list = document.getElementById('quizLeaderboardList');
+    if (!list) return;
+    try {
+        const res = await fetch('/api/main?route=quiz_leaderboard');
+        const data = await res.json();
+        if (!data || data.length === 0) {
+            list.innerHTML = '<p class="text-[10px] text-gray-500 italic p-4 text-center">No legends yet.</p>';
+            return;
+        }
+        list.innerHTML = data.map((u, i) => `
+            <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-indigo-500/20 transition-all">
+                <div class="flex items-center gap-3">
+                    <span class="text-[10px] font-black ${i < 3 ? 'text-yellow-500' : 'text-gray-600'}">#${(i+1).toString().padStart(2, '0')}</span>
+                    <span class="text-xs font-bold text-gray-200 truncate max-w-[120px]">${u.name}</span>
+                </div>
+                <span class="text-xs font-black text-indigo-400 font-mono">${u.totalSoulScore}</span>
+            </div>
+        `).join('');
+    } catch (e) { console.error(e); }
+}
+
+function resetQuiz() {
+    if (quizState.timer) clearInterval(quizState.timer);
+    quizState.active = false;
+    document.getElementById('quizIntro').classList.remove('hidden');
+    document.getElementById('quizLoading').classList.add('hidden');
+    document.getElementById('quizQuestionBox').classList.add('hidden');
+    document.getElementById('quizSummary').classList.add('hidden');
+    document.getElementById('quizScoreDisplay').innerText = '000';
+    document.getElementById('quizTimerBox').classList.add('hidden');
 }
 
 // --- sOuLSNAKE ENGINE (REBUILT FOR PERFORMANCE) ---
@@ -3067,6 +3348,321 @@ async function syncSnakeLeaderboard() {
 function shakeBall() {
     const answers = ["Yes", "No", "Maybe", "Outlook good", "Ask again later", "Very doubtful", "Absolutely"];
     document.getElementById('ballResponse').innerText = answers[Math.floor(Math.random()*answers.length)];
+}
+
+// --- sOuLFOCUS LOGIC ---
+let focusInterval = null;
+let focusMode = 'timer'; // timer or stopwatch
+let focusTimeRemaining = 25 * 60; // seconds
+let focusStopwatchTime = 0; // seconds
+let focusChime = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+
+function initFocusPage() {
+    document.getElementById('journalDate').innerText = new Date().toDateString().toUpperCase();
+    updateFocusDisplay();
+}
+
+function toggleFocusMode(mode) {
+    focusMode = mode;
+    resetFocusAction();
+    const btnT = document.getElementById('btnFocusTimer');
+    const btnS = document.getElementById('btnFocusStopwatch');
+    const dispT = document.getElementById('focusTimerDisplay');
+    const dispS = document.getElementById('focusStopwatchDisplay');
+    const config = document.getElementById('timerConfig');
+
+    if (mode === 'timer') {
+        btnT.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-red-600 text-white";
+        btnS.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400";
+        dispT.classList.remove('hidden');
+        dispS.classList.add('hidden');
+        config.classList.remove('hidden');
+    } else {
+        btnS.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-red-600 text-white";
+        btnT.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400";
+        dispS.classList.remove('hidden');
+        dispT.classList.add('hidden');
+        config.classList.add('hidden');
+    }
+}
+
+function updateTimerDuration(mins) {
+    focusTimeRemaining = mins * 60;
+    updateFocusDisplay();
+}
+
+function updateFocusDisplay() {
+    const format = (s) => {
+        const hrs = Math.floor(s / 3600);
+        const mins = Math.floor((s % 3600) / 60);
+        const secs = s % 60;
+        if (hrs > 0) return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    if (focusMode === 'timer') {
+        document.getElementById('focusTimerDisplay').innerText = format(focusTimeRemaining);
+    } else {
+        document.getElementById('focusStopwatchDisplay').innerText = format(focusStopwatchTime);
+    }
+}
+
+function startFocusAction() {
+    if (focusInterval) return;
+    
+    document.getElementById('focusStartBtn').classList.add('hidden');
+    document.getElementById('focusPauseBtn').classList.remove('hidden');
+
+    focusInterval = setInterval(() => {
+        if (focusMode === 'timer') {
+            if (focusTimeRemaining <= 0) {
+                clearInterval(focusInterval);
+                focusInterval = null;
+                focusChime.play();
+                showToast("Focus session complete!", "success");
+                resetFocusAction();
+                return;
+            }
+            focusTimeRemaining--;
+        } else {
+            focusStopwatchTime++;
+        }
+        updateFocusDisplay();
+    }, 1000);
+}
+
+function pauseFocusAction() {
+    clearInterval(focusInterval);
+    focusInterval = null;
+    document.getElementById('focusStartBtn').classList.remove('hidden');
+    document.getElementById('focusPauseBtn').classList.add('hidden');
+}
+
+function resetFocusAction() {
+    pauseFocusAction();
+    if (focusMode === 'timer') {
+        const mins = document.getElementById('focusTimerRange').value;
+        focusTimeRemaining = mins * 60;
+    } else {
+        focusStopwatchTime = 0;
+    }
+    updateFocusDisplay();
+}
+
+async function saveJournalEntry() {
+    const input = document.getElementById('journalInput');
+    const content = input.value.trim();
+    if (!content) return;
+    if (!currentUser) return alert("Login to save journal entries.");
+
+    setLoading(true, "Journaling...");
+    try {
+        const entry = {
+            id: Date.now(),
+            content,
+            date: new Date().toISOString()
+        };
+        await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'journal', ...entry })
+        });
+        input.value = '';
+        showToast("Soul Logged.", "success");
+        await syncFocusData();
+    } finally {
+        setLoading(false);
+    }
+}
+
+function updateMetric(type, delta) {
+    const el = document.getElementById(`metric${type.charAt(0).toUpperCase() + type.slice(1)}`);
+    let val = parseInt(el.innerText) + delta;
+    if (val < 0) val = 0;
+    el.innerText = val;
+    
+    if (currentUser) {
+        fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: `metric_${type}`, value: val })
+        });
+    }
+}
+
+async function getSpiritualAdvice() {
+    if (!currentUser) return showToast("Login to access the Soul Oracle.", "warning");
+    
+    const adviceEl = document.getElementById('soulAdviceContent');
+    adviceEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Querying the Oracle...';
+    
+    try {
+        const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
+        const stats = await res.json();
+        const journals = stats.filter(d => d.type === 'journal').slice(0, 5).map(j => j.content).join('\n');
+        const health = document.getElementById('metricHealth').innerText;
+        const wealth = document.getElementById('metricWealth').innerText;
+
+        const prompt = `Based on these recent soul journals: "${journals}" and my metrics (Health: ${health}, Wealth: ${wealth}), give me one sentence of deep spiritual wisdom and one specific actionable advice for my day. Be concise.`;
+        
+        const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+        const key = aiConfig.keys[currentKeyIndex];
+        
+        const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        
+        const data = await aiRes.json();
+        const advice = data.candidates?.[0]?.content?.parts?.[0]?.text || "The Oracle is silent. Try again later.";
+        adviceEl.innerText = advice;
+    } catch (e) {
+        adviceEl.innerText = "Connection to the Oracle lost.";
+    }
+}
+
+let reportSteps = {
+    current: 0,
+    questions: [],
+    answers: []
+};
+
+async function startReportQuestionnaire() {
+    if (!currentUser) return showToast("Login to generate reports.", "warning");
+    
+    reportSteps = { current: 0, questions: [], answers: [] };
+    document.getElementById('reportModal').classList.remove('hidden');
+    document.getElementById('reportQuestContainer').classList.remove('hidden');
+    document.getElementById('reportGenerating').classList.add('hidden');
+    document.getElementById('reportAnswer').value = '';
+    
+    const questionEl = document.getElementById('reportQuestion');
+    questionEl.innerText = "Generating reflection path...";
+
+    try {
+        const prompt = "Act as a spiritual guide. Generate 3 deep, philosophical questions for a self-actualization report. Return them as a simple numbered list. Do not include any other text.";
+        const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+        const key = aiConfig.keys[currentKeyIndex];
+        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        reportSteps.questions = text.split('\n').filter(q => q.trim()).map(q => q.replace(/^\d+\.\s+/, ''));
+        
+        if (reportSteps.questions.length < 3) throw new Error("Oracle failed to speak.");
+        
+        renderReportQuestion();
+    } catch (e) {
+        questionEl.innerText = "The path is blocked. Check your connection.";
+    }
+}
+
+function renderReportQuestion() {
+    const q = reportSteps.questions[reportSteps.current];
+    document.getElementById('reportQuestion').innerText = q;
+    document.getElementById('reportProgress').innerText = `Reflection ${reportSteps.current + 1} / ${reportSteps.questions.length}`;
+    document.getElementById('reportAnswer').value = '';
+    document.getElementById('reportNextBtn').innerText = reportSteps.current === reportSteps.questions.length - 1 ? "FINALIZE REPORT" : "NEXT REFLECTION";
+}
+
+async function nextReportQuestion() {
+    const ans = document.getElementById('reportAnswer').value.trim();
+    if (!ans) return showToast("Please share your reflection.", "warning");
+    
+    reportSteps.answers.push({
+        question: reportSteps.questions[reportSteps.current],
+        answer: ans
+    });
+
+    if (reportSteps.current < reportSteps.questions.length - 1) {
+        reportSteps.current++;
+        renderReportQuestion();
+    } else {
+        await finishReport();
+    }
+}
+
+async function finishReport() {
+    document.getElementById('reportQuestContainer').classList.add('hidden');
+    document.getElementById('reportGenerating').classList.remove('hidden');
+
+    try {
+        // Save answers to persistence
+        await fetch(`/api/main?route=user_reports&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                timestamp: Date.now(),
+                qna: reportSteps.answers,
+                metrics: {
+                    health: document.getElementById('metricHealth').innerText,
+                    wealth: document.getElementById('metricWealth').innerText
+                }
+            })
+        });
+
+        // Trigger Export PDF
+        const resStats = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
+        const stats = await resStats.json();
+        const journals = stats.filter(d => d.type === 'journal').slice(0, 10);
+        
+        const reportData = {
+            id: Date.now(),
+            name: `${currentUser.name}'s Soul Report`,
+            journals: journals,
+            qna: reportSteps.answers,
+            metrics: {
+                health: document.getElementById('metricHealth').innerText,
+                wealth: document.getElementById('metricWealth').innerText
+            },
+            advice: document.getElementById('soulAdviceContent').innerText
+        };
+
+        await exportData('report', reportData.id, 'pdf', reportData);
+        showToast("Soul Report Transferred Successfully.", "success");
+        closeReportModal();
+    } catch (e) {
+        showToast("Report construction failed.", "error");
+        console.error(e);
+    }
+}
+
+function closeReportModal() {
+    document.getElementById('reportModal').classList.add('hidden');
+}
+
+async function syncFocusData() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            const journals = data.filter(d => d.type === 'journal').sort((a,b) => b.id - a.id);
+            const hist = document.getElementById('journalHistory');
+            if (journals.length > 0) {
+                hist.innerHTML = journals.map(j => `
+                    <div class="p-2 bg-white/5 rounded-lg border border-white/5">
+                        <p class="text-[10px] font-bold text-purple-400 mb-1">${new Date(j.id).toLocaleDateString()}</p>
+                        <p class="text-[10px] text-gray-300 italic truncate">${j.content}</p>
+                    </div>
+                `).join('');
+            } else {
+                hist.innerHTML = '<p class="text-[10px] text-gray-500 italic">No entries yet.</p>';
+            }
+
+            const latestHealth = data.filter(d => d.type === 'metric_health').sort((a,b) => b.timestamp - a.timestamp)[0];
+            const latestWealth = data.filter(d => d.type === 'metric_wealth').sort((a,b) => b.timestamp - a.timestamp)[0];
+            
+            if (latestHealth) document.getElementById('metricHealth').innerText = latestHealth.value;
+            if (latestWealth) document.getElementById('metricWealth').innerText = latestWealth.value;
+        }
+        getSpiritualAdvice(); // Auto-load advice on sync
+    } catch (e) { console.warn("Focus sync failed", e); }
 }
 
 // --- CRICKET LOGIC ---
@@ -3818,7 +4414,7 @@ function setTheme(theme) {
 async function saveAdminConfig() {
     const keys = document.getElementById('apiKeys').value.split(',').map(k => k.trim());
     const models = JSON.parse(document.getElementById('modelList').value);
-    const miniChatModel = document.getElementById('miniChatModelId').value.trim();
+    const unifiedModel = document.getElementById('unifiedModelId').value.trim();
     const adminEmail = currentUser ? currentUser.email : '';
     
     setLoading(true, "Applying Admin Settings");
@@ -3826,7 +4422,7 @@ async function saveAdminConfig() {
         const res = await fetch(`/api/main?route=admin_config&adminEmail=${encodeURIComponent(adminEmail)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'ai_settings', keys, models, miniChatModel })
+            body: JSON.stringify({ type: 'ai_settings', keys, models, unifiedModel })
         });
         if(res.ok) { alert("Config Updated!"); loadConfig(); }
     } finally {
