@@ -439,7 +439,7 @@ function setNoteFilter(filter) {
 
 // --- NAVIGATION & ROUTING ---
 function showPage(pageId, pushState = true) {
-    const validPages = ['home', 'notes', 'ai', 'play', 'random', 'cricket', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass'];
+    const validPages = ['home', 'notes', 'ai', 'play', 'random', 'cricket', 'snake', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass'];
     if (!validPages.includes(pageId)) pageId = 'home';
 
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -464,6 +464,12 @@ function showPage(pageId, pushState = true) {
         widget?.classList.remove('hidden');
     }
 
+    if (pageId === 'snake') {
+        initSnake();
+        syncSnakeLeaderboard();
+    } else {
+        quitSnake();
+    }
     if (pageId === 'dashboard') loadDashboard();
     if (pageId === 'manage' && currentUser?.isAdmin) {
         loadConfig();
@@ -2698,6 +2704,257 @@ async function syncFunStats() {
     const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
 }
 
+// --- COIN FLIP FUN ---
+function flipCoinFun() {
+    const coin = document.getElementById('coin');
+    const result = Math.random() < 0.5 ? 'heads' : 'tails';
+    
+    coin.classList.remove('flipping-heads', 'flipping-tails');
+    void coin.offsetWidth; // trigger reflow
+    
+    coin.classList.add(`flipping-${result}`);
+    
+    setTimeout(() => {
+        showToast(`Result: ${result.toUpperCase()}`, 'info');
+    }, 2000);
+}
+
+// --- sOuLSNAKE ENGINE (REBUILT FOR PERFORMANCE) ---
+let snake, food, dx, dy, score, snakeInterval, snakeCanvas, snakeCtx;
+let snakeGridSize = 20;
+let nextDx, nextDy; 
+let touchStartX = 0;
+let touchStartY = 0;
+
+function handleSnakeSwipe() {
+    const canvas = document.getElementById('snakeCanvas');
+    if (!canvas) return;
+
+    canvas.addEventListener('touchstart', e => {
+        touchStartX = e.changedTouches[0].screenX;
+        touchStartY = e.changedTouches[0].screenY;
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', e => {
+        const touchEndX = e.changedTouches[0].screenX;
+        const touchEndY = e.changedTouches[0].screenY;
+        
+        const diffX = touchEndX - touchStartX;
+        const diffY = touchEndY - touchStartY;
+        const threshold = 30;
+
+        if (Math.abs(diffX) > Math.abs(diffY)) {
+            if (Math.abs(diffX) > threshold) {
+                if (diffX > 0) handleManualSnakeMove('right');
+                else handleManualSnakeMove('left');
+            }
+        } else {
+            if (Math.abs(diffY) > threshold) {
+                if (diffY > 0) handleManualSnakeMove('down');
+                else handleManualSnakeMove('up');
+            }
+        }
+    }, { passive: true });
+}
+
+function initSnake() {
+    handleSnakeSwipe();
+    snakeCanvas = document.getElementById('snakeCanvas');
+    if (!snakeCanvas) return;
+    
+    snakeCanvas.width = 400;
+    snakeCanvas.height = 400;
+    snakeCtx = snakeCanvas.getContext('2d');
+    
+    snake = [
+        {x: 200, y: 200}, 
+        {x: 180, y: 200}, 
+        {x: 160, y: 200}
+    ];
+    dx = snakeGridSize; dy = 0;
+    nextDx = dx; nextDy = dy;
+    score = 0;
+    createFood();
+    clearSnakeCanvas();
+    drawSnakeBody();
+    drawSnakeFood();
+}
+
+function startSnake() {
+    if (snakeInterval) clearInterval(snakeInterval);
+    initSnake();
+    document.getElementById('snakeMenu').classList.add('hidden');
+    document.getElementById('quitSnakeBtn').classList.remove('hidden');
+    // Lock scroll and focus
+    document.body.style.overflow = 'hidden';
+    // Prevent default touch actions on canvas to stop scrolling while playing
+    document.getElementById('snakeCanvas').style.touchAction = 'none';
+    const container = document.getElementById('snakeGameContainer');
+    if (container) {
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    snakeInterval = setInterval(mainSnake, 100);
+    updateSnakeUI();
+}
+
+function quitSnake() {
+    clearInterval(snakeInterval);
+    snakeInterval = null;
+    // Unlock scroll
+    document.body.style.overflow = '';
+    const canvas = document.getElementById('snakeCanvas');
+    if (canvas) canvas.style.touchAction = 'auto';
+    const menu = document.getElementById('snakeMenu');
+    const btn = document.getElementById('quitSnakeBtn');
+    if (menu) menu.classList.remove('hidden');
+    if (btn) btn.classList.add('hidden');
+}
+
+function mainSnake() {
+    dx = nextDx; dy = nextDy; // Apply queued direction
+    if (didSnakeGameEnd()) {
+        handleSnakeGameOver();
+        return;
+    }
+    clearSnakeCanvas();
+    drawSnakeFood();
+    advanceSnakeBody();
+    drawSnakeBody();
+}
+
+async function handleSnakeGameOver() {
+    clearInterval(snakeInterval);
+    snakeInterval = null;
+    showToast(`GAME OVER | SCORE: ${score}`, "error");
+    if (currentUser) {
+        await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'snake', score: score })
+        });
+        syncSnakeLeaderboard();
+    }
+    setTimeout(initSnake, 1000);
+    document.getElementById('snakeMenu').classList.remove('hidden');
+}
+
+function clearSnakeCanvas() {
+    snakeCtx.fillStyle = "#000";
+    snakeCtx.fillRect(0, 0, snakeCanvas.width, snakeCanvas.height);
+    snakeCtx.strokeStyle = "rgba(255,255,255,0.02)";
+    for(let i=0; i<snakeCanvas.width; i+=snakeGridSize) {
+        snakeCtx.beginPath(); snakeCtx.moveTo(i,0); snakeCtx.lineTo(i,400); snakeCtx.stroke();
+        snakeCtx.beginPath(); snakeCtx.moveTo(0,i); snakeCtx.lineTo(400,i); snakeCtx.stroke();
+    }
+}
+
+function drawSnakeBody() {
+    snake.forEach((part, i) => {
+        const isHead = i === 0;
+        snakeCtx.fillStyle = isHead ? "#22c55e" : "#065f46";
+        const r = isHead ? 6 : 4;
+        const x = part.x + 1, y = part.y + 1, w = snakeGridSize - 2, h = snakeGridSize - 2;
+        
+        snakeCtx.beginPath();
+        snakeCtx.roundRect(x, y, w, h, r);
+        snakeCtx.fill();
+
+        if (isHead) {
+            snakeCtx.fillStyle = "#fff";
+            if (dx > 0) { snakeCtx.fillRect(x+12, y+4, 3, 3); snakeCtx.fillRect(x+12, y+11, 3, 3); }
+            else if (dx < 0) { snakeCtx.fillRect(x+3, y+4, 3, 3); snakeCtx.fillRect(x+3, y+11, 3, 3); }
+            else if (dy < 0) { snakeCtx.fillRect(x+4, y+3, 3, 3); snakeCtx.fillRect(x+11, y+3, 3, 3); }
+            else { snakeCtx.fillRect(x+4, y+12, 3, 3); snakeCtx.fillRect(x+11, y+12, 3, 3); }
+        }
+    });
+}
+
+function advanceSnakeBody() {
+    const head = {x: snake[0].x + dx, y: snake[0].y + dy};
+    snake.unshift(head);
+    if (snake[0].x === food.x && snake[0].y === food.y) {
+        score += 10;
+        updateSnakeUI();
+        createFood();
+        if (window.navigator.vibrate) window.navigator.vibrate(15);
+    } else {
+        snake.pop();
+    }
+}
+
+function didSnakeGameEnd() {
+    const head = snake[0];
+    for (let i = 4; i < snake.length; i++) {
+        if (snake[i].x === head.x && snake[i].y === head.y) return true;
+    }
+    return head.x < 0 || head.x >= 400 || head.y < 0 || head.y >= 400;
+}
+
+function createFood() {
+    food = {
+        x: Math.floor(Math.random() * 20) * snakeGridSize,
+        y: Math.floor(Math.random() * 20) * snakeGridSize
+    };
+    if (snake.some(p => p.x === food.x && p.y === food.y)) createFood();
+}
+
+function drawSnakeFood() {
+    snakeCtx.fillStyle = "#ef4444";
+    snakeCtx.shadowBlur = 10;
+    snakeCtx.shadowColor = "#ef4444";
+    snakeCtx.beginPath();
+    snakeCtx.arc(food.x + 10, food.y + 10, 7, 0, Math.PI * 2);
+    snakeCtx.fill();
+    snakeCtx.shadowBlur = 0;
+}
+
+function updateSnakeUI() {
+    const el = document.getElementById('snakeScore');
+    if (el) el.innerText = score.toString().padStart(3, '0');
+}
+
+function handleManualSnakeMove(dir) {
+    if (dir === 'left' && dx === 0) { nextDx = -snakeGridSize; nextDy = 0; }
+    if (dir === 'up' && dy === 0) { nextDx = 0; nextDy = -snakeGridSize; }
+    if (dir === 'right' && dx === 0) { nextDx = snakeGridSize; nextDy = 0; }
+    if (dir === 'down' && dy === 0) { nextDx = 0; nextDy = snakeGridSize; }
+}
+
+document.addEventListener("keydown", (e) => {
+    if (!snakeInterval) return;
+    const key = e.key.toLowerCase();
+    // Prevent scrolling with arrows or space while game is active
+    if (["arrowleft", "a", "arrowup", "w", "arrowright", "d", "arrowdown", "s", " "].includes(key)) {
+        e.preventDefault();
+        if (["arrowleft", "a"].includes(key)) handleManualSnakeMove('left');
+        if (["arrowup", "w"].includes(key)) handleManualSnakeMove('up');
+        if (["arrowright", "d"].includes(key)) handleManualSnakeMove('right');
+        if (["arrowdown", "s"].includes(key)) handleManualSnakeMove('down');
+    }
+});
+
+async function syncSnakeLeaderboard() {
+    const list = document.getElementById('snakeLeaderboardList');
+    if (!list) return;
+    try {
+        const res = await fetch('/api/main?route=snake_leaderboard');
+        const data = await res.json();
+        if (!data || data.length === 0) {
+            list.innerHTML = '<p class="text-[10px] text-gray-500 italic p-4 text-center">No data.</p>';
+            return;
+        }
+        list.innerHTML = data.map((u, i) => `
+            <div class="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5 hover:border-green-500/20 transition-all">
+                <div class="flex items-center gap-3">
+                    <span class="text-[10px] font-black ${i < 3 ? 'text-yellow-500' : 'text-gray-600'}">#${(i+1).toString().padStart(2, '0')}</span>
+                    <span class="text-xs font-bold text-gray-200 truncate max-w-[120px]">${u.name}</span>
+                </div>
+                <span class="text-xs font-black text-green-400 font-mono">${u.highScore}</span>
+            </div>
+        `).join('');
+    } catch (e) { console.error(e); }
+}
+
 function shakeBall() {
     const answers = ["Yes", "No", "Maybe", "Outlook good", "Ask again later", "Very doubtful", "Absolutely"];
     document.getElementById('ballResponse').innerText = answers[Math.floor(Math.random()*answers.length)];
@@ -3842,6 +4099,7 @@ window.onload = async () => {
     loadConfig();
     loadFeedbacks();
     renderAIHistory();
+    syncSnakeLeaderboard();
 
     // Init Greetings
     const aiWelcome = "### Greetings.\nI am the **sOuLAI** interface. How can I assist your vision today?";

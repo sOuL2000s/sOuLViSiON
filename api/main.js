@@ -287,6 +287,14 @@ export default async function handler(req, res) {
             }
         }
 
+        if (query.route === 'snake_leaderboard') {
+            const col = db.collection('snake_leaderboard');
+            if (method === 'GET') {
+                const board = await col.find().sort({ highScore: -1 }).limit(20).toArray();
+                return res.status(200).json(board);
+            }
+        }
+
         // Persistence for AI, Cricket, Fun, Random, Music
         if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist'].includes(query.route)) {
             const col = db.collection(query.route);
@@ -302,6 +310,20 @@ export default async function handler(req, res) {
                 const doc = { ...data, timestamp: Date.now() };
                 if (userId) doc.userId = userId;
                 await col.insertOne(doc);
+
+                // If it's a snake score, update leaderboard
+                if (query.route === 'fun_stats' && data.type === 'snake') {
+                    const boardCol = db.collection('snake_leaderboard');
+                    const user = await db.collection('users').findOne({ email: userId });
+                    const score = Number(data.score);
+                    
+                    const current = await boardCol.findOne({ userId });
+                    if (!current) {
+                        await boardCol.insertOne({ userId, name: user.name, highScore: score });
+                    } else if (score > current.highScore) {
+                        await boardCol.updateOne({ userId }, { $set: { highScore: score } });
+                    }
+                }
 
                 // If it's a cricket match result, update leaderboard
                 if (query.route === 'cricket_history') {

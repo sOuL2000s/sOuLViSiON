@@ -830,6 +830,23 @@ nav button:hover {
     to { height: 100%; }
 }
 
+/* --- Retro Snake Responsiveness --- */
+#snakeGameContainer.fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    max-width: none;
+    z-index: 1000;
+    border-radius: 0;
+    background: #000;
+}
+
+#snakeGameContainer.fullscreen #snakeCanvas {
+    object-fit: contain;
+}
+
 /* --- sOuLCRICKET Board --- */
 .cricket-score {
     font-family: 'Courier New', monospace;
@@ -853,6 +870,23 @@ nav button:hover {
 .trophy-spin {
     animation: trophy-spin 3s linear infinite;
 }
+
+/* Fun Page Games */
+.preserve-3d { transform-style: preserve-3d; }
+.backface-hidden { backface-visibility: hidden; }
+.rotate-y-180 { transform: rotateY(180deg); }
+
+@keyframes coin-flip-heads {
+    0% { transform: rotateY(0); }
+    100% { transform: rotateY(1800deg); }
+}
+@keyframes coin-flip-tails {
+    0% { transform: rotateY(0); }
+    100% { transform: rotateY(1980deg); }
+}
+
+.flipping-heads { animation: coin-flip-heads 2s ease-out forwards; }
+.flipping-tails { animation: coin-flip-tails 2s ease-out forwards; }
 
 @keyframes flash {
     0%, 100% { opacity: 1; }
