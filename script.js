@@ -1,5 +1,26 @@
 // --- STATE MANAGEMENT ---
 let currentUser = JSON.parse(localStorage.getItem('soulUser')) || null;
+
+function showToast(message, type = 'success', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    let icon = '<i class="fas fa-check-circle text-green-400"></i>';
+    if (type === 'error') icon = '<i class="fas fa-exclamation-circle text-red-400"></i>';
+    if (type === 'info') icon = '<i class="fas fa-info-circle text-cyan-400"></i>';
+    if (type === 'warning') icon = '<i class="fas fa-exclamation-triangle text-orange-400"></i>';
+
+    toast.innerHTML = `${icon} <span>${message}</span>`;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.add('hide');
+        setTimeout(() => toast.remove(), 300);
+    }, duration);
+}
 let isStreamingMode = true;
 
 function toggleStreamMode(val) {
@@ -428,7 +449,7 @@ async function updateUserProfile() {
             currentUser.theme = theme;
             localStorage.setItem('soulUser', JSON.stringify(currentUser));
             updateAuthUI();
-            alert("Profile updated successfully!");
+            showToast("Profile synchronized successfully!", "success");
             document.getElementById('dashPass').value = '';
         } else {
             const data = await res.json();
@@ -608,6 +629,7 @@ async function syncMusicPlaylist() {
             const localTracks = musicList.filter(t => t.url?.startsWith('blob:'));
             musicList = [...cloudTracks, ...localTracks];
             renderPlaylist();
+            showToast("Playlist synchronized.", "success");
         }
     } catch (e) { console.warn("Music playlist sync failed", e); }
 }
@@ -685,6 +707,7 @@ async function addNote() {
     if (noteType === 'todo') input.value = "- [ ] ";
     
     updateEditorStats(input);
+    showToast("Note anchored to the vault!", "success");
     await saveNotesToDB(note);
 }
 
@@ -800,6 +823,7 @@ async function saveEditedNote(isAutoSave = false) {
         if (!isAutoSave) {
             closeNoteModal();
             sessionStorage.removeItem(`soul_draft_${id}`);
+            showToast("Changes committed to cloud.", "success");
         }
         
         if (!isAutoSave) setLoading(true, "Updating Cloud Vault");
@@ -820,6 +844,7 @@ async function deleteNote(id) {
     if(!confirm("Delete this note?")) return;
     notes = notes.filter(n => n.id !== id);
     renderNotes();
+    showToast("Note purged from history.", "warning");
     setLoading(true, "Deleting Note");
     try {
         await fetch(`/api/main?route=notes&id=${id}`, { method: 'DELETE' });
@@ -944,6 +969,7 @@ async function generateOmniRandom() {
     resText.innerText = result;
     resMeta.innerText = meta;
     addOmniHistory(result, true);
+    showToast("Randomization complete.", "info");
     await saveRandomHistory(mode, result);
 }
 
@@ -1005,10 +1031,7 @@ function copyOmniResult() {
     const txt = document.getElementById('omniResultText').innerText;
     if (txt === "...") return;
     navigator.clipboard.writeText(txt);
-    const meta = document.getElementById('omniResultMeta');
-    const oldMeta = meta.innerText;
-    meta.innerText = "Copied to Clipboard!";
-    setTimeout(() => meta.innerText = oldMeta, 2000);
+    showToast("Copied to clipboard!", "info");
 }
 
 // --- MUSIC PLAYER LOGIC ---
@@ -1187,13 +1210,7 @@ function addYTTrack(id, title, artist) {
     renderPlaylist();
     if (musicList.length === 1) playTrack(0);
     
-    // UI Feedback
-    const statusMsg = document.createElement('div');
-    statusMsg.className = "fixed bottom-24 right-4 bg-cyan-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-lg animate-bounce z-[100]";
-    statusMsg.innerText = "Added to sOuLPLAY Library";
-    document.body.appendChild(statusMsg);
-    setTimeout(() => statusMsg.remove(), 2000);
-
+    showToast(`${title} added to sOuLPLAY Library`, "success");
     saveMusicPlaylist();
 }
 
@@ -1766,15 +1783,18 @@ function renderAIHistory(providedHistory = null) {
 
     list.innerHTML = displayData.map(c => {
         const isSelected = selectedConversations.has(Number(c.id));
+        const isActive = c.id === currentChatId;
         return `
-            <div class="relative group flex items-center gap-2">
-                <input type="checkbox" class="accent-purple-500 shrink-0" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleConvSelection(${c.id})">
-                <div onclick="loadConversation('${c.id}')" class="flex-grow p-3 pr-10 rounded-xl cursor-pointer transition text-[11px] truncate ${c.id === currentChatId ? 'bg-purple-600/30 border border-purple-500' : 'hover:bg-white/5'}">
+            <div onclick="loadConversation('${c.id}')" class="group relative flex items-center rounded-xl transition-all duration-200 cursor-pointer overflow-hidden mb-1 ${isActive ? 'bg-purple-600/20 border border-purple-500/50 shadow-lg shadow-purple-900/20' : 'bg-white/5 border border-transparent hover:bg-white/10 hover:border-white/10'}">
+                <div class="flex items-center justify-center w-8 pl-2">
+                    <input type="checkbox" class="accent-purple-500 w-3.5 h-3.5 rounded cursor-pointer" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleConvSelection(${c.id})">
+                </div>
+                <div class="flex-grow py-3 pl-1 pr-12 text-[11px] font-medium truncate ${isActive ? 'text-white' : 'text-gray-400'}">
                     <i class="fas fa-comment-alt mr-2 opacity-50"></i> ${c.name}
                 </div>
-                <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <button onclick="event.stopPropagation(); renameConversation('${c.id}')" class="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/10 text-gray-400 hover:text-cyan-400 transition-colors" title="Rename"><i class="fas fa-pen text-[9px]"></i></button>
-                    <button onclick="event.stopPropagation(); deleteConversation('${c.id}')" class="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-white/10 text-gray-400 hover:text-red-400 transition-colors" title="Delete"><i class="fas fa-trash-alt text-[9px]"></i></button>
+                <div class="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <button onclick="event.stopPropagation(); renameConversation('${c.id}')" class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-cyan-500/20 text-gray-400 hover:text-cyan-400 transition-colors" title="Rename"><i class="fas fa-pen text-[8px]"></i></button>
+                    <button onclick="event.stopPropagation(); deleteConversation('${c.id}')" class="w-6 h-6 flex items-center justify-center rounded-md hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition-colors" title="Delete"><i class="fas fa-trash-alt text-[8px]"></i></button>
                 </div>
             </div>
         `;
@@ -1801,6 +1821,7 @@ async function deleteSelectedConversations() {
     if (selectedConversations.size === 0) return;
     if (!confirm(`Delete ${selectedConversations.size} conversations?`)) return;
 
+    const count = selectedConversations.size;
     setLoading(true, "Deleting Chats");
     try {
         const idsToDelete = Array.from(selectedConversations);
@@ -1820,6 +1841,7 @@ async function deleteSelectedConversations() {
         }
         selectedConversations.clear();
         renderAIHistory();
+        showToast(`${count} conversations purged.`, "warning");
     } finally {
         setLoading(false);
     }
@@ -2484,7 +2506,7 @@ async function exportMiniChat(format) {
     });
     
     if(messages.length === 0) return alert("Nothing to export!");
-    
+    showToast(`Preparing ${format.toUpperCase()} export...`, "info");
     const data = { id: Date.now(), name: "Mini Chat Conversation", messages };
     await exportData('chat', data.id, format);
 }
@@ -2802,6 +2824,7 @@ async function deleteCricketMatch(id) {
         });
         if (res.ok) {
             await syncCricketHistory();
+            showToast("Match record deleted.", "warning");
         } else {
             throw new Error("Failed to delete record");
         }
@@ -3013,7 +3036,7 @@ async function payNow() {
                         timestamp: Date.now()
                     })
                 });
-                alert("Thank you for your support! Your contribution was successful.");
+                showToast("Thank you for your support! Vision fueled.", "success", 5000);
                 loadFeedbacks();
             } catch (e) {
                 alert("Payment successful, but failed to update wall. We have recorded your contribution internally.");
@@ -3302,10 +3325,23 @@ function initCustomCursor() {
     const cursor = document.getElementById('custom-cursor');
     if (!cursor) return;
 
+    let mouseX = 0, mouseY = 0;
+    let cursorX = 0, cursorY = 0;
+
     window.addEventListener('mousemove', (e) => {
-        cursor.style.left = e.clientX + 'px';
-        cursor.style.top = e.clientY + 'px';
+        mouseX = e.clientX;
+        mouseY = e.clientY;
     });
+
+    function updateCursor() {
+        // Directly match mouse coordinates for 1:1 movement speed without interpolation lag
+        cursorX = mouseX;
+        cursorY = mouseY;
+        
+        cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0) translate(-50%, -50%)`;
+        requestAnimationFrame(updateCursor);
+    }
+    requestAnimationFrame(updateCursor);
 
     const interactiveElements = 'a, button, input, textarea, select, .cursor-pointer, [onclick]';
     document.addEventListener('mouseover', (e) => {
