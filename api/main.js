@@ -32,13 +32,16 @@ export default async function handler(req, res) {
         // Basic Route Handler
         if (query.route === 'auth') {
             const col = db.collection('users');
-            const { email, password, name, mode } = body;
+            const { email, password, name, mode, theme } = body;
             
             if (method === 'PATCH') {
                 const userEmail = query.email;
                 const update = { name };
                 if (password) {
                     update.password = await bcrypt.hash(password, 10);
+                }
+                if (theme) {
+                    update.theme = theme;
                 }
                 await col.updateOne({ email: userEmail }, { $set: update });
                 return res.status(200).json({ success: true });
@@ -110,6 +113,89 @@ export default async function handler(req, res) {
                 if (body.title !== undefined) update.title = body.title;
                 if (body.deadline !== undefined) update.deadline = body.deadline;
                 await col.updateOne({ id: queryId }, { $set: update });
+                return res.status(200).json({ success: true });
+            }
+        }
+
+        if (query.route === 'users') {
+            const adminEmail = query.adminEmail;
+            const adminUser = await db.collection('users').findOne({ email: adminEmail });
+            if (!adminUser || !adminUser.isAdmin) {
+                return res.status(403).json({ error: "Unauthorized access" });
+            }
+
+            const col = db.collection('users');
+            if (method === 'GET') {
+                const users = await col.find({}, { projection: { password: 0 } }).toArray();
+                return res.status(200).json(users);
+            }
+            if (method === 'DELETE') {
+                const targetEmail = query.email;
+                if (!targetEmail) return res.status(400).json({ error: "Email required" });
+                
+                // Cleanup all user data
+                await col.deleteOne({ email: targetEmail });
+                await db.collection('notes').deleteMany({ userId: targetEmail });
+                await db.collection('ai_conversations').deleteMany({ userId: targetEmail });
+                await db.collection('cricket_history').deleteMany({ userId: targetEmail });
+                await db.collection('fun_stats').deleteMany({ userId: targetEmail });
+                await db.collection('random_history').deleteMany({ userId: targetEmail });
+                await db.collection('music_playlist').deleteMany({ userId: targetEmail });
+                
+                return res.status(200).json({ success: true });
+            }
+        }
+
+        if (query.route === 'forgot_password') {
+            const tokensCol = db.collection('reset_tokens');
+            const usersCol = db.collection('users');
+
+            if (method === 'POST') {
+                const { email } = body;
+                const user = await usersCol.findOne({ email });
+                if (!user) return res.status(404).json({ error: "User not found" });
+                if (user.authSource === 'google') return res.status(400).json({ error: "Please login using Google." });
+
+                const otp = Math.floor(100000 + Math.random() * 900000).toString();
+                await tokensCol.updateOne(
+                    { email },
+                    { $set: { otp, createdAt: new Date() } },
+                    { upsert: true }
+                );
+
+                // Send Email
+                if (process.env.MAIL_USER && process.env.MAIL_PASS) {
+                    const transporter = nodemailer.createTransport({
+                        service: 'gmail',
+                        auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS }
+                    });
+                    await transporter.sendMail({
+                        from: process.env.MAIL_USER,
+                        to: email,
+                        subject: "sOuLViSiON: Password Reset Code",
+                        text: `Your verification code is: ${otp}\n\nThis code will expire in 10 minutes.`
+                    });
+                }
+                return res.status(200).json({ success: true });
+            }
+
+            if (method === 'PATCH') {
+                const { email, otp, newPassword } = body;
+                const record = await tokensCol.findOne({ email, otp });
+                
+                if (!record) return res.status(400).json({ error: "Invalid or expired code." });
+                
+                // 10 min expiry check
+                const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000);
+                if (record.createdAt < tenMinsAgo) {
+                    await tokensCol.deleteOne({ email });
+                    return res.status(400).json({ error: "Code expired." });
+                }
+
+                const hashedPassword = await bcrypt.hash(newPassword, 10);
+                await usersCol.updateOne({ email }, { $set: { password: hashedPassword } });
+                await tokensCol.deleteOne({ email });
+                
                 return res.status(200).json({ success: true });
             }
         }

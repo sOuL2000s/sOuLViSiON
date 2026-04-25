@@ -32,6 +32,7 @@ function setLoading(show, text = "Synchronizing") {
 let aiConfig = { keys: [], models: [] };
 let currentKeyIndex = 0;
 let pendingFiles = [];
+let miniChatHistory = [];
 let notes = [];
 let noteType = 'note';
 let sleepTimer = null;
@@ -348,7 +349,7 @@ function setNoteFilter(filter) {
 
 // --- NAVIGATION & ROUTING ---
 function showPage(pageId, pushState = true) {
-    const validPages = ['home', 'notes', 'ai', 'play', 'random', 'cricket', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal'];
+    const validPages = ['home', 'notes', 'ai', 'play', 'random', 'cricket', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass'];
     if (!validPages.includes(pageId)) pageId = 'home';
 
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -374,6 +375,10 @@ function showPage(pageId, pushState = true) {
     }
 
     if (pageId === 'dashboard') loadDashboard();
+    if (pageId === 'manage' && currentUser?.isAdmin) {
+        loadConfig();
+        loadAdminUsers();
+    }
     
     // Close sidebar on navigation (mobile)
     const sidebar = document.getElementById('mobileSidebar');
@@ -406,6 +411,7 @@ function loadDashboard() {
 async function updateUserProfile() {
     const name = document.getElementById('dashName').value;
     const password = document.getElementById('dashPass').value;
+    const theme = document.documentElement.getAttribute('data-theme');
     
     if (!name) return alert("Name cannot be empty");
 
@@ -414,11 +420,12 @@ async function updateUserProfile() {
         const res = await fetch(`/api/main?route=auth&email=${currentUser.email}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, password: password || undefined })
+            body: JSON.stringify({ name, password: password || undefined, theme })
         });
         
         if (res.ok) {
             currentUser.name = name;
+            currentUser.theme = theme;
             localStorage.setItem('soulUser', JSON.stringify(currentUser));
             updateAuthUI();
             alert("Profile updated successfully!");
@@ -513,14 +520,21 @@ async function syncAllData() {
     if (!currentUser) return;
     setLoading(true, "Synchronizing Data");
     try {
-        await Promise.all([
+        const syncTasks = [
             syncNotes(),
             syncAIHistory(),
             syncFunStats(),
             syncCricketHistory(),
             syncRandomHistory(),
             syncMusicPlaylist()
-        ]);
+        ];
+        
+        if (currentUser.isAdmin) {
+            syncTasks.push(loadConfig());
+            syncTasks.push(loadAdminUsers());
+        }
+
+        await Promise.all(syncTasks);
     } finally {
         setLoading(false);
     }
@@ -599,6 +613,9 @@ async function syncMusicPlaylist() {
 }
 
 function updateAuthUI() {
+    if (currentUser && currentUser.theme) {
+        setTheme(currentUser.theme);
+    }
     const adminBtn = document.getElementById('adminBtn');
     const adminBtnSide = document.getElementById('adminBtnSide');
     const dashBtn = document.getElementById('dashboardBtn');
@@ -630,6 +647,8 @@ function logout() {
     notes = [];
     renderNotes();
     localStorage.removeItem('soulUser');
+    localStorage.removeItem('soul_theme');
+    setTheme('midnight'); 
     updateAuthUI();
     showPage('login');
 }
@@ -1653,11 +1672,10 @@ async function loadConfig() {
         aiConfig.miniChatModel = data.miniChatModel || "gemini-1.5-flash";
         aiConfig.razorpayKey = data.razorpayKey;
         updateAIUI();
-        document.getElementById('statKeys').innerText = aiConfig.keys.length;
-        document.getElementById('statModels').innerText = aiConfig.models.length;
-        document.getElementById('apiKeys').value = aiConfig.keys.join(', ');
-        document.getElementById('modelList').value = JSON.stringify(aiConfig.models);
-        document.getElementById('miniChatModelId').value = aiConfig.miniChatModel;
+        if (document.getElementById('statKeys')) document.getElementById('statKeys').innerText = aiConfig.keys.length;
+        if (document.getElementById('apiKeys')) document.getElementById('apiKeys').value = aiConfig.keys.join(', ');
+        if (document.getElementById('modelList')) document.getElementById('modelList').value = JSON.stringify(aiConfig.models);
+        if (document.getElementById('miniChatModelId')) document.getElementById('miniChatModelId').value = aiConfig.miniChatModel;
     }
 }
 
@@ -2249,17 +2267,24 @@ async function askAI() {
 async function askMiniAI() {
     const inputEl = document.getElementById('miniChatInput');
     const box = document.getElementById('miniChatBox');
-    if(!inputEl.value.trim() && pendingFiles.length === 0) return;
-    
     const txt = inputEl.value;
-    appendAIMessage('user', txt + (pendingFiles.length ? " [Files attached]" : ""), 'miniChatBox');
+    if(!txt.trim() && pendingFiles.length === 0) return;
+    
+    const userDisplayMsg = txt + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
+    appendAIMessage('user', userDisplayMsg, 'miniChatBox');
+    
     inputEl.value = '';
     [document.getElementById('aiAttachmentPreview'), document.getElementById('miniAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
+
+    const parts = [{ text: txt || " " }];
+    pendingFiles.forEach(f => parts.push({ inline_data: { mime_type: f.mime_type, data: f.data } }));
     
+    miniChatHistory.push({ role: 'user', content: userDisplayMsg, parts });
+
     const attachmentsForApi = [...pendingFiles];
     pendingFiles = [];
     
-    await callGeminiAPI(txt, 'miniChatBox', [], attachmentsForApi);
+    await callGeminiAPI(txt, 'miniChatBox', miniChatHistory, attachmentsForApi);
 }
 
 async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attachments = []) {
@@ -2420,6 +2445,8 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
                 conv.messages.push({ role: 'ai', content: fullContent });
                 await saveAIHistory(conv);
             }
+        } else if (targetBoxId === 'miniChatBox') {
+            miniChatHistory.push({ role: 'ai', content: fullContent });
         }
     } catch (err) {
         if (loadingInterval) clearInterval(loadingInterval);
@@ -2441,7 +2468,10 @@ function clearChat() {
 }
 
 function clearMiniChat() {
-    document.getElementById('miniChatBox').innerHTML = '';
+    if(confirm("Purge mini-chat session and history?")) {
+        document.getElementById('miniChatBox').innerHTML = '';
+        miniChatHistory = [];
+    }
 }
 
 async function exportMiniChat(format) {
@@ -3068,6 +3098,10 @@ async function handleContact(e) {
 function setTheme(theme) {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('soul_theme', theme);
+    if (currentUser) {
+        currentUser.theme = theme;
+        localStorage.setItem('soulUser', JSON.stringify(currentUser));
+    }
 }
 
 async function saveAdminConfig() {
@@ -3084,6 +3118,139 @@ async function saveAdminConfig() {
             body: JSON.stringify({ type: 'ai_settings', keys, models, miniChatModel })
         });
         if(res.ok) { alert("Config Updated!"); loadConfig(); }
+    } finally {
+        setLoading(false);
+    }
+}
+
+// Admin User Management
+let adminUsersCache = [];
+async function loadAdminUsers() {
+    if (!currentUser || !currentUser.isAdmin) return;
+    const adminEmail = currentUser.email;
+    setLoading(true, "Fetching Users");
+    try {
+        const res = await fetch(`/api/main?route=users&adminEmail=${encodeURIComponent(adminEmail)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            adminUsersCache = data;
+            document.getElementById('statUsers').innerText = data.length;
+            renderAdminUsers(data);
+        }
+    } finally {
+        setLoading(false);
+    }
+}
+
+function renderAdminUsers(users) {
+    const list = document.getElementById('adminUserList');
+    if (!users.length) {
+        list.innerHTML = '<p class="text-xs text-gray-500">No users found.</p>';
+        return;
+    }
+    list.innerHTML = users.map(user => `
+        <div class="bg-white/5 p-3 rounded-lg flex justify-between items-center border border-white/5 group">
+            <div class="overflow-hidden">
+                <p class="text-xs font-bold text-white truncate">${user.name}</p>
+                <p class="text-[10px] text-gray-500 truncate">${user.email}</p>
+                <div class="flex gap-2 mt-1">
+                    ${user.isAdmin ? '<span class="text-[8px] bg-red-500/20 text-red-400 px-1 rounded font-bold">ADMIN</span>' : ''}
+                    ${user.authSource === 'google' ? '<span class="text-[8px] bg-blue-500/20 text-blue-400 px-1 rounded font-bold">GOOGLE</span>' : ''}
+                </div>
+            </div>
+            <button onclick="adminDeleteUser('${user.email}')" class="text-gray-600 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 p-2">
+                <i class="fas fa-user-slash"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function filterAdminUsers(query) {
+    const q = query.toLowerCase();
+    const filtered = adminUsersCache.filter(u => 
+        u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+    );
+    renderAdminUsers(filtered);
+}
+
+async function adminDeleteUser(email) {
+    if (email === currentUser.email) return alert("You cannot delete your own account.");
+    if (!confirm(`Permanently delete account for ${email}? This will remove all their data.`)) return;
+    
+    setLoading(true, "Deleting User Data");
+    try {
+        const res = await fetch(`/api/main?route=users&adminEmail=${encodeURIComponent(currentUser.email)}&email=${encodeURIComponent(email)}`, {
+            method: 'DELETE'
+        });
+        if (res.ok) {
+            alert("User deleted successfully.");
+            loadAdminUsers();
+        } else {
+            const data = await res.json();
+            alert("Error: " + (data.error || "Failed to delete user"));
+        }
+    } finally {
+        setLoading(false);
+    }
+}
+
+// Forgot Password Logic
+function showForgotPassword() {
+    showPage('forgotPass');
+    document.getElementById('forgotStep1').classList.remove('hidden');
+    document.getElementById('forgotStep2').classList.add('hidden');
+}
+
+async function requestResetOTP() {
+    const email = document.getElementById('resetEmail').value.trim();
+    if (!email) return alert("Enter your email.");
+    
+    setLoading(true, "Sending Verification Code");
+    try {
+        const res = await fetch('/api/main?route=forgot_password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert("A 6-digit verification code has been sent to your email.");
+            document.getElementById('forgotStep1').classList.add('hidden');
+            document.getElementById('forgotStep2').classList.remove('hidden');
+        } else {
+            throw new Error(data.error || "Failed to send code.");
+        }
+    } catch (e) {
+        alert(e.message);
+    } finally {
+        setLoading(false);
+    }
+}
+
+async function verifyAndResetPassword() {
+    const email = document.getElementById('resetEmail').value.trim();
+    const otp = document.getElementById('resetOTP').value.trim();
+    const newPass = document.getElementById('resetNewPass').value.trim();
+    
+    if (!otp || otp.length !== 6) return alert("Enter valid 6-digit code.");
+    if (!newPass || newPass.length < 6) return alert("Password must be at least 6 characters.");
+
+    setLoading(true, "Updating Password");
+    try {
+        const res = await fetch('/api/main?route=forgot_password', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, otp, newPassword: newPass })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            alert("Password reset successful! You can now login with your new password.");
+            showPage('login');
+        } else {
+            throw new Error(data.error || "Reset failed.");
+        }
+    } catch (e) {
+        alert(e.message);
     } finally {
         setLoading(false);
     }
@@ -3143,7 +3310,7 @@ window.onload = async () => {
     if (yearEl) yearEl.innerText = new Date().getFullYear();
     
     // Load Theme
-    const savedTheme = localStorage.getItem('soul_theme') || 'midnight';
+    const savedTheme = (currentUser && currentUser.theme) ? currentUser.theme : (localStorage.getItem('soul_theme') || 'midnight');
     setTheme(savedTheme);
 
     const savedVol = localStorage.getItem('soulVolume');

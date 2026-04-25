@@ -39,28 +39,68 @@
 
 :root[data-theme="minimalist"] {
     --primary: #2563eb;
-    --secondary: #4b5563;
+    --secondary: #334155;
     --bg-dark: #ffffff;
-    --glass: rgba(0, 0, 0, 0.05);
-    --glass-border: rgba(0, 0, 0, 0.1);
+    --glass: rgba(255, 255, 255, 0.9);
+    --glass-border: #cbd5e1;
 }
 
 [data-theme="minimalist"] body {
-    color: #1f2937;
+    color: #0f172a;
 }
 
 [data-theme="minimalist"] .glass {
-    background: rgba(255, 255, 255, 0.8);
-    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
 [data-theme="minimalist"] .user-msg {
     background: #2563eb;
+    color: #ffffff;
 }
 
 [data-theme="minimalist"] .ai-msg {
-    background: #f3f4f6;
-    color: #1f2937;
+    background: #f1f5f9;
+    color: #0f172a;
+    border: 1px solid #e2e8f0;
+}
+
+[data-theme="minimalist"] .markdown-body,
+[data-theme="minimalist"] .markdown-body p,
+[data-theme="minimalist"] .markdown-body li {
+    color: #0f172a !important;
+}
+
+[data-theme="minimalist"] #playPauseBtn,
+[data-theme="minimalist"] .music-card button i,
+[data-theme="minimalist"] .music-card i {
+    color: #0f172a !important;
+}
+
+/* Fix visibility for Music Player overlay buttons (Video Mode/Full Screen) in Minimalist theme */
+[data-theme="minimalist"] .music-card .absolute.top-4.right-4.z-30 button,
+[data-theme="minimalist"] .music-card .absolute.top-4.right-4.z-30 button i {
+    color: #ffffff !important;
+}
+
+[data-theme="minimalist"] #trackName {
+    color: #0f172a;
+}
+
+/* Contrast overrides for Tailwind gray classes in light mode */
+[data-theme="minimalist"] .text-gray-400 { color: #64748b !important; }
+[data-theme="minimalist"] .text-gray-500 { color: #475569 !important; }
+[data-theme="minimalist"] .text-gray-600 { color: #334155 !important; }
+[data-theme="minimalist"] .bg-gray-800 { background-color: #f1f5f9 !important; color: #0f172a !important; }
+[data-theme="minimalist"] .bg-gray-900 { background-color: #f8fafc !important; color: #0f172a !important; }
+/* Fix theme preview buttons in Dashboard for Minimalist mode */
+[data-theme="minimalist"] .bg-slate-900 { background-color: #0f172a !important; color: #ffffff !important; }
+[data-theme="minimalist"] .bg-black { background-color: #000000 !important; }
+[data-theme="minimalist"] input, [data-theme="minimalist"] textarea, [data-theme="minimalist"] select {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border: 1px solid #cbd5e1 !important;
 }
 
 :root {
