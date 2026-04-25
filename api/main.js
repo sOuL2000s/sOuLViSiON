@@ -279,6 +279,14 @@ export default async function handler(req, res) {
             return res.status(201).json({ success: true });
         }
 
+        if (query.route === 'cricket_leaderboard') {
+            const col = db.collection('cricket_leaderboard');
+            if (method === 'GET') {
+                const board = await col.find().sort({ wins: -1, highScore: -1 }).limit(50).toArray();
+                return res.status(200).json(board);
+            }
+        }
+
         // Persistence for AI, Cricket, Fun, Random, Music
         if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist'].includes(query.route)) {
             const col = db.collection(query.route);
@@ -294,6 +302,40 @@ export default async function handler(req, res) {
                 const doc = { ...data, timestamp: Date.now() };
                 if (userId) doc.userId = userId;
                 await col.insertOne(doc);
+
+                // If it's a cricket match result, update leaderboard
+                if (query.route === 'cricket_history') {
+                    const boardCol = db.collection('cricket_leaderboard');
+                    const user = await db.collection('users').findOne({ email: userId });
+                    const isWin = data.result.includes(data.teamB.name); // T2 always controlled by user in logic
+                    const runs = data.teamB.score;
+                    const rr = runs / (data.teamB.balls / 6 || 1);
+
+                    const current = await boardCol.findOne({ userId });
+                    if (!current) {
+                        await boardCol.insertOne({
+                            userId,
+                            name: user.name,
+                            wins: isWin ? 1 : 0,
+                            highScore: runs,
+                            avgRR: rr,
+                            matchCount: 1
+                        });
+                    } else {
+                        const newWins = current.wins + (isWin ? 1 : 0);
+                        const newCount = current.matchCount + 1;
+                        const newAvgRR = ((current.avgRR * current.matchCount) + rr) / newCount;
+                        await boardCol.updateOne({ userId }, {
+                            $set: {
+                                wins: newWins,
+                                matchCount: newCount,
+                                avgRR: newAvgRR,
+                                highScore: Math.max(current.highScore, runs)
+                            }
+                        });
+                    }
+                }
+
                 return res.status(201).json({ success: true });
             }
             if (method === 'PUT') {

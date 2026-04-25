@@ -2756,13 +2756,25 @@ function selectBowler() {
     return next;
 }
 
+function setCricketDifficulty(level, btn) {
+    document.getElementById('cricketDifficulty').value = level;
+    document.querySelectorAll('.diff-btn').forEach(b => {
+        b.className = "diff-btn bg-gray-800 py-2 rounded-lg text-[10px] font-bold border border-white/5 hover:border-cyan-500/50";
+    });
+    const colors = { easy: 'green', normal: 'cyan', hard: 'red' };
+    const color = colors[level];
+    btn.className = `diff-btn bg-${color}-600 py-2 rounded-lg text-[10px] font-bold border border-${color}-400/50 shadow-lg shadow-${color}-600/20`;
+}
+
 async function startMatch() {
     const tA = document.getElementById('teamAName').value;
     const tB = document.getElementById('teamBName').value;
     const pA = document.getElementById('teamAPlayers').value;
     const pB = document.getElementById('teamBPlayers').value;
     const oversVal = document.getElementById('cricketOversSelect').value;
+    const difficulty = document.getElementById('cricketDifficulty').value;
     
+    match.difficulty = difficulty;
     match.maxOvers = parseInt(oversVal);
     match.teams = [
         { name: tA, players: parsePlayers(pA), score: 0, wickets: 0, balls: 0, history: [] },
@@ -2806,7 +2818,11 @@ function playCricket() {
 
     const striker = battingTeam.players[match.strikerIdx];
     const bowler = bowlingTeam.players[match.bowlerIdx];
-    const outcomes = [0, 1, 2, 3, 4, 6, 'W'];
+    
+    let outcomes = [0, 1, 2, 3, 4, 6, 'W'];
+    if (match.difficulty === 'easy') outcomes = [0, 1, 2, 3, 4, 6, 4, 6, 1, 2, 'W'];
+    if (match.difficulty === 'hard') outcomes = [0, 1, 2, 'W', 'W', 3, 0, 1];
+
     const res = outcomes[Math.floor(Math.random() * outcomes.length)];
     
     battingTeam.balls++;
@@ -2830,6 +2846,11 @@ function playCricket() {
         battingTeam.history.push(res);
         document.getElementById('status').innerText = `${res} runs! Great shot by ${striker.name}`;
         
+        if (striker.runs >= 100 && !striker.milestoneReached) {
+            striker.milestoneReached = true;
+            triggerCricketCelebration('milestone', `${striker.name} hits a magnificent 100!`);
+        }
+
         if (typeof res === 'number' && res % 2 !== 0) {
             [match.strikerIdx, match.nonStrikerIdx] = [match.nonStrikerIdx, match.strikerIdx];
         }
@@ -2842,6 +2863,55 @@ function playCricket() {
 
     updateCricketUI();
     if(battingTeam.wickets >= 10 || battingTeam.balls >= maxBalls || (match.target && battingTeam.score >= match.target)) endInnings();
+}
+
+function triggerCricketCelebration(type, detail) {
+    const overlay = document.getElementById('cricketOverlay');
+    const trophy = document.getElementById('trophyAnim');
+    const milestone = document.getElementById('milestoneAnim');
+    const canvas = document.getElementById('confettiCanvas');
+    
+    overlay.classList.remove('hidden');
+    
+    if (type === 'victory') {
+        trophy.classList.remove('hidden');
+        document.getElementById('victoryDetail').innerText = detail;
+        setTimeout(() => trophy.classList.add('scale-100'), 10);
+    } else {
+        milestone.classList.remove('hidden');
+        document.getElementById('milestoneDetail').innerText = detail;
+    }
+
+    // Basic Confetti
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    let particles = Array.from({ length: 150 }, () => ({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height - canvas.height,
+        color: `hsl(${Math.random() * 360}, 100%, 50%)`,
+        size: Math.random() * 8 + 4,
+        speed: Math.random() * 5 + 2
+    }));
+
+    function draw() {
+        ctx.clearRect(0,0, canvas.width, canvas.height);
+        particles.forEach(p => {
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x, p.y, p.size, p.size);
+            p.y += p.speed;
+            if (p.y > canvas.height) p.y = -10;
+        });
+        if (overlay.classList.contains('hidden')) return;
+        requestAnimationFrame(draw);
+    }
+    draw();
+
+    setTimeout(() => {
+        overlay.classList.add('hidden');
+        trophy.classList.add('hidden', 'scale-0');
+        milestone.classList.add('hidden');
+    }, 5000);
 }
 
 async function endInnings() {
@@ -2857,10 +2927,14 @@ async function endInnings() {
         match.isOver = true;
         const t1 = match.teams[0];
         const t2 = match.teams[1];
-        let winMsg = t2.score >= match.target ? `${t2.name} Wins!` : t2.score === match.target - 1 ? "Match Tied!" : `${t1.name} Wins!`;
+        const isT2Win = t2.score >= match.target;
+        let winMsg = isT2Win ? `${t2.name} Wins!` : t2.score === match.target - 1 ? "Match Tied!" : `${t1.name} Wins!`;
+        
         document.getElementById('status').innerText = winMsg;
         document.getElementById('newMatchBtn').classList.remove('hidden');
         
+        triggerCricketCelebration('victory', winMsg);
+
         if (currentUser) {
             // Create a deep copy of players to ensure data persistence
             const cleanPlayers = (players) => players.map(p => ({
@@ -2935,22 +3009,60 @@ function toggleCricketView(view) {
     const setup = document.getElementById('cricketSetup');
     const archives = document.getElementById('cricketArchives');
     const ground = document.getElementById('cricketGround');
-    const setupTab = document.getElementById('cricketSetupTab');
-    const historyTab = document.getElementById('cricketHistoryTab');
+    const leader = document.getElementById('cricketLeaderboard');
+    
+    const tabs = { setup: 'cricketSetupTab', history: 'cricketHistoryTab', leaderboard: 'cricketLeaderTab' };
+    const pages = { setup: setup, history: archives, ground: ground, leaderboard: leader };
+
+    Object.values(pages).forEach(p => p.classList.add('hidden'));
+    Object.values(tabs).forEach(t => {
+        const el = document.getElementById(t);
+        if (el) el.className = "hover:bg-white/5 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold transition text-gray-400";
+    });
 
     if (view === 'setup') {
         setup.classList.remove('hidden');
-        archives.classList.add('hidden');
-        ground.classList.add('hidden');
-        setupTab.className = "bg-cyan-600/20 text-cyan-400 px-6 py-2 rounded-full font-bold border border-cyan-500/30";
-        historyTab.className = "hover:bg-white/5 px-6 py-2 rounded-full font-bold transition";
-    } else {
-        setup.classList.add('hidden');
+        document.getElementById('cricketSetupTab').className = "bg-cyan-600/20 text-cyan-400 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold border border-cyan-500/30";
+    } else if (view === 'history') {
         archives.classList.remove('hidden');
-        ground.classList.add('hidden');
-        historyTab.className = "bg-cyan-600/20 text-cyan-400 px-6 py-2 rounded-full font-bold border border-cyan-500/30";
-        setupTab.className = "hover:bg-white/5 px-6 py-2 rounded-full font-bold transition";
+        document.getElementById('cricketHistoryTab').className = "bg-cyan-600/20 text-cyan-400 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold border border-cyan-500/30";
         syncCricketHistory();
+    } else if (view === 'leaderboard') {
+        leader.classList.remove('hidden');
+        document.getElementById('cricketLeaderTab').className = "bg-cyan-600/20 text-cyan-400 px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-bold border border-cyan-500/30";
+        syncLeaderboard();
+    }
+}
+
+async function syncLeaderboard() {
+    const body = document.getElementById('leaderboardBody');
+    body.innerHTML = '<tr><td colspan="5" class="p-10 text-center"><i class="fas fa-spinner fa-spin text-xl text-yellow-400"></i></td></tr>';
+    
+    try {
+        const res = await fetch('/api/main?route=cricket_leaderboard');
+        const data = await res.json();
+        
+        if (data.length === 0) {
+            body.innerHTML = '<tr><td colspan="5" class="p-10 text-center text-gray-500">The Hall of Fame is empty. Step up, Legend!</td></tr>';
+            return;
+        }
+
+        body.innerHTML = data.map((u, i) => `
+            <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                <td class="p-4 font-black text-gray-500">${i + 1}</td>
+                <td class="p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-orange-600 flex items-center justify-center font-bold text-black text-xs">${u.name[0]}</div>
+                        <span class="font-bold text-white">${u.name}</span>
+                    </div>
+                </td>
+                <td class="p-4 text-center font-bold text-green-400">${u.wins}</td>
+                <td class="p-4 text-center font-mono text-gray-400">${u.avgRR.toFixed(2)}</td>
+                <td class="p-4 text-center font-black text-yellow-400">${u.highScore}</td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        body.innerHTML = '<tr><td colspan="5" class="p-10 text-center text-red-500">Failed to load legends.</td></tr>';
     }
 }
 
@@ -2963,6 +3075,45 @@ function resetCricketMatch() {
 }
 
 let cricketHistoryData = [];
+let selectedMatches = new Set();
+
+function toggleMatchSelection(id) {
+    id = isNaN(id) ? id : Number(id);
+    if (selectedMatches.has(id)) selectedMatches.delete(id);
+    else selectedMatches.add(id);
+    renderCricketHistoryList();
+}
+
+function selectAllMatches(checked) {
+    if (checked) {
+        cricketHistoryData.forEach(m => selectedMatches.add(isNaN(m.id) ? m.id : Number(m.id)));
+    } else {
+        selectedMatches.clear();
+    }
+    renderCricketHistoryList();
+}
+
+async function deleteSelectedMatches() {
+    if (selectedMatches.size === 0) return;
+    if (!confirm(`Permanently delete ${selectedMatches.size} match records?`)) return;
+
+    setLoading(true, "Purging Match Records");
+    try {
+        const ids = Array.from(selectedMatches);
+        await Promise.all(ids.map(id => 
+            fetch(`/api/main?route=cricket_history&userId=${encodeURIComponent(currentUser.email)}&id=${id}`, { method: 'DELETE' })
+        ));
+        
+        selectedMatches.clear();
+        await syncCricketHistory();
+        showToast("Records successfully purged.", "warning");
+    } catch (e) {
+        showToast("Deletion error.", "error");
+    } finally {
+        setLoading(false);
+    }
+}
+
 async function deleteCricketMatch(id) {
     if (!confirm("Delete this match record from history?")) return;
     setLoading(true, "Deleting Match Record");
@@ -2994,45 +3145,7 @@ async function syncCricketHistory() {
         
         if (Array.isArray(data)) {
             cricketHistoryData = data;
-            if (data.length > 0) {
-                list.innerHTML = data.map((m, idx) => {
-                    // Safe fallbacks for historical records
-                    const tA = m.teamA || {};
-                    const tB = m.teamB || {};
-                    const tAName = tA.name || 'Unknown';
-                    const tBName = tB.name || 'Unknown';
-                    
-                    const borderClass = (m.result && tBName !== 'Unknown' && m.result.includes(tBName)) ? 'border-purple-500' : 'border-orange-500';
-                    
-                    return `
-                    <div class="glass p-5 border-l-4 ${borderClass} group hover:scale-[1.02] transition-transform relative">
-                        <button onclick="deleteCricketMatch('${m.id}')" class="absolute top-2 right-2 text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-1" title="Delete Match">
-                            <i class="fas fa-trash-alt text-[10px]"></i>
-                        </button>
-                        <div class="flex justify-between items-start mb-4 pr-6">
-                            <span class="text-[10px] text-gray-500">${new Date(m.timestamp || m.id).toLocaleString()}</span>
-                            <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-tighter">${m.maxOvers || '?'} Overs</span>
-                        </div>
-                        <div class="flex justify-between items-center mb-4">
-                            <div class="text-left">
-                                <p class="text-xs font-bold">${tAName}</p>
-                                <p class="text-xl font-black">${tA.score ?? 0}/${tA.wickets ?? 0}</p>
-                            </div>
-                            <div class="text-gray-600 font-bold">VS</div>
-                            <div class="text-right">
-                                <p class="text-xs font-bold">${tBName}</p>
-                                <p class="text-xl font-black">${tB.score ?? 0}/${tB.wickets ?? 0}</p>
-                            </div>
-                        </div>
-                        <div class="text-center p-2 bg-black/20 rounded-lg text-xs font-bold text-gray-300 mb-4">
-                            ${m.result || 'Match Completed'}
-                        </div>
-                        <button onclick='viewMatchDetail(${idx})' class="w-full py-2 text-xs bg-white/5 rounded-lg hover:bg-white/10 transition">Deep Dive</button>
-                    </div>
-                `}).join('');
-            } else {
-                list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-500">No matches found in archives.</div>';
-            }
+            renderCricketHistoryList();
         } else {
             throw new Error(data.error || "Invalid data format");
         }
@@ -3040,6 +3153,67 @@ async function syncCricketHistory() {
         console.error("Cricket Sync Error:", e);
         list.innerHTML = `<div class="col-span-full text-center py-20 text-red-500">Failed to load history: ${e.message}</div>`;
     }
+}
+
+function renderCricketHistoryList() {
+    const list = document.getElementById('matchHistoryList');
+    const bulkBar = document.getElementById('cricketBulkActions');
+    const countEl = document.getElementById('cricketSelectionCount');
+    const selectAllEl = document.getElementById('selectAllCricket');
+
+    if (cricketHistoryData.length === 0) {
+        list.innerHTML = '<div class="col-span-full text-center py-20 text-gray-500">No matches found in archives.</div>';
+        bulkBar.classList.add('hidden');
+        selectedMatches.clear();
+        return;
+    }
+
+    bulkBar.classList.remove('hidden');
+    countEl.innerText = `${selectedMatches.size} selected`;
+    selectAllEl.checked = (selectedMatches.size === cricketHistoryData.length && cricketHistoryData.length > 0);
+
+    list.innerHTML = cricketHistoryData.map((m, idx) => {
+        const tA = m.teamA || {};
+        const tB = m.teamB || {};
+        const tAName = tA.name || 'Unknown';
+        const tBName = tB.name || 'Unknown';
+        const id = isNaN(m.id) ? m.id : Number(m.id);
+        const isSelected = selectedMatches.has(id);
+        
+        const borderClass = (m.result && tBName !== 'Unknown' && m.result.includes(tBName)) ? 'border-purple-500' : 'border-orange-500';
+        
+        return `
+            <div onclick="toggleMatchSelection('${m.id}')" class="glass p-5 border-l-4 ${borderClass} group hover:scale-[1.02] transition-transform relative cursor-pointer ${isSelected ? 'ring-2 ring-orange-500/50' : ''}">
+                <div class="absolute top-2 left-2 flex items-center gap-2">
+                    <input type="checkbox" class="accent-orange-500 w-3.5 h-3.5" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleMatchSelection('${m.id}')">
+                </div>
+                <div class="absolute top-2 right-2">
+                    <button onclick="event.stopPropagation(); deleteCricketMatch('${m.id}')" class="text-gray-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition p-1" title="Delete Match">
+                        <i class="fas fa-trash-alt text-[10px]"></i>
+                    </button>
+                </div>
+                <div class="flex justify-between items-start mb-4 pl-6 pr-6">
+                    <span class="text-[10px] text-gray-500">${new Date(m.timestamp || m.id).toLocaleString()}</span>
+                    <span class="text-[10px] font-bold text-cyan-400 uppercase tracking-tighter">${m.maxOvers || '?'} Overs</span>
+                </div>
+                <div class="flex justify-between items-center mb-4">
+                    <div class="text-left">
+                        <p class="text-xs font-bold">${tAName}</p>
+                        <p class="text-xl font-black">${tA.score ?? 0}/${tA.wickets ?? 0}</p>
+                    </div>
+                    <div class="text-gray-600 font-bold">VS</div>
+                    <div class="text-right">
+                        <p class="text-xs font-bold">${tBName}</p>
+                        <p class="text-xl font-black">${tB.score ?? 0}/${tB.wickets ?? 0}</p>
+                    </div>
+                </div>
+                <div class="text-center p-2 bg-black/20 rounded-lg text-xs font-bold text-gray-300 mb-4">
+                    ${m.result || 'Match Completed'}
+                </div>
+                <button onclick="event.stopPropagation(); viewMatchDetail(${idx})" class="w-full py-2 text-xs bg-white/5 rounded-lg hover:bg-white/10 transition">Deep Dive</button>
+            </div>
+        `;
+    }).join('');
 }
 
 function viewMatchDetail(idx) {
@@ -3474,42 +3648,66 @@ function initCustomCursor() {
     if (!cursor) return;
 
     let mouseX = 0, mouseY = 0;
-    let cursorX = 0, cursorY = 0;
+    let isHidden = true;
+
+    // Movement using top/left for cleaner combined scale transforms in CSS
+    const updateCursorPosition = () => {
+        cursor.style.left = `${mouseX}px`;
+        cursor.style.top = `${mouseY}px`;
+        requestAnimationFrame(updateCursorPosition);
+    };
+    requestAnimationFrame(updateCursorPosition);
 
     window.addEventListener('mousemove', (e) => {
         mouseX = e.clientX;
         mouseY = e.clientY;
+        if (isHidden) {
+            cursor.style.opacity = '1';
+            isHidden = false;
+        }
     });
 
-    function updateCursor() {
-        // Directly match mouse coordinates for 1:1 movement speed without interpolation lag
-        cursorX = mouseX;
-        cursorY = mouseY;
-        
-        cursor.style.transform = `translate3d(${cursorX}px, ${cursorY}px, 0) translate(-50%, -50%)`;
-        requestAnimationFrame(updateCursor);
-    }
-    requestAnimationFrame(updateCursor);
+    document.addEventListener('mouseleave', () => {
+        cursor.style.opacity = '0';
+        isHidden = true;
+    });
 
-    const interactiveElements = 'a, button, input, textarea, select, .cursor-pointer, [onclick]';
+    document.addEventListener('mouseenter', () => {
+        cursor.style.opacity = '1';
+        isHidden = false;
+    });
+
+    const interactiveSelectors = 'a, button, input[type="submit"], input[type="button"], [role="button"], .cursor-pointer, [onclick], .note-checkbox, select';
+    const textSelectors = 'input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="date"], textarea, [contenteditable="true"]';
+
     document.addEventListener('mouseover', (e) => {
-        if (e.target.closest(interactiveElements)) {
+        const target = e.target;
+        if (target.closest(interactiveSelectors)) {
             cursor.classList.add('active');
+        } else if (target.closest(textSelectors)) {
+            cursor.classList.add('text-mode');
         }
     });
 
     document.addEventListener('mouseout', (e) => {
-        if (e.target.closest(interactiveElements)) {
-            cursor.classList.remove('active');
-        }
+        cursor.classList.remove('active');
+        cursor.classList.remove('text-mode');
     });
 
     document.addEventListener('mousedown', () => {
-        cursor.style.transform = 'translate(-50%, -50%) scale(0.8)';
+        cursor.classList.add('clicking');
     });
 
     document.addEventListener('mouseup', () => {
-        cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+        cursor.classList.remove('clicking');
+    });
+    
+    // Ensure cursor stays visible when dragging
+    document.addEventListener('dragstart', (e) => {
+        cursor.style.opacity = '0.5';
+    });
+    document.addEventListener('dragend', (e) => {
+        cursor.style.opacity = '1';
     });
 }
 
