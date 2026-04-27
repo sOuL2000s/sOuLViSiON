@@ -381,7 +381,8 @@ export default async function handler(req, res) {
 
             if (method === 'GET') {
                 if (!userId) return res.status(400).json({ error: "UserId required" });
-                const data = await col.find({ userId }).sort({ timestamp: -1 }).toArray();
+                // Sort by lastUpdated primarily, with id as fallback for reliable newest-first order
+                const data = await col.find({ userId }).sort({ lastUpdated: -1, id: -1 }).toArray();
                 return res.status(200).json(data);
             }
             if (method === 'POST') {

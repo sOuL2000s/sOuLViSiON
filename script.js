@@ -35,10 +35,31 @@ function showToast(message, type = 'success', duration = 3000) {
 let isStreamingMode = true;
 let currentAbortController = null;
 
+function toggleSendButton(isMini, isStopping) {
+    const btn = document.getElementById(isMini ? 'miniAiSendBtn' : 'aiSendBtn');
+    if (!btn) return;
+    
+    if (isStopping) {
+        btn.innerHTML = `<i class="fas fa-stop ${isMini ? 'text-xs' : 'text-xs md:text-base'}"></i>`;
+        btn.classList.remove('bg-purple-600', 'hover:bg-purple-700', 'shadow-purple-600/20');
+        btn.classList.add('bg-red-600', 'hover:bg-red-700', 'shadow-red-600/20', 'animate-pulse');
+        btn.onclick = stopAIStream;
+    } else {
+        btn.innerHTML = `<i class="fas fa-paper-plane ${isMini ? 'text-xs' : 'text-xs md:text-base'}"></i>`;
+        btn.classList.add('bg-purple-600', 'hover:bg-purple-700', 'shadow-purple-600/20');
+        btn.classList.remove('bg-red-600', 'hover:bg-red-700', 'shadow-red-600/20', 'animate-pulse');
+        btn.onclick = isMini ? askMiniAI : askAI;
+    }
+}
+
 function stopAIStream() {
     if (currentAbortController) {
         currentAbortController.abort();
         currentAbortController = null;
+        
+        // Reset both buttons
+        toggleSendButton(false, false);
+        toggleSendButton(true, false);
         
         // Clear UI indicators
         const statusEl = document.getElementById('aiStatus');
@@ -46,11 +67,6 @@ function stopAIStream() {
         if (statusEl) statusEl.classList.add('hidden');
         if (miniStatusEl) miniStatusEl.classList.add('hidden');
         
-        const quietBtn = document.getElementById('quietBtn');
-        const miniQuietBtn = document.getElementById('miniQuietBtn');
-        if (quietBtn) quietBtn.classList.add('hidden');
-        if (miniQuietBtn) miniQuietBtn.classList.add('hidden');
-
         showToast("AI silenced.", "warning");
     }
 }
@@ -401,10 +417,13 @@ function restoreDraft() {
     }
 }
 
-// --- GLOBAL ENTER KEY LISTENER ---
+// --- GLOBAL KEYBOARD SHORTCUTS & ENTER KEY ---
 document.addEventListener('keydown', (e) => {
+    const active = document.activeElement;
+    const isTyping = active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable;
+
+    // Enter Key Logic (allowed while typing)
     if (e.key === 'Enter' && !e.shiftKey) {
-        const active = document.activeElement;
         if (active.id === 'chatInput') {
             e.preventDefault();
             askAI();
@@ -417,6 +436,21 @@ document.addEventListener('keydown', (e) => {
         }
         if (active.id === 'authPass' || active.id === 'authEmail') handleAuth();
         if (active.id === 'donAmount' || active.id === 'donRemark') payNow();
+    }
+
+    // Navigation Shortcuts (Alt + Key) - Disabled if typing
+    if (e.altKey && !isTyping) {
+        const key = e.key.toLowerCase();
+        if (key === 'n') {
+            e.preventDefault();
+            showPage('notes');
+        } else if (key === 'a') {
+            e.preventDefault();
+            showPage('ai');
+        } else if (key === 'p') {
+            e.preventDefault();
+            showPage('play');
+        }
     }
 });
 
@@ -552,8 +586,45 @@ function showPage(pageId, pushState = true) {
         }
     }
 
+    // Update Document Meta
+    const pageMeta = {
+        home: { title: 'sOuLViSiON | Digital Sanctuary', desc: 'The ultimate multi-tool productivity platform.' },
+        notes: { title: 'sOuLNOTES | Secure Markdown Workspace', desc: 'Your private encrypted note-taking vault.' },
+        ai: { title: 'sOuLAI | Intelligence Core', desc: 'Advanced multi-model AI workspace.' },
+        play: { title: 'sOuLPLAY | Immersive Music Player', desc: 'Stream YouTube or play local files with vinyl aesthetics.' },
+        random: { title: 'sOuLRANDOM | Omni-Randomizer', desc: 'Generate numbers, lists, colors, and more.' },
+        cricket: { title: 'sOuLCRICKET | Hand Cricket', desc: 'Strategic hand cricket simulator.' },
+        snake: { title: 'sOuLSNAKE | Retro Arena', desc: 'High-performance retro snake with global leaderboards.' },
+        focus: { title: 'sOuLFOCUS | Deep Work Timer', desc: 'Pomodoro timer, journaling, and life metrics.' },
+        quiz: { title: 'sOuLQUIZ | Knowledge Challenge', desc: 'AI-generated trivia and spiritual challenges.' },
+        fun: { title: 'sOuLFUN | Casual Play', desc: 'Simple joys and clicker tests.' },
+        support: { title: 'sOuLSUPPORT | Fuel the Vision', desc: 'Support development and join the wall of gratitude.' },
+        who: { title: 'sOuLWHO? | Mission & Architect', desc: 'The story behind sOuLViSiON.' },
+        dashboard: { title: 'sOuLViSiON | Dashboard', desc: 'Manage your account and preferences.' },
+        login: { title: 'sOuLViSiON | Authentication', desc: 'Securely sign in to your sanctuary.' },
+        legal: { title: 'sOuLViSiON | Privacy & Terms', desc: 'Legal documentation and policies.' },
+        manage: { title: 'sOuLMANAGE | Admin Control', desc: 'System management and health.' },
+        forgotPass: { title: 'sOuLViSiON | Reset Password', desc: 'Recover access to your account.' }
+    };
+
+    const meta = pageMeta[pageId] || pageMeta.home;
+    document.title = meta.title;
+    const metaDesc = document.querySelector('meta[name="description"]');
+    if (metaDesc) metaDesc.setAttribute('content', meta.desc);
+
     // UI State Sync
     requestAnimationFrame(() => {
+        // Active Nav Highlighting
+        const allNavBtns = document.querySelectorAll('nav button[onclick*="showPage"], aside nav button[onclick*="showPage"]');
+        allNavBtns.forEach(btn => {
+            const onclickAttr = btn.getAttribute('onclick');
+            if (onclickAttr && onclickAttr.includes(`'${pageId}'`)) {
+                btn.classList.add('text-cyan-400', 'bg-white/10');
+            } else {
+                btn.classList.remove('text-cyan-400', 'bg-white/10');
+            }
+        });
+
         const widget = document.getElementById('aiWidget');
         const mini = document.getElementById('miniChat');
         if (pageId === 'ai') {
@@ -969,7 +1040,7 @@ function renderNotes(providedNotes = null) {
         const isTrash = !!n.isDeleted;
 
         return `
-            <div onclick="openNote('${n.id}')" class="glass p-5 rounded-2xl border ${isPinned ? 'border-yellow-500 shadow-lg shadow-yellow-500/10' : (isTodo ? 'border-purple-500/20' : 'border-white/5')} flex flex-col h-full cursor-pointer hover:border-cyan-500/30 transition-all group relative overflow-hidden">
+            <div onclick="openNote('${n.id}')" ondblclick="openNote('${n.id}')" class="glass p-5 rounded-2xl border ${isPinned ? 'border-yellow-500 shadow-lg shadow-yellow-500/10' : (isTodo ? 'border-purple-500/20' : 'border-white/5')} flex flex-col h-full cursor-pointer hover:border-cyan-500/30 transition-all group relative overflow-hidden">
                 <div class="absolute top-0 right-0 p-3 flex gap-2 z-10">
                     ${deadlineBadge}
                     ${isPinned ? '<i class="fas fa-thumbtack text-yellow-500 pinned-icon transform rotate-45"></i>' : ''}
@@ -1131,6 +1202,10 @@ async function restoreFromTrash(id) {
 
 async function syncNotes(silent = true, showTrash = false) {
     if(!currentUser) return;
+    const list = document.getElementById('notesList');
+    if (list) {
+        list.innerHTML = Array(3).fill('<div class="skeleton-card"></div>').join('');
+    }
     const res = await fetch(`/api/main?route=notes&userId=${encodeURIComponent(currentUser.email)}&trash=${showTrash}`);
     const data = await res.json();
     if(Array.isArray(data)) {
@@ -1141,15 +1216,32 @@ async function syncNotes(silent = true, showTrash = false) {
 
 async function saveNotesToDB(note) {
     if(!currentUser) return false;
+    const statusEl = document.getElementById('syncStatus');
+    if (statusEl) {
+        statusEl.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i> Saving...';
+        statusEl.classList.replace('text-gray-500', 'text-cyan-400');
+    }
     try {
         const res = await fetch('/api/main?route=notes', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(note)
         });
+        if (res.ok && statusEl) {
+            statusEl.innerHTML = '<i class="fas fa-check-circle mr-1 text-green-500"></i> Synced';
+            statusEl.classList.replace('text-cyan-400', 'text-green-500');
+            setTimeout(() => {
+                statusEl.innerHTML = '';
+                statusEl.classList.replace('text-green-500', 'text-gray-500');
+            }, 3000);
+        }
         return res.ok;
     } catch (e) {
         console.error("Failed to save note", e);
+        if (statusEl) {
+            statusEl.innerHTML = '<i class="fas fa-exclamation-triangle mr-1"></i> Sync Failed';
+            statusEl.classList.replace('text-cyan-400', 'text-red-500');
+        }
         return false;
     }
 }
@@ -1721,6 +1813,23 @@ function playTrack(index) {
     document.getElementById('trackName').innerText = track.name;
     document.getElementById('artistName').innerText = track.artist || "Local Storage Track";
 
+    // Media Session API Integration for OS Lock Screen Controls
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: track.name,
+            artist: track.artist || "sOuLPLAY Library",
+            album: "sOuLViSiON",
+            artwork: [
+                { src: 'logo.svg', sizes: '512x512', type: 'image/svg+xml' }
+            ]
+        });
+
+        navigator.mediaSession.setActionHandler('play', () => toggleMusic());
+        navigator.mediaSession.setActionHandler('pause', () => toggleMusic());
+        navigator.mediaSession.setActionHandler('previoustrack', () => musicPrev());
+        navigator.mediaSession.setActionHandler('nexttrack', () => musicNext());
+    }
+
     if (track.type === 'youtube') {
         if (ytPlayer && ytPlayer.loadVideoById) {
             ytPlayer.loadVideoById(track.id);
@@ -1990,28 +2099,30 @@ async function syncAIHistory() {
 }
 
 async function saveAIHistory(conversation) {
-    const idx = aiConversations.findIndex(c => c.id === conversation.id);
-    if (idx > -1) aiConversations[idx] = conversation;
-    else aiConversations.unshift(conversation);
+    // Force ID to number and update interaction timestamp
+    conversation.id = Number(conversation.id);
+    conversation.lastUpdated = Date.now();
+
+    const idx = aiConversations.findIndex(c => Number(c.id) === conversation.id);
+    if (idx > -1) {
+        aiConversations[idx] = conversation;
+    } else {
+        aiConversations.unshift(conversation);
+    }
 
     renderAIHistory();
 
     if (!currentUser) return;
 
-    // Ensure ID is a number for DB consistency
-    const payload = { ...conversation, id: Number(conversation.id) };
-
-    setLoading(true, "Syncing Chat History");
+    // Background sync
     try {
         await fetch(`/api/main?route=ai_conversations&userId=${encodeURIComponent(currentUser.email)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(conversation)
         });
     } catch (e) {
         console.warn("Could not sync AI history to cloud", e);
-    } finally {
-        setLoading(false);
     }
 }
 
@@ -2025,7 +2136,7 @@ function newConversation() {
 function loadConversation(id) {
     id = Number(id);
     currentChatId = id;
-    const conv = aiConversations.find(c => c.id === id);
+    const conv = aiConversations.find(c => Number(c.id) === id);
     if (!conv) return;
 
     document.getElementById('chatBox').innerHTML = '';
@@ -2040,6 +2151,13 @@ function renderAIHistory(providedHistory = null) {
     const bulkBar = document.getElementById('aiBulkActions');
     const displayData = providedHistory || aiConversations;
     
+    // Robust sort by lastUpdated (or ID fallback) descending
+    displayData.sort((a, b) => {
+        const timeA = Number(a.lastUpdated || a.id);
+        const timeB = Number(b.lastUpdated || b.id);
+        return timeB - timeA;
+    });
+
     if (displayData.length === 0) {
         list.innerHTML = '<p class="text-[10px] text-gray-500 text-center py-4">No chat history.</p>';
         bulkBar?.classList.add('hidden');
@@ -2055,12 +2173,13 @@ function renderAIHistory(providedHistory = null) {
     if (selectAllEl) selectAllEl.checked = (selectedConversations.size === aiConversations.length && aiConversations.length > 0);
 
     list.innerHTML = displayData.map(c => {
-        const isSelected = selectedConversations.has(Number(c.id));
-        const isActive = c.id === currentChatId;
+        const cid = Number(c.id);
+        const isSelected = selectedConversations.has(cid);
+        const isActive = cid === Number(currentChatId);
         return `
-            <div onclick="loadConversation('${c.id}')" class="group relative flex items-center rounded-xl transition-all duration-200 cursor-pointer overflow-hidden mb-1 ${isActive ? 'bg-purple-600/20 border border-purple-500/50 shadow-lg shadow-purple-900/20' : 'bg-white/5 border border-transparent hover:bg-white/10 hover:border-white/10'}">
+            <div onclick="loadConversation('${cid}')" class="group relative flex items-center rounded-xl transition-all duration-200 cursor-pointer overflow-hidden mb-1 ${isActive ? 'bg-purple-600/20 border border-purple-500/50 shadow-lg shadow-purple-900/20' : 'bg-white/5 border border-transparent hover:bg-white/10 hover:border-white/10'}">
                 <div class="flex items-center justify-center w-8 pl-2">
-                    <input type="checkbox" class="accent-purple-500 w-3.5 h-3.5 rounded cursor-pointer" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleConvSelection(${c.id})">
+                    <input type="checkbox" class="accent-purple-500 w-3.5 h-3.5 rounded cursor-pointer" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleConvSelection(${cid})">
                 </div>
                 <div class="flex-grow py-3 pl-1 pr-12 text-[11px] font-medium truncate ${isActive ? 'text-white' : 'text-gray-400'}">
                     <i class="fas fa-comment-alt mr-2 opacity-50"></i> ${c.name}
@@ -2142,7 +2261,7 @@ async function deleteConversation(id) {
                 method: 'DELETE'
             });
         } finally {
-            if (!isAutoSave) setLoading(false);
+            setLoading(false);
         }
     }
     if (currentChatId === id) {
@@ -2279,6 +2398,8 @@ async function handleAIFile(e, isMini = false) {
 // STT Toggle
 let recognition;
 let sttForceStop = false;
+let sttFinalTranscript = '';
+
 function toggleSTT(isMini = false) {
     const btnId = isMini ? 'miniSttBtn' : 'sttBtn';
     const inputId = isMini ? 'miniChatInput' : 'chatInput';
@@ -2296,36 +2417,42 @@ function toggleSTT(isMini = false) {
     }
 
     sttForceStop = false;
+    sttFinalTranscript = input.value;
+    input.focus();
     recognition = new webkitSpeechRecognition();
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
         btn.innerHTML = `<i class="fas fa-stop-circle text-red-500 animate-pulse ${isMini ? 'text-[10px]' : ''}"></i>`;
         btn.classList.add('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
         recognition.active = true;
+        showToast("Listening...", "info");
     };
 
     recognition.onresult = (event) => {
-        let finalTranscript = '';
+        let interimTranscript = '';
+        let currentFinal = '';
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-                finalTranscript += event.results[i][0].transcript;
+                currentFinal += transcript;
+            } else {
+                interimTranscript += transcript;
             }
         }
         
-        if (finalTranscript) {
-            const result = finalTranscript.trim();
-            const start = input.selectionStart || 0;
-            const end = input.selectionEnd || 0;
-            const text = input.value;
-            input.value = text.substring(0, start) + result + " " + text.substring(end);
-            const newPos = start + result.length + 1;
-            input.focus();
-            input.setSelectionRange(newPos, newPos);
-            if (!isMini && input.id === 'chatInput') autoResize(input);
+        if (currentFinal) {
+            sttFinalTranscript = (sttFinalTranscript.trim() + " " + currentFinal.trim()).trim();
         }
+
+        // Real-time typing: Update input with final accumulated text + current interim
+        input.value = (sttFinalTranscript + " " + interimTranscript).trim();
+        
+        input.scrollTop = input.scrollHeight;
+        if (!isMini && input.id === 'chatInput') autoResize(input);
     };
 
     recognition.onerror = (event) => {
@@ -2338,11 +2465,17 @@ function toggleSTT(isMini = false) {
 
     recognition.onend = () => {
         if (!sttForceStop) {
-            try { recognition.start(); } catch(e) { console.warn("STT restart failed:", e); }
+            try { 
+                recognition.start(); 
+            } catch(e) { 
+                console.warn("STT restart failed:", e); 
+                setTimeout(() => { if(!sttForceStop) recognition.start(); }, 500);
+            }
         } else {
             btn.innerHTML = `<i class="fas fa-microphone ${isMini ? 'text-xs' : ''}"></i>`;
             btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
             recognition.active = false;
+            showToast("Microphone OFF", "warning");
         }
     };
 
@@ -2360,6 +2493,15 @@ function autoResize(textarea) {
         textarea.value = '';
         textarea.style.height = 'auto';
         addTextAsAttachment(content);
+    }
+}
+
+function prefillAIPrompt(text) {
+    const input = document.getElementById('chatInput');
+    if (input) {
+        input.value = text;
+        input.focus();
+        autoResize(input);
     }
 }
 
@@ -2535,6 +2677,7 @@ document.getElementById('chatInput').addEventListener('paste', (e) => {
 });
 
 async function askAI() {
+    stopAllSTT();
     const inputEl = document.getElementById('chatInput');
     const persona = document.getElementById('personaSelect').value;
     let input = inputEl.value;
@@ -2570,6 +2713,7 @@ async function askAI() {
 }
 
 async function askMiniAI() {
+    stopAllSTT();
     const inputEl = document.getElementById('miniChatInput');
     const box = document.getElementById('miniChatBox');
     const txt = inputEl.value;
@@ -2593,8 +2737,10 @@ async function askMiniAI() {
 }
 
 async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attachments = []) {
+    document.title = '● AI is thinking...';
     let model = "gemini-1.5-flash";
-    if (targetBoxId === 'miniChatBox') {
+    const isMini = targetBoxId === 'miniChatBox';
+    if (isMini) {
         model = aiConfig.unifiedModel || "gemini-1.5-flash";
     } else {
         const modelSelect = document.getElementById('modelSelect');
@@ -2603,7 +2749,7 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
     
     if(!aiConfig.keys.length) return alert("Please configure API Keys in Admin panel.");
 
-    const statusEl = document.getElementById(targetBoxId === 'chatBox' ? 'aiStatus' : 'miniAiStatus');
+    const statusEl = document.getElementById(isMini ? 'miniAiStatus' : 'aiStatus');
     const loadingPhrases = isStreamingMode ? [
         "Establishing neural stream...",
         "Buffering consciousness...",
@@ -2622,12 +2768,8 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
     let phraseIdx = 0;
     let loadingInterval = null;
 
-    const quietBtn = document.getElementById('quietBtn');
-    const miniQuietBtn = document.getElementById('miniQuietBtn');
-
     if(statusEl) { 
-        if (quietBtn) quietBtn.classList.remove('hidden');
-        if (miniQuietBtn) miniQuietBtn.classList.remove('hidden');
+        toggleSendButton(isMini, true);
         statusEl.innerHTML = `
             <div class="neural-loader">
                 <div class="neural-grid">
@@ -2742,8 +2884,7 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         if (loadingInterval) clearInterval(loadingInterval);
         appendAIMessage('ai', fullContent, targetBoxId, false);
         
-        if (quietBtn) quietBtn.classList.add('hidden');
-        if (miniQuietBtn) miniQuietBtn.classList.add('hidden');
+        toggleSendButton(isMini, false);
         currentAbortController = null;
         
         if(statusEl) {
@@ -2764,14 +2905,15 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         } else if (targetBoxId === 'miniChatBox') {
             miniChatHistory.push({ role: 'ai', content: fullContent });
         }
+        document.title = 'sOuLViSiON | Digital Sanctuary';
     } catch (err) {
         if (loadingInterval) clearInterval(loadingInterval);
-        if (quietBtn) quietBtn.classList.add('hidden');
-        if (miniQuietBtn) miniQuietBtn.classList.add('hidden');
+        toggleSendButton(isMini, false);
         
         if (err.name === 'AbortError') {
             currentAbortController = null;
             if (statusEl) statusEl.classList.add('hidden');
+            document.title = 'sOuLViSiON | Digital Sanctuary';
             return;
         }
         
@@ -2787,6 +2929,7 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         } else {
             appendAIMessage('ai', `**System Failure:** ${err.message}`, targetBoxId);
         }
+        document.title = 'sOuLViSiON | Digital Sanctuary';
     }
 }
 
@@ -2858,6 +3001,13 @@ function toggleAIHistory() {
     sidebar.classList.toggle('hidden');
 }
 function toggleMiniChat() { document.getElementById('miniChat').classList.toggle('show'); }
+
+function stopAllSTT() {
+    if (recognition && recognition.active) {
+        sttForceStop = true;
+        recognition.stop();
+    }
+}
 
 // --- FUN PAGE LOGIC ---
 let clickCount = 0;
@@ -5171,38 +5321,60 @@ function toggleSTTNote(inputId) {
     }
 
     sttForceStop = false;
+    sttFinalTranscript = input.value;
+    input.focus();
     recognition = new webkitSpeechRecognition();
     recognition.continuous = true;
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.lang = 'en-US';
 
     recognition.onstart = () => {
         btn.innerHTML = `<i class="fas fa-stop-circle text-red-500 animate-pulse"></i>`;
         recognition.active = true;
+        showToast("Listening to your soul...", "info");
     };
 
     recognition.onresult = (event) => {
-        let transcript = '';
+        let interimTranscript = '';
+        let currentFinal = '';
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) transcript += event.results[i][0].transcript;
+            const transcript = event.results[i][0].transcript;
+            if (event.results[i].isFinal) {
+                currentFinal += transcript;
+            } else {
+                interimTranscript += transcript;
+            }
         }
-        if (transcript) {
-            input.value += (input.value ? " " : "") + transcript;
-            updateEditorStats(input);
+        
+        if (currentFinal) {
+            sttFinalTranscript = (sttFinalTranscript.trim() + " " + currentFinal.trim()).trim();
         }
+
+        input.value = (sttFinalTranscript + " " + interimTranscript).trim();
+        updateEditorStats(input);
+        input.scrollTop = input.scrollHeight;
     };
 
     recognition.onerror = (event) => {
-        if (event.error === 'not-allowed') sttForceStop = true;
+        if (event.error === 'not-allowed') {
+            sttForceStop = true;
+            showToast("Microphone access denied.", "error");
+        }
         console.warn("STT Note Error:", event.error);
     };
 
     recognition.onend = () => {
         if (!sttForceStop) {
-            try { recognition.start(); } catch(e) {}
+            try { 
+                recognition.start(); 
+            } catch(e) {
+                setTimeout(() => { if(!sttForceStop) recognition.start(); }, 500);
+            }
         } else {
             btn.innerHTML = `<i class="fas fa-microphone"></i>`;
             recognition.active = false;
+            showToast("Note taking paused.", "warning");
         }
     };
 
