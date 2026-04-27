@@ -1046,18 +1046,42 @@
                         <h3 class="text-lg font-black tracking-widest text-purple-400 uppercase flex items-center gap-2">
                             <i class="fas fa-feather-alt"></i> Spiritual Growth
                         </h3>
-                        <div class="glass p-6 flex flex-col h-[500px]">
+                        <div class="glass p-6 flex flex-col h-auto">
                             <div class="flex justify-between items-center mb-4">
                                 <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">Soul Journal</span>
                                 <span id="journalDate" class="text-[10px] font-mono text-purple-400"></span>
                             </div>
-                            <textarea id="journalInput" class="flex-grow bg-black/20 rounded-xl p-4 text-sm resize-none outline-none border border-white/5 focus:border-purple-500 transition custom-scrollbar mb-4" placeholder="How is your spirit today? Log your progress..."></textarea>
+                            <textarea id="journalInput" class="h-40 bg-black/20 rounded-xl p-4 text-sm resize-none outline-none border border-white/5 focus:border-purple-500 transition custom-scrollbar mb-4" placeholder="How is your spirit today? Log your progress..."></textarea>
                             <button onclick="saveJournalEntry()" class="bg-purple-600 py-3 rounded-xl font-bold hover:bg-purple-500 transition shadow-lg shadow-purple-600/20">COMMIT TO LOG</button>
                             
                             <div class="mt-6 border-t border-white/5 pt-4">
                                 <h4 class="text-[10px] font-black text-gray-600 uppercase mb-3">Recent Entries</h4>
                                 <div id="journalHistory" class="space-y-2 overflow-y-auto max-h-32 pr-2 custom-scrollbar">
                                     <p class="text-[10px] text-gray-500 italic">No entries yet.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- NEW: Breathing Assistance -->
+                        <div class="glass p-6 border-t-4 border-teal-500">
+                            <div class="flex justify-between items-center mb-6">
+                                <h4 class="text-[10px] font-black text-teal-400 uppercase tracking-widest">Neural Breathing Core</h4>
+                                <div class="flex items-center gap-2">
+                                    <span id="breathTotalTime" class="text-[10px] font-mono text-gray-500">Practice: 0m</span>
+                                    <button onclick="toggleBreathingSound()" id="breathSoundBtn" class="text-gray-500 hover:text-teal-400 transition"><i class="fas fa-volume-mute"></i></button>
+                                </div>
+                            </div>
+                            
+                            <div class="flex flex-col items-center justify-center py-6">
+                                <div id="breathAssistCircle" class="w-32 h-32 rounded-full border-4 border-teal-500/20 flex items-center justify-center relative transition-all duration-[4000ms] ease-in-out">
+                                    <div class="absolute inset-0 bg-teal-500/10 rounded-full blur-xl scale-75"></div>
+                                    <span id="breathAssistText" class="text-[10px] font-black text-teal-400 uppercase tracking-widest text-center">Ready</span>
+                                </div>
+                                <div id="breathPhaseProgress" class="w-full h-1 bg-white/5 rounded-full mt-10 overflow-hidden">
+                                    <div id="breathPhaseBar" class="h-full bg-teal-500 w-0 transition-all duration-[4000ms] linear"></div>
+                                </div>
+                                <div class="mt-8 flex gap-4 w-full">
+                                    <button id="breathStartBtn" onclick="toggleBreathingSession()" class="flex-grow bg-teal-600 py-3 rounded-xl font-bold hover:bg-teal-500 transition shadow-lg shadow-teal-600/20 uppercase text-[10px] tracking-widest">Start Box Breathing</button>
                                 </div>
                             </div>
                         </div>
@@ -1199,29 +1223,89 @@
 
         <!-- Fun Page -->
         <section id="fun" class="page text-center">
-            <h2 class="text-3xl font-bold mb-4">sOuLFUN</h2>
-            <p class="mb-10 text-gray-400">Simple joys to kill some time.</p>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div class="glass p-8">
-                    <h3 class="text-xl font-bold mb-4">Clicker Speed Test</h3>
-                    <div id="clickCounter" class="text-6xl font-black text-cyan-400 mb-4">0</div>
-                    <div id="clickTimer" class="mb-6 text-gray-500">10s remaining</div>
-                    <button id="clickBtn" onclick="startClicker()" class="bg-cyan-500 w-full py-4 rounded-xl font-bold text-2xl">CLICK!</button>
+            <div class="max-w-6xl mx-auto py-10">
+                <div class="text-center mb-12">
+                    <h2 class="text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-600">sOuLFUN</h2>
+                    <p class="text-gray-500 text-xs mt-2 uppercase tracking-[0.3em]">The Playground of the Digital Sanctuary</p>
                 </div>
-                <div class="glass p-8">
-                    <h3 class="text-xl font-bold mb-4">Magic 8-Ball</h3>
-                    <div id="ballResponse" class="h-24 flex items-center justify-center italic text-xl text-purple-300">Ask a question and shake...</div>
-                    <button onclick="shakeBall()" class="bg-purple-600 w-full py-4 rounded-xl font-bold">SHAKE</button>
-                </div>
-                <!-- Coin Flip -->
-                <div class="glass p-8">
-                    <h3 class="text-xl font-bold mb-4">Visual Coin Flip</h3>
-                    <div class="flex flex-col items-center gap-6">
-                        <div id="coin" class="w-24 h-24 relative preserve-3d transition-transform duration-500">
-                            <div class="absolute inset-0 bg-yellow-500 rounded-full border-4 border-yellow-600 flex items-center justify-center text-yellow-900 font-black text-2xl shadow-lg backface-hidden">HEADS</div>
-                            <div class="absolute inset-0 bg-yellow-600 rounded-full border-4 border-yellow-500 flex items-center justify-center text-yellow-100 font-black text-2xl shadow-lg backface-hidden rotate-y-180">TAILS</div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <!-- Clicker -->
+                    <div class="glass p-8 group hover:border-cyan-500/50 transition-all flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold mb-2">Clicker Speed Test</h3>
+                            <p class="text-xs text-gray-500 mb-6">How many clicks can you land in 10 seconds?</p>
+                            <div id="clickCounter" class="text-6xl font-black text-cyan-400 mb-2">0</div>
+                            <div id="clickTimer" class="text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-6">10s remaining</div>
                         </div>
-                        <button onclick="flipCoinFun()" class="bg-yellow-600 w-full py-4 rounded-xl font-bold">FLIP COIN</button>
+                        <button id="clickBtn" onclick="startClicker()" class="bg-cyan-600 w-full py-3 rounded-xl font-bold hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20 active:scale-95">CLICK!</button>
+                    </div>
+
+                    <!-- Zen Breath -->
+                    <div class="glass p-8 group hover:border-teal-500/50 transition-all flex flex-col items-center">
+                        <h3 class="text-xl font-bold mb-2">Zen Breath</h3>
+                        <p class="text-xs text-gray-500 mb-8">Sync your existence with the rhythm of life.</p>
+                        <div class="relative w-32 h-32 mb-8">
+                            <div class="absolute inset-0 border-4 border-teal-500/20 rounded-full"></div>
+                            <div id="breathCircle" class="absolute inset-2 bg-teal-500/20 rounded-full flex items-center justify-center transition-all duration-[4000ms] ease-in-out">
+                                <span id="breathText" class="text-[10px] font-black text-teal-400 uppercase tracking-widest">Inhale</span>
+                            </div>
+                        </div>
+                        <button onclick="toggleZenBreath(this)" class="w-full bg-teal-600 py-3 rounded-xl font-bold hover:bg-teal-500 transition shadow-lg shadow-teal-600/20">START SESSION</button>
+                    </div>
+
+                    <!-- Reaction Test -->
+                    <div class="glass p-8 group hover:border-amber-500/50 transition-all flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold mb-2">Reaction Pulse</h3>
+                            <p class="text-xs text-gray-500 mb-6">Wait for GREEN, then tap as fast as you can.</p>
+                            <div id="reactionArea" class="h-32 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center cursor-pointer mb-6 group-active:scale-[0.98] transition-all">
+                                <span id="reactionText" class="text-xs font-black text-gray-500 uppercase tracking-widest">Ready?</span>
+                            </div>
+                        </div>
+                        <div id="reactionResult" class="text-lg font-black text-amber-400 font-mono mb-4 hidden">000ms</div>
+                        <button onclick="startReactionTest()" id="reactionBtn" class="bg-amber-600 w-full py-3 rounded-xl font-bold hover:bg-amber-500 transition shadow-lg shadow-amber-600/20">TEST REFLEXES</button>
+                    </div>
+
+                    <!-- Magic 8-Ball -->
+                    <div class="glass p-8 group hover:border-purple-500/50 transition-all flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold mb-2">Soul Oracle</h3>
+                            <p class="text-xs text-gray-500 mb-6">Consult the mystical 8-ball for answers.</p>
+                            <div class="relative w-24 h-24 mx-auto mb-6">
+                                <div class="absolute inset-0 bg-black rounded-full shadow-2xl border-4 border-white/5 flex items-center justify-center">
+                                    <div class="w-12 h-12 bg-purple-900/40 rounded-full border border-purple-500/30 flex items-center justify-center text-[8px] font-bold text-purple-300 text-center px-1" id="ballResponse">8</div>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="shakeBall()" class="bg-purple-600 w-full py-3 rounded-xl font-bold hover:bg-purple-500 transition shadow-lg shadow-purple-600/20">SHAKE THE VOID</button>
+                    </div>
+
+                    <!-- Visual Coin Flip -->
+                    <div class="glass p-8 group hover:border-yellow-500/50 transition-all flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold mb-2">Aureum Flip</h3>
+                            <p class="text-xs text-gray-500 mb-6">Let the laws of physics decide your path.</p>
+                            <div class="flex justify-center mb-8">
+                                <div id="coin" class="w-24 h-24 relative preserve-3d transition-transform duration-500">
+                                    <div class="absolute inset-0 bg-yellow-500 rounded-full border-4 border-yellow-600 flex items-center justify-center text-yellow-900 font-black text-[10px] shadow-lg backface-hidden uppercase tracking-widest">Heads</div>
+                                    <div class="absolute inset-0 bg-yellow-600 rounded-full border-4 border-yellow-500 flex items-center justify-center text-yellow-100 font-black text-[10px] shadow-lg backface-hidden rotate-y-180 uppercase tracking-widest">Tails</div>
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="flipCoinFun()" class="bg-yellow-600 w-full py-3 rounded-xl font-bold hover:bg-yellow-500 transition shadow-lg shadow-yellow-600/20">FLIP COIN</button>
+                    </div>
+
+                    <!-- Soul Quotes -->
+                    <div class="glass p-8 group hover:border-indigo-500/50 transition-all flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold mb-2">Eternal Echoes</h3>
+                            <p class="text-xs text-gray-500 mb-6">Receive wisdom from the collective consciousness.</p>
+                            <div class="italic text-sm text-gray-300 leading-relaxed min-h-[80px] flex items-center justify-center" id="quoteText">
+                                "The only way to do great work is to love what you do."
+                            </div>
+                        </div>
+                        <button onclick="generateSoulQuote()" class="bg-indigo-600 w-full py-3 rounded-xl font-bold hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20 mt-6">HEAR ECHOES</button>
                     </div>
                 </div>
             </div>
@@ -1258,8 +1342,8 @@
                                 </div>
                                 <div id="quizTimerBox" class="hidden text-center">
                                     <p class="text-[10px] text-gray-500 uppercase mb-1">Time Bonus</p>
-                                    <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                                        <div id="quizTimerBar" class="h-full bg-indigo-500 w-full transition-all duration-100"></div>
+                                    <div class="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                                        <div id="quizTimerBar" class="h-full bg-gradient-to-r from-indigo-500 to-purple-600 w-full transition-all duration-100"></div>
                                     </div>
                                 </div>
                             </div>
@@ -1268,47 +1352,58 @@
 
                     <!-- Quiz Arena -->
                     <div class="lg:col-span-6">
-                        <div id="quizArena" class="glass p-8 min-h-[450px] flex flex-col relative overflow-hidden">
+                        <div id="quizArena" class="glass p-8 min-h-[500px] flex flex-col relative overflow-hidden border-t-4 border-indigo-500">
                             <!-- Intro State -->
                             <div id="quizIntro" class="flex-grow flex flex-col items-center justify-center text-center space-y-6">
-                                <i class="fas fa-brain text-6xl text-indigo-500 animate-pulse"></i>
+                                <div class="w-20 h-20 rounded-3xl bg-indigo-600/10 flex items-center justify-center shadow-2xl shadow-indigo-500/20">
+                                    <i class="fas fa-brain text-4xl text-indigo-500 animate-pulse"></i>
+                                </div>
                                 <div>
-                                    <h3 class="text-2xl font-bold mb-2">Ready for Enlightenment?</h3>
-                                    <p class="text-sm text-gray-400">Select a category to begin your AI-generated challenge.</p>
+                                    <h3 class="text-2xl font-black tracking-tight mb-2">Ready for Enlightenment?</h3>
+                                    <p class="text-xs text-gray-500 uppercase tracking-widest">Select a category to begin your AI-generated challenge.</p>
                                 </div>
                             </div>
 
                             <!-- Loading State -->
                             <div id="quizLoading" class="hidden flex-grow flex flex-col items-center justify-center space-y-4">
-                                <div class="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
-                                <p class="text-xs text-indigo-400 font-black uppercase tracking-[0.2em] animate-pulse">Consulting the Oracle...</p>
+                                <div class="relative w-16 h-16">
+                                    <div class="absolute inset-0 border-4 border-indigo-500/10 rounded-full"></div>
+                                    <div class="absolute inset-0 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                </div>
+                                <p class="text-[10px] text-indigo-400 font-black uppercase tracking-[0.4em] animate-pulse">Consulting the Oracle...</p>
                             </div>
 
                             <!-- Question State -->
-                            <div id="quizQuestionBox" class="hidden flex-grow flex flex-col">
-                                <div class="flex justify-between items-center mb-8">
-                                    <span id="quizProgressText" class="text-[10px] font-mono text-gray-500 uppercase tracking-widest">Question 1 / 10</span>
-                                    <span id="quizCategoryLabel" class="text-[10px] font-black bg-indigo-600/20 text-indigo-400 px-3 py-1 rounded-full border border-indigo-500/20">GENERAL</span>
+                            <div id="quizQuestionBox" class="hidden flex-grow flex flex-col animate-fadeIn">
+                                <div class="flex justify-between items-center mb-10">
+                                    <div class="flex flex-col">
+                                        <span id="quizProgressText" class="text-[10px] font-black text-gray-600 uppercase tracking-[0.2em]">Question 01 / 10</span>
+                                        <div class="flex gap-1 mt-1" id="quizVisualProgress"></div>
+                                    </div>
+                                    <span id="quizCategoryLabel" class="text-[10px] font-black bg-indigo-600/10 text-indigo-400 px-4 py-1.5 rounded-full border border-indigo-500/20 shadow-lg shadow-indigo-500/10">GENERAL</span>
                                 </div>
-                                <h3 id="quizQuestionText" class="text-xl md:text-2xl font-bold leading-tight mb-8">Loading question...</h3>
-                                <div id="quizOptions" class="grid grid-cols-1 gap-3">
+                                <div class="bg-white/5 p-6 rounded-2xl border border-white/5 mb-8">
+                                    <h3 id="quizQuestionText" class="text-xl md:text-2xl font-black leading-snug text-white">Loading question...</h3>
+                                </div>
+                                <div id="quizOptions" class="grid grid-cols-1 gap-4">
                                     <!-- Buttons generated here -->
                                 </div>
                             </div>
 
                             <!-- Summary State -->
-                            <div id="quizSummary" class="hidden flex-grow flex flex-col items-center justify-center text-center space-y-6">
+                            <div id="quizSummary" class="hidden flex-grow flex flex-col items-center justify-center text-center space-y-8">
                                 <div class="relative">
-                                    <div class="absolute inset-0 bg-indigo-500/20 blur-3xl rounded-full"></div>
-                                    <h3 class="text-6xl font-black text-white relative" id="summaryFinalScore">0</h3>
+                                    <div class="absolute inset-0 bg-indigo-500/20 blur-3xl rounded-full scale-150"></div>
+                                    <h3 class="text-8xl font-black text-white relative tracking-tighter" id="summaryFinalScore">0</h3>
+                                    <p class="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] relative">Total Soul Score</p>
                                 </div>
-                                <div>
-                                    <h4 class="text-xl font-bold">Soul Insight</h4>
-                                    <p id="summaryInsight" class="text-sm text-gray-400 italic max-w-md mx-auto mt-2 leading-relaxed">Evaluation pending...</p>
+                                <div class="bg-white/5 p-6 rounded-2xl border border-white/10 max-w-md mx-auto">
+                                    <h4 class="text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Soul Insight</h4>
+                                    <p id="summaryInsight" class="text-sm text-gray-200 italic leading-relaxed">Evaluation pending...</p>
                                 </div>
-                                <div class="flex gap-4">
-                                    <button onclick="resetQuiz()" class="bg-indigo-600 hover:bg-indigo-500 px-8 py-3 rounded-xl font-bold transition-all active:scale-95">RETRY</button>
-                                    <button onclick="showPage('home')" class="bg-white/5 hover:bg-white/10 px-8 py-3 rounded-xl font-bold transition-all">EXIT</button>
+                                <div class="flex gap-4 w-full max-w-sm">
+                                    <button onclick="resetQuiz()" class="flex-grow bg-indigo-600 hover:bg-indigo-500 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all active:scale-95 shadow-xl shadow-indigo-600/20">TRY AGAIN</button>
+                                    <button onclick="showPage('home')" class="flex-grow bg-white/5 hover:bg-white/10 py-4 rounded-2xl font-black uppercase tracking-widest text-xs transition-all border border-white/10">EXIT</button>
                                 </div>
                             </div>
                         </div>

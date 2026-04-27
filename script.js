@@ -3316,15 +3316,28 @@ async function startQuiz(category) {
 
 function renderQuizQuestion() {
     const q = quizState.questions[quizState.currentIndex];
-    document.getElementById('quizProgressText').innerText = `Question ${quizState.currentIndex + 1} / ${quizState.questions.length}`;
+    const total = quizState.questions.length;
+    const current = quizState.currentIndex + 1;
+    
+    document.getElementById('quizProgressText').innerText = `Question ${current.toString().padStart(2, '0')} / ${total}`;
     document.getElementById('quizCategoryLabel').innerText = quizState.category.toUpperCase();
     document.getElementById('quizQuestionText').innerText = q.q;
     
+    // Render Visual Progress Dots
+    const progressEl = document.getElementById('quizVisualProgress');
+    progressEl.innerHTML = Array(total).fill(0).map((_, i) => {
+        const state = i < quizState.currentIndex ? 'bg-indigo-500' : (i === quizState.currentIndex ? 'bg-indigo-500 animate-pulse' : 'bg-white/10');
+        return `<div class="w-3 h-1 rounded-full ${state}"></div>`;
+    }).join('');
+
     const optionsBox = document.getElementById('quizOptions');
     optionsBox.innerHTML = q.o.map((opt, idx) => `
-        <button onclick="handleQuizAnswer(${idx})" class="quiz-opt-btn" id="opt-${idx}">
-            <span class="w-6 h-6 rounded bg-white/5 border border-white/10 flex items-center justify-center text-[10px] font-bold group-hover:bg-indigo-500 transition-colors">${String.fromCharCode(65 + idx)}</span>
-            <span class="flex-grow text-left">${opt}</span>
+        <button onclick="handleQuizAnswer(${idx})" class="quiz-opt-btn group/opt" id="opt-${idx}">
+            <div class="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-[11px] font-black group-hover/opt:bg-indigo-600 group-hover/opt:text-white group-hover/opt:border-indigo-400 transition-all shadow-inner">
+                ${String.fromCharCode(65 + idx)}
+            </div>
+            <span class="flex-grow text-left text-sm font-medium text-gray-300 group-hover/opt:text-white transition-colors">${opt}</span>
+            <i class="fas fa-chevron-right text-[8px] opacity-0 group-hover/opt:opacity-100 group-hover/opt:translate-x-1 transition-all text-indigo-400"></i>
         </button>
     `).join('');
 
@@ -3701,8 +3714,233 @@ async function syncSnakeLeaderboard() {
 }
 
 function shakeBall() {
-    const answers = ["Yes", "No", "Maybe", "Outlook good", "Ask again later", "Very doubtful", "Absolutely"];
-    document.getElementById('ballResponse').innerText = answers[Math.floor(Math.random()*answers.length)];
+    const ball = document.getElementById('ballResponse').parentElement.parentElement;
+    ball.classList.add('animate-bounce');
+    const answers = ["Yes", "No", "Maybe", "Outlook good", "Ask again later", "Very doubtful", "Absolutely", "Better not tell you now", "Concentrate and ask again"];
+    
+    setTimeout(() => {
+        document.getElementById('ballResponse').innerText = answers[Math.floor(Math.random()*answers.length)];
+        ball.classList.remove('animate-bounce');
+    }, 500);
+}
+
+// --- NEW FUN FEATURES ---
+let zenInterval = null;
+let breathingState = {
+    active: false,
+    interval: null,
+    phase: 0, // 0: Inhale, 1: Hold, 2: Exhale, 3: Hold
+    sessionSeconds: 0,
+    soundEnabled: false,
+    audioCtx: null,
+    oscillator: null
+};
+
+function toggleBreathingSound() {
+    breathingState.soundEnabled = !breathingState.soundEnabled;
+    const btn = document.getElementById('breathSoundBtn');
+    btn.innerHTML = breathingState.soundEnabled ? '<i class="fas fa-volume-up text-teal-400"></i>' : '<i class="fas fa-volume-mute"></i>';
+    if (!breathingState.soundEnabled && breathingState.audioCtx) {
+        breathingState.audioCtx.suspend();
+    } else if (breathingState.soundEnabled && breathingState.audioCtx) {
+        breathingState.audioCtx.resume();
+    }
+}
+
+function playBreathingPulse(frequency, duration) {
+    if (!breathingState.soundEnabled) return;
+    try {
+        if (!breathingState.audioCtx) breathingState.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (breathingState.audioCtx.state === 'suspended') breathingState.audioCtx.resume();
+
+        const osc = breathingState.audioCtx.createOscillator();
+        const gain = breathingState.audioCtx.createGain();
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(frequency, breathingState.audioCtx.currentTime);
+        
+        gain.gain.setValueAtTime(0, breathingState.audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.1, breathingState.audioCtx.currentTime + 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.0001, breathingState.audioCtx.currentTime + duration);
+
+        osc.connect(gain);
+        gain.connect(breathingState.audioCtx.destination);
+
+        osc.start();
+        osc.stop(breathingState.audioCtx.currentTime + duration);
+    } catch (e) { console.warn("Audio Error:", e); }
+}
+
+async function toggleBreathingSession() {
+    const circle = document.getElementById('breathAssistCircle');
+    const text = document.getElementById('breathAssistText');
+    const bar = document.getElementById('breathPhaseBar');
+    const btn = document.getElementById('breathStartBtn');
+
+    if (breathingState.active) {
+        // End Session
+        clearInterval(breathingState.interval);
+        breathingState.active = false;
+        breathingState.phase = 0;
+        
+        // Save practice time
+        if (breathingState.sessionSeconds > 10 && currentUser) {
+            const minutes = Math.round(breathingState.sessionSeconds / 60 * 10) / 10;
+            await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: 'breathing_practice', duration: breathingState.sessionSeconds, minutes: minutes })
+            });
+            syncFocusData();
+        }
+
+        circle.style.transform = 'scale(1)';
+        circle.style.borderColor = 'rgba(20, 184, 166, 0.2)';
+        text.innerText = 'Ready';
+        bar.style.width = '0%';
+        btn.innerText = 'Start Box Breathing';
+        btn.classList.replace('bg-red-600', 'bg-teal-600');
+        return;
+    }
+
+    // Start Session
+    breathingState.active = true;
+    breathingState.sessionSeconds = 0;
+    btn.innerText = 'End Session';
+    btn.classList.replace('bg-teal-600', 'bg-red-600');
+
+    const phases = [
+        { text: 'Inhale', scale: 1.5, color: '#14b8a6', freq: 440 },
+        { text: 'Hold', scale: 1.5, color: '#0d9488', freq: 554 },
+        { text: 'Exhale', scale: 1, color: '#0f766e', freq: 330 },
+        { text: 'Hold', scale: 1, color: '#134e4a', freq: 220 }
+    ];
+
+    const runPhase = () => {
+        const p = phases[breathingState.phase];
+        text.innerText = p.text;
+        circle.style.transform = `scale(${p.scale})`;
+        circle.style.borderColor = p.color;
+        
+        // Handle Progress Bar
+        bar.style.transitionDuration = '0s';
+        bar.style.width = '0%';
+        setTimeout(() => {
+            bar.style.transitionDuration = '4000ms';
+            bar.style.width = '100%';
+        }, 50);
+
+        // Play sound pulse at start of each phase
+        playBreathingPulse(p.freq, 1.5);
+        
+        breathingState.sessionSeconds += 4;
+        breathingState.phase = (breathingState.phase + 1) % 4;
+    };
+
+    runPhase();
+    breathingState.interval = setInterval(runPhase, 4000);
+}
+
+function toggleZenBreath(btn) {
+    // Legacy fun page version, updated to use sound if enabled
+    const circle = document.getElementById('breathCircle');
+    const text = document.getElementById('breathText');
+    
+    if (zenInterval) {
+        clearInterval(zenInterval);
+        zenInterval = null;
+        circle.style.transform = 'scale(1)';
+        text.innerText = 'INHALE';
+        btn.innerText = 'START SESSION';
+        btn.classList.replace('bg-red-600', 'bg-teal-600');
+        return;
+    }
+
+    btn.innerText = 'END SESSION';
+    btn.classList.replace('bg-teal-600', 'bg-red-600');
+    
+    let stage = 0;
+    const animate = () => {
+        if (stage === 0) { // Inhale
+            circle.style.transform = 'scale(1.5)';
+            text.innerText = 'INHALE';
+            if (breathingState.soundEnabled) playBreathingPulse(440, 1);
+            stage = 1;
+        } else { // Exhale
+            circle.style.transform = 'scale(1)';
+            text.innerText = 'EXHALE';
+            if (breathingState.soundEnabled) playBreathingPulse(330, 1);
+            stage = 0;
+        }
+    };
+    
+    animate();
+    zenInterval = setInterval(animate, 4000);
+}
+
+let reactionTimer = null;
+let reactionStart = 0;
+function startReactionTest() {
+    const area = document.getElementById('reactionArea');
+    const text = document.getElementById('reactionText');
+    const result = document.getElementById('reactionResult');
+    const btn = document.getElementById('reactionBtn');
+
+    btn.disabled = true;
+    btn.classList.add('opacity-50');
+    result.classList.add('hidden');
+    area.style.backgroundColor = 'rgba(255,255,255,0.05)';
+    text.innerText = 'WAIT...';
+    text.classList.remove('text-green-400', 'text-red-400');
+    
+    const delay = Math.random() * 3000 + 2000;
+    
+    reactionTimer = setTimeout(() => {
+        area.style.backgroundColor = '#10b981';
+        text.innerText = 'TAP NOW!';
+        text.classList.add('text-white');
+        reactionStart = Date.now();
+        
+        area.onclick = () => {
+            const diff = Date.now() - reactionStart;
+            text.innerText = 'REACTED!';
+            result.innerText = `${diff}ms`;
+            result.classList.remove('hidden');
+            area.style.backgroundColor = 'rgba(255,255,255,0.05)';
+            area.onclick = null;
+            btn.disabled = false;
+            btn.classList.remove('opacity-50');
+        };
+    }, delay);
+
+    area.onclick = () => { // Premature click
+        clearTimeout(reactionTimer);
+        text.innerText = 'TOO SOON!';
+        text.classList.add('text-red-400');
+        area.onclick = null;
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+    };
+}
+
+function generateSoulQuote() {
+    const quotes = [
+        "The soul always knows what to do to heal itself. The challenge is to silence the mind.",
+        "Your vision will become clear only when you can look into your own heart.",
+        "Be the silent watcher of your thoughts and behavior. You are beneath the thinker.",
+        "The quieter you become, the more you are able to hear.",
+        "In the middle of a world that has always been trying to make you someone else, being yourself is the greatest accomplishment.",
+        "Logic will get you from A to B. Imagination will take you everywhere.",
+        "The universe is not outside of you. Look inside yourself; everything that you want, you already are.",
+        "The wound is the place where the Light enters you.",
+        "Don't be satisfied with stories, how things have gone with others. Unfold your own myth."
+    ];
+    const text = document.getElementById('quoteText');
+    text.classList.add('opacity-0');
+    setTimeout(() => {
+        text.innerText = `"${quotes[Math.floor(Math.random() * quotes.length)]}"`;
+        text.classList.remove('opacity-0');
+    }, 300);
 }
 
 // --- sOuLFOCUS LOGIC ---
@@ -3997,6 +4235,14 @@ async function syncFocusData() {
         const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
         const data = await res.json();
         if (Array.isArray(data)) {
+            // Update Breathing Total
+            const breathingLogs = data.filter(d => d.type === 'breathing_practice');
+            const totalSeconds = breathingLogs.reduce((acc, curr) => acc + (curr.duration || 0), 0);
+            const totalMinutes = Math.floor(totalSeconds / 60);
+            const displayTime = totalMinutes > 60 ? `${(totalMinutes/60).toFixed(1)}h` : `${totalMinutes}m`;
+            const breathStatEl = document.getElementById('breathTotalTime');
+            if (breathStatEl) breathStatEl.innerText = `Practice: ${displayTime}`;
+
             const journals = data.filter(d => d.type === 'journal').sort((a,b) => b.id - a.id);
             const hist = document.getElementById('journalHistory');
             if (journals.length > 0) {
