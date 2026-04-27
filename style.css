@@ -769,8 +769,8 @@ nav button:hover {
 }
 
 .vinyl-disk {
-    width: clamp(180px, 50vw, 280px);
-    height: clamp(180px, 50vw, 280px);
+    width: clamp(140px, 60vw, 280px);
+    height: clamp(140px, 60vw, 280px);
     border-radius: 50%;
     background: repeating-radial-gradient(
         circle at center,
@@ -843,6 +843,24 @@ nav button:hover {
     color: var(--primary) !important;
     text-shadow: 0 0 10px var(--primary);
     transform: scale(1.2);
+}
+
+.collapsed-music-section {
+    flex: 0 0 60px !important;
+}
+
+.collapsed-music-section > div:last-child {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    max-height: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-top: 0 !important;
+}
+
+#ytResultsContent, #localPlaylistContent {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 1000px;
 }
 
 /* Playing Bars Animation */

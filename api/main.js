@@ -558,23 +558,40 @@ export default async function handler(req, res) {
             }
         }
 
+        if (query.route === 'yt_suggest') {
+            const q = query.q;
+            if (!q) return res.status(200).json([]);
+            try {
+                const response = await fetch(`https://suggestqueries.google.com/complete/search?client=youtube&ds=yt&q=${encodeURIComponent(q)}`);
+                const text = await response.text();
+                const match = text.match(/\["(.*?)",\[(.*?)\]\]/);
+                if (match) {
+                    const json = JSON.parse(`[${match[2]}]`);
+                    const suggestions = json.map(item => item[0]);
+                    return res.status(200).json(suggestions);
+                }
+                return res.status(200).json([]);
+            } catch (err) {
+                return res.status(200).json([]);
+            }
+        }
+
         if (query.route === 'yt_search') {
             const q = query.q;
+            const isExplorer = query.explorer === 'true';
             if (!q) return res.status(400).json({ error: "Query required" });
             
             let searchOptions = {
                 query: q,
                 hl: 'en',
                 gl: 'US',
-                timeout: 10000 // 10 second timeout for faster failure recovery
+                timeout: 10000 
             };
 
             let proxyUrl = null;
 
             if (process.env.PROXIFLY_API_KEY) {
                 try {
-                    // Proxifly handling might need different import styles depending on version
-                    // but we try the standard constructor provided in main.js
                     const proxifly = new (Proxifly.default || Proxifly)({ apiKey: process.env.PROXIFLY_API_KEY });
                     const proxies = await proxifly.getProxy({
                         quantity: 1,
@@ -596,7 +613,6 @@ export default async function handler(req, res) {
             let r;
             if (proxyUrl) {
                 try {
-                    // Using version 5.0.1 of https-proxy-agent for CommonJS compatibility
                     const agent = new HttpsProxyAgent(proxyUrl);
                     searchOptions.agent = agent;
                     r = await ytSearch(searchOptions);
@@ -608,7 +624,8 @@ export default async function handler(req, res) {
                 r = await ytSearch(searchOptions);
             }
             
-            return res.status(200).json(r.videos ? r.videos.slice(0, 15) : []);
+            const results = r.videos || [];
+            return res.status(200).json(isExplorer ? results : results.slice(0, 15));
         }
 
         res.status(404).json({ error: "Route not found" });

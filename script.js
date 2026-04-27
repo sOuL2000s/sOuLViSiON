@@ -235,6 +235,7 @@ let selectedTracks = new Set();
 let currentTrackIndex = 0;
 let audioPlayer = new Audio();
 let isMusicPlaying = false;
+let isCCEnabled = false;
 let playMode = 'online'; // 'online' or 'offline'
 let isVideoMode = false;
 let ytPlayer = null;
@@ -1467,26 +1468,6 @@ function stopYTProgress() {
     if (ytProgressInterval) clearInterval(ytProgressInterval);
 }
 
-function setPlayMode(mode) {
-    playMode = mode;
-    const onlineBtn = document.getElementById('modeOnline');
-    const offlineBtn = document.getElementById('modeOffline');
-    const searchBox = document.getElementById('ytResultsContainer');
-    const addBtn = document.getElementById('addLocalBtn');
-
-    if (mode === 'online') {
-        onlineBtn.className = "px-6 py-2 rounded-full text-xs font-bold transition-all bg-cyan-600 text-white";
-        offlineBtn.className = "px-6 py-2 rounded-full text-xs font-bold transition-all text-gray-400";
-        searchBox.classList.remove('hidden');
-        addBtn.classList.add('hidden');
-    } else {
-        offlineBtn.className = "px-6 py-2 rounded-full text-xs font-bold transition-all bg-cyan-600 text-white";
-        onlineBtn.className = "px-6 py-2 rounded-full text-xs font-bold transition-all text-gray-400";
-        searchBox.classList.add('hidden');
-        addBtn.classList.remove('hidden');
-    }
-}
-
 function toggleVisualMode() {
     isVideoMode = !isVideoMode;
     const disk = document.getElementById('vinylDisk');
@@ -1503,6 +1484,43 @@ function toggleVisualMode() {
         player.classList.add('opacity-0');
         btn.innerHTML = '<i class="fas fa-eye mr-1"></i> VIDEO MODE';
         btn.classList.replace('bg-cyan-600', 'bg-black/60');
+    }
+}
+
+function toggleMusicSection(sectionId) {
+    const container = document.getElementById(sectionId);
+    const chevron = sectionId === 'ytResultsContainer' ? document.getElementById('ytResultsChevron') : document.getElementById('localPlaylistChevron');
+    
+    const isCollapsed = container.classList.toggle('collapsed-music-section');
+    if (chevron) {
+        chevron.style.transform = isCollapsed ? 'rotate(-180deg)' : 'rotate(0deg)';
+    }
+}
+
+function setPlayMode(mode) {
+    playMode = mode;
+    const onlineBtn = document.getElementById('modeOnline');
+    const offlineBtn = document.getElementById('modeOffline');
+    const searchBox = document.getElementById('ytResultsContainer');
+    const libraryBox = document.getElementById('localPlaylistContainer');
+    const addBtn = document.getElementById('addLocalBtn');
+
+    if (mode === 'online') {
+        onlineBtn.className = "px-6 py-2 rounded-full text-xs font-bold transition-all bg-cyan-600 text-white";
+        offlineBtn.className = "px-6 py-2 rounded-full text-xs font-bold transition-all text-gray-400";
+        searchBox.classList.remove('hidden');
+        searchBox.classList.add('flex');
+        addBtn.classList.add('hidden');
+    } else {
+        offlineBtn.className = "px-6 py-2 rounded-full text-xs font-bold transition-all bg-cyan-600 text-white";
+        onlineBtn.className = "px-6 py-2 rounded-full text-xs font-bold transition-all text-gray-400";
+        searchBox.classList.add('hidden');
+        searchBox.classList.remove('flex');
+        addBtn.classList.remove('hidden');
+        // Ensure library is expanded if it was collapsed when switching to offline mode
+        if (libraryBox.classList.contains('collapsed-music-section')) {
+            toggleMusicSection('localPlaylistContainer');
+        }
     }
 }
 
@@ -1567,16 +1585,169 @@ async function searchYT() {
     }
 }
 
-function addYTTrack(id, title, artist) {
+function addYTTrack(id, title, artist, instant = false) {
     const track = { type: 'youtube', id, name: title, artist: artist };
-    const newIdx = musicList.length;
-    musicList.push(track);
-    if (isShuffle) shuffledIndices.push(newIdx);
-    renderPlaylist();
-    if (musicList.length === 1) playTrack(0);
+    const existingIdx = musicList.findIndex(t => t.id === id);
     
-    showToast(`${title} added to sOuLPLAY Library`, "success");
+    let playIdx;
+    if (existingIdx === -1) {
+        musicList.push(track);
+        playIdx = musicList.length - 1;
+        if (isShuffle) shuffledIndices.push(playIdx);
+    } else {
+        playIdx = existingIdx;
+    }
+
+    renderPlaylist();
+    
+    if (instant || musicList.length === 1) {
+        playTrack(playIdx);
+        if (instant) closeYTExplorer();
+    }
+    
+    showToast(`${title} ${existingIdx === -1 ? 'added to' : 'playing from'} Library`, "success");
     saveMusicPlaylist();
+}
+
+// --- YOUTUBE EXPLORER LOGIC ---
+let explorerResults = [];
+let explorerCurrentPage = 1;
+const explorerPageSize = 10;
+let suggestionTimeout = null;
+
+async function openYTExplorer() {
+    document.getElementById('ytExplorerModal').classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    loadYTDiscovery('trending music');
+}
+
+function closeYTExplorer() {
+    document.getElementById('ytExplorerModal').classList.add('hidden');
+    document.body.style.overflow = '';
+    hideYTSuggestions();
+}
+
+async function handleYTSuggestions(input, isMobile = false) {
+    const query = input.value.trim();
+    const listId = isMobile ? 'ytSuggestionsMobile' : 'ytSuggestions';
+    const list = document.getElementById(listId);
+
+    if (query.length < 2) {
+        list.classList.add('hidden');
+        return;
+    }
+
+    clearTimeout(suggestionTimeout);
+    suggestionTimeout = setTimeout(async () => {
+        try {
+            const res = await fetch(`/api/main?route=yt_suggest&q=${encodeURIComponent(query)}`);
+            const suggestions = await res.json();
+            
+            if (suggestions.length > 0) {
+                list.innerHTML = suggestions.map(s => `
+                    <div onclick="selectYTSuggestion('${s.replace(/'/g, "\\'")}', ${isMobile})" class="px-4 py-2 hover:bg-white/5 cursor-pointer text-xs font-medium text-gray-300 border-b border-white/5 last:border-0">${s}</div>
+                `).join('');
+                list.classList.remove('hidden');
+            } else {
+                list.classList.add('hidden');
+            }
+        } catch (e) {
+            list.classList.add('hidden');
+        }
+    }, 300);
+}
+
+function selectYTSuggestion(val, isMobile) {
+    const inputId = isMobile ? 'ytExplorerInputMobile' : 'ytExplorerInput';
+    document.getElementById(inputId).value = val;
+    hideYTSuggestions();
+    searchYTExplorer(isMobile);
+}
+
+function hideYTSuggestions() {
+    document.getElementById('ytSuggestions').classList.add('hidden');
+    document.getElementById('ytSuggestionsMobile').classList.add('hidden');
+}
+
+async function loadYTDiscovery(category) {
+    await searchYTExplorer(false, category);
+}
+
+async function searchYTExplorer(isMobile = false, category = null) {
+    const query = category || document.getElementById(isMobile ? 'ytExplorerInputMobile' : 'ytExplorerInput').value;
+    if (!query) return;
+    
+    hideYTSuggestions();
+    const resultsGrid = document.getElementById('ytExplorerResults');
+    const pagination = document.getElementById('ytExplorerPagination');
+    resultsGrid.innerHTML = Array(10).fill('<div class="skeleton h-64"></div>').join('');
+    pagination.classList.add('hidden');
+
+    try {
+        const res = await fetch(`/api/main?route=yt_search&explorer=true&q=${encodeURIComponent(query)}`);
+        explorerResults = await res.json();
+        explorerCurrentPage = 1;
+        renderExplorerPage();
+    } catch (e) {
+        resultsGrid.innerHTML = '<p class="col-span-full text-center text-red-500">Search Failed.</p>';
+    }
+}
+
+function renderExplorerPage() {
+    const resultsGrid = document.getElementById('ytExplorerResults');
+    const pagination = document.getElementById('ytExplorerPagination');
+    const pageNumEl = document.getElementById('explorerPageNum');
+    const prevBtn = document.getElementById('prevExplorerPage');
+    const nextBtn = document.getElementById('nextExplorerPage');
+
+    if (!explorerResults || explorerResults.length === 0) {
+        resultsGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">No results found.</p>';
+        pagination.classList.add('hidden');
+        return;
+    }
+
+    const start = (explorerCurrentPage - 1) * explorerPageSize;
+    const end = start + explorerPageSize;
+    const pageData = explorerResults.slice(start, end);
+    const totalPages = Math.ceil(explorerResults.length / explorerPageSize);
+
+    resultsGrid.innerHTML = pageData.map(v => `
+        <div class="bg-white/5 rounded-2xl overflow-hidden border border-white/5 group hover:border-red-500/50 transition-all duration-300 flex flex-col h-full">
+            <div class="relative aspect-video overflow-hidden">
+                <img src="${v.thumbnail}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500">
+                <div class="absolute bottom-2 right-2 bg-black/80 px-2 py-0.5 rounded text-[10px] font-bold text-white">${v.duration.timestamp}</div>
+                <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                    <button onclick="addYTTrack('${v.videoId}', '${v.title.replace(/'/g, "\\'")}', '${v.author.name.replace(/'/g, "\\'")}', true)" class="w-12 h-12 rounded-full bg-red-600 text-white flex items-center justify-center text-xl hover:scale-110 transition active:scale-95 shadow-xl shadow-red-600/40">
+                        <i class="fas fa-play ml-1"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-4 flex flex-col flex-grow">
+                <h4 class="text-sm font-bold text-white line-clamp-2 mb-2 group-hover:text-red-400 transition-colors">${v.title}</h4>
+                <p class="text-[10px] text-gray-500 font-black uppercase tracking-widest mt-auto mb-3">${v.author.name}</p>
+                <div class="flex gap-2">
+                    <button onclick="addYTTrack('${v.videoId}', '${v.title.replace(/'/g, "\\'")}', '${v.author.name.replace(/'/g, "\\'")}')" class="flex-grow bg-white/5 hover:bg-white/10 text-[9px] font-black uppercase py-2 rounded-lg border border-white/10 transition">Add to Queue</button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+
+    pagination.classList.remove('hidden');
+    pageNumEl.innerText = `Page ${explorerCurrentPage} of ${totalPages}`;
+    prevBtn.disabled = explorerCurrentPage === 1;
+    nextBtn.disabled = explorerCurrentPage === totalPages;
+    
+    const container = resultsGrid.parentElement;
+    container.scrollTop = 0;
+}
+
+function changeExplorerPage(delta) {
+    const totalPages = Math.ceil(explorerResults.length / explorerPageSize);
+    const newPage = explorerCurrentPage + delta;
+    if (newPage >= 1 && newPage <= totalPages) {
+        explorerCurrentPage = newPage;
+        renderExplorerPage();
+    }
 }
 
 let isShuffle = false;
@@ -1819,22 +1990,35 @@ function playTrack(index) {
             title: track.name,
             artist: track.artist || "sOuLPLAY Library",
             album: "sOuLViSiON",
-            artwork: [
-                { src: 'logo.svg', sizes: '512x512', type: 'image/svg+xml' }
-            ]
+            artwork: [{ src: 'logo.svg', sizes: '512x512', type: 'image/svg+xml' }]
         });
 
-        navigator.mediaSession.setActionHandler('play', () => toggleMusic());
-        navigator.mediaSession.setActionHandler('pause', () => toggleMusic());
-        navigator.mediaSession.setActionHandler('previoustrack', () => musicPrev());
-        navigator.mediaSession.setActionHandler('nexttrack', () => musicNext());
+        const actions = [
+            ['play', () => toggleMusic()],
+            ['pause', () => toggleMusic()],
+            ['previoustrack', () => musicPrev()],
+            ['nexttrack', () => musicNext()],
+            ['seekbackward', (details) => musicSkip(-(details.seekOffset || 10))],
+            ['seekforward', (details) => musicSkip(details.seekOffset || 10)],
+            ['stop', () => { if(isMusicPlaying) toggleMusic(); }]
+        ];
+
+        for (const [action, handler] of actions) {
+            try { navigator.mediaSession.setActionHandler(action, handler); } catch (e) {}
+        }
     }
 
     if (track.type === 'youtube') {
         if (ytPlayer && ytPlayer.loadVideoById) {
             ytPlayer.loadVideoById(track.id);
+            if (isCCEnabled) ytPlayer.loadModule('captions');
+            else ytPlayer.unloadModule('captions');
             ytPlayer.playVideo();
             isMusicPlaying = true;
+            // Background play hint for mobile
+            if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+                showToast("Note: Standard mobile browsers may pause YouTube in background.", "info", 5000);
+            }
         }
     } else {
         initAudioContext();
@@ -1842,6 +2026,10 @@ function playTrack(index) {
         audioPlayer.src = track.url;
         audioPlayer.play().catch(e => console.log("Playback blocked"));
         isMusicPlaying = true;
+    }
+
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.playbackState = isMusicPlaying ? "playing" : "paused";
     }
     
     updateMusicUI();
@@ -1902,6 +2090,23 @@ function musicSkip(seconds) {
         }
     } else {
         audioPlayer.currentTime += seconds;
+    }
+}
+
+function toggleSubtitles() {
+    const track = musicList[currentTrackIndex];
+    if (track && track.type === 'youtube' && ytPlayer) {
+        isCCEnabled = !isCCEnabled;
+        if (isCCEnabled) {
+            ytPlayer.loadModule('captions');
+        } else {
+            ytPlayer.unloadModule('captions');
+        }
+        const btn = document.getElementById('ccBtn');
+        if (btn) btn.classList.toggle('control-active', isCCEnabled);
+        showToast(isCCEnabled ? "Captions Enabled" : "Captions Disabled", "info");
+    } else {
+        showToast("Subtitles available only for sOuLPLAY Cloud tracks.", "warning");
     }
 }
 
@@ -5381,6 +5586,17 @@ function toggleSTTNote(inputId) {
     recognition.start();
 }
 
+// Persistent Background Audio Handler
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        if ('mediaSession' in navigator && isMusicPlaying) {
+            navigator.mediaSession.playbackState = "playing";
+        }
+    } else {
+        if (isMusicPlaying) updateMusicUI();
+    }
+});
+
 // --- INIT ---
 // Performance optimized initialization sequence
 const initApp = async () => {
@@ -5415,6 +5631,16 @@ const initApp = async () => {
             audioPlayer.volume = vol;
             if (document.getElementById('volumeControl')) document.getElementById('volumeControl').value = vol;
         }
+
+        // Search Input Listeners for Modal
+        const explorerInputs = [document.getElementById('ytExplorerInput'), document.getElementById('ytExplorerInputMobile')];
+        explorerInputs.forEach(input => {
+            if(input) {
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') searchYTExplorer(input.id.includes('Mobile'));
+                });
+            }
+        });
 
         // Parallel non-blocking data fetching
         const backgroundTasks = [
