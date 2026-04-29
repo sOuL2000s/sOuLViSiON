@@ -466,22 +466,26 @@ export default async function handler(req, res) {
             if (format === 'pdf') {
                 return new Promise((resolve) => {
                     try {
+                        const doc = new PDFDocument({ 
+                            margin: 50, 
+                            size: 'A4', 
+                            autoFirstPage: true,
+                            bufferPages: true 
+                        });
+                        let chunks = [];
+
+                        // Helper to safely handle characters not supported by standard PDF fonts
                         const cleanStr = (str) => {
                             if (typeof str !== 'string') return "";
-                            // Replace characters that are not in WinAnsiEncoding with space to prevent PDFKit errors
-                            // Supporting common Western European characters and stripping emojis/non-latin
                             return str.replace(/[^\x00-\x7F\xA0-\xFF]/g, " ");
                         };
-
-                        const doc = new PDFDocument({ margin: 50, size: 'A4', autoFirstPage: true });
-                        let chunks = [];
 
                         const drawHeader = () => {
                             const title = type === 'note' ? (data.title || 'Untitled Note') : (data.name || 'Conversation Export');
                             doc.save();
                             doc.rect(0, 0, doc.page.width, 40).fill('#0f172a');
                             doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(14).text('sOuLViSiON', 50, 15);
-                            doc.fillColor('#94a3b8').font('Helvetica').fontSize(8).text(`${type.toUpperCase()} | ${new Date().toLocaleDateString()} | ${cleanStr(title)}`, 150, 18, { align: 'right', width: 395 });
+                            doc.fillColor('#94a3b8').font('Helvetica').fontSize(8).text(`${type.toUpperCase()} | ${cleanStr(title)}`, 150, 18, { align: 'right', width: 395 });
                             doc.restore();
                             doc.y = 70;
                         };
@@ -493,125 +497,139 @@ export default async function handler(req, res) {
                             const lines = text.split('\n');
                             let inCodeBlock = false;
                             
-                            lines.forEach(line => {
+                            for (let i = 0; i < lines.length; i++) {
+                                let line = lines[i];
                                 const trimmed = line.trim();
-                                
-                                // Code Blocks
+
+                                // Check for Page Overflow
+                                if (doc.y > 750) doc.addPage();
+
+                                // 1. Code Block Toggle
                                 if (trimmed.startsWith('```')) {
                                     inCodeBlock = !inCodeBlock;
-                                    if (inCodeBlock) doc.moveDown(0.5);
-                                    else doc.moveDown(1);
-                                    return;
+                                    doc.moveDown(0.5);
+                                    continue;
                                 }
 
                                 if (inCodeBlock) {
                                     doc.save();
-                                    doc.fillColor('#f8fafc').font('Courier').fontSize(9).text(cleanStr(line), { lineGap: 2, indent: 10 });
+                                    // Draw a light background for code
+                                    const codeWidth = doc.page.width - 100;
+                                    doc.rect(50, doc.y - 2, codeWidth, 14).fill('#1e293b');
+                                    doc.fillColor('#e2e8f0').font('Courier').fontSize(9).text(cleanStr(line), 60, doc.y, { lineGap: 0 });
                                     doc.restore();
-                                    return;
+                                    continue;
                                 }
 
-                                // Headers
+                                // 2. Headers
                                 if (trimmed.startsWith('# ')) {
-                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(18).text(cleanStr(trimmed.substring(2))).moveDown(0.5);
+                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(20).text(cleanStr(trimmed.substring(2))).moveDown(0.5);
+                                    continue;
                                 } else if (trimmed.startsWith('## ')) {
                                     doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(16).text(cleanStr(trimmed.substring(3))).moveDown(0.4);
+                                    continue;
                                 } else if (trimmed.startsWith('### ')) {
-                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(14).text(cleanStr(trimmed.substring(4))).moveDown(0.3);
-                                } 
-                                // Blockquotes
-                                else if (trimmed.startsWith('>')) {
-                                    doc.save();
-                                    const y = doc.y;
-                                    doc.strokeColor('#06b6d4').lineWidth(2).moveTo(50, y).lineTo(50, y + 12).stroke();
-                                    doc.fillColor('#64748b').font('Helvetica-Oblique').fontSize(11).text(cleanStr(trimmed.substring(1).trim()), 65, y).moveDown(0.5);
-                                    doc.restore();
+                                    doc.fillColor('#0891b2').font('Helvetica-Bold').fontSize(14).text(cleanStr(trimmed.substring(4))).moveDown(0.3);
+                                    continue;
                                 }
-                                // Plain text with basic inline support
-                                else if (trimmed === '') {
+
+                                // 3. Horizontal Rule
+                                if (trimmed === '---' || trimmed === '***') {
+                                    doc.strokeColor('#334155').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke().moveDown(1);
+                                    continue;
+                                }
+
+                                // 4. Blockquotes
+                                if (trimmed.startsWith('>')) {
+                                    doc.save();
+                                    doc.strokeColor('#06b6d4').lineWidth(2).moveTo(55, doc.y).lineTo(55, doc.y + 12).stroke();
+                                    doc.fillColor('#64748b').font('Helvetica-Oblique').fontSize(11).text(cleanStr(trimmed.substring(1).trim()), 70, doc.y);
+                                    doc.restore();
+                                    doc.moveDown(0.2);
+                                    continue;
+                                }
+
+                                // 5. Lists
+                                let isListItem = false;
+                                if (trimmed.match(/^(\*|-|\d+\.)\s/)) {
+                                    isListItem = true;
+                                    const bullet = trimmed.split(' ')[0];
+                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').text(bullet, 55, doc.y, { continued: true });
+                                    line = line.substring(line.indexOf(' ') + 1);
+                                }
+
+                                // 6. Standard Paragraphs with Inline styles
+                                if (trimmed === '') {
                                     doc.moveDown(0.5);
                                 } else {
+                                    const indent = isListItem ? 75 : 50;
                                     doc.fillColor('#334155').font('Helvetica').fontSize(11);
                                     
-                                    // Robust inline parsing: Bold (**), Italic (*), Inline Code (`)
+                                    // Better Inline Parsing: split by Bold, Italic, Code
                                     const parts = line.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
-                                    parts.forEach(part => {
+                                    
+                                    parts.forEach((part, index) => {
+                                        const isLast = index === parts.length - 1;
+                                        
                                         if (part.startsWith('**') && part.endsWith('**')) {
-                                            doc.font('Helvetica-Bold').text(cleanStr(part.slice(2, -2)), { continued: true });
+                                            doc.font('Helvetica-Bold').text(cleanStr(part.slice(2, -2)), indent, doc.y, { continued: !isLast });
                                         } else if (part.startsWith('*') && part.endsWith('*')) {
-                                            doc.font('Helvetica-Oblique').text(cleanStr(part.slice(1, -1)), { continued: true });
+                                            doc.font('Helvetica-Oblique').text(cleanStr(part.slice(1, -1)), indent, doc.y, { continued: !isLast });
                                         } else if (part.startsWith('`') && part.endsWith('`')) {
-                                            doc.font('Courier').fillColor('#c026d3').text(cleanStr(part.slice(1, -1)), { continued: true });
-                                            doc.fillColor('#334155');
+                                            doc.font('Courier').fillColor('#c026d3').text(cleanStr(part.slice(1, -1)), indent, doc.y, { continued: !isLast });
+                                            doc.fillColor('#334155').font('Helvetica');
                                         } else {
-                                            doc.font('Helvetica').text(cleanStr(part), { continued: true });
+                                            doc.font('Helvetica').text(cleanStr(part), indent, doc.y, { continued: !isLast });
                                         }
                                     });
-                                    doc.text('', { continued: false }).moveDown(0.5);
+                                    // Force end of line to prevent entanglement with next loop
+                                    doc.text('', { continued: false }); 
+                                    doc.moveDown(0.2);
                                 }
-                            });
+                            }
                         };
-
-                        doc.on('error', err => {
-                            console.error("PDFKit Stream Error:", err);
-                            resolve();
-                        });
 
                         doc.on('data', chunk => chunks.push(chunk));
                         doc.on('end', () => {
                             const result = Buffer.concat(chunks);
                             res.setHeader('Content-Type', 'application/pdf');
-                            res.setHeader('Content-Length', result.length);
                             res.setHeader('Content-Disposition', `attachment; filename="${filename}.pdf"`);
                             res.status(200).send(result);
                             resolve();
                         });
 
+                        // Route based Content Generation
                         if (type === 'chat' && data.messages) {
                             data.messages.forEach(m => {
                                 doc.fillColor(m.role === 'user' ? '#7c3aed' : '#06b6d4')
-                                   .fontSize(10).font('Helvetica-Bold').text(m.role.toUpperCase(), { continued: true })
-                                   .fillColor('#94a3b8').font('Helvetica').text(`  |  ${new Date(data.id).toLocaleTimeString()}`);
+                                   .fontSize(10).font('Helvetica-Bold').text(m.role.toUpperCase());
+                                doc.fontSize(8).fillColor('#94a3b8').font('Helvetica').text(new Date().toLocaleString(), { align: 'right' });
                                 doc.moveDown(0.5);
                                 renderMarkdown(m.content);
-                                doc.moveDown(1);
+                                doc.moveDown(1.5);
+                                doc.strokeColor('#f1f5f9').lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke().moveDown(1);
                             });
                         } else if (type === 'note') {
                             doc.fillColor('#06b6d4').fontSize(22).font('Helvetica-Bold').text(cleanStr(data.title) || 'Untitled Note');
-                            doc.fillColor('#94a3b8').fontSize(9).font('Helvetica').text(`TYPE: ${(data.type || 'Note').toUpperCase()} | DEADLINE: ${data.deadline || 'NONE'}`);
-                            doc.moveDown(0.5);
-                            doc.strokeColor('#e2e8f0').lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-                            doc.moveDown(1.5);
+                            doc.fillColor('#94a3b8').fontSize(9).font('Helvetica').text(`TYPE: ${(data.type || 'Note').toUpperCase()} | DATE: ${new Date(data.id).toLocaleDateString()}`);
+                            doc.moveDown(1);
                             renderMarkdown(data.text);
                         } else if (type === 'report') {
+                             // Soul Focus Report Layout
                             doc.fillColor('#06b6d4').fontSize(24).font('Helvetica-Bold').text(`SOUL REPORT`, { align: 'center' }).moveDown(1);
-                            
                             doc.fillColor('#334155').fontSize(14).font('Helvetica-Bold').text(`Metrics Overview`, { underline: true }).moveDown(0.5);
-                            doc.fontSize(11).font('Helvetica').text(`Vitality (Health Score): ${data.metrics.health}`);
-                            doc.text(`Prosperity (Abundance): ${data.metrics.wealth}`).moveDown(1.5);
-                            
-                            doc.fillColor('#06b6d4').fontSize(14).font('Helvetica-Bold').text(`Divine Guidance`, { underline: true }).moveDown(0.5);
-                            doc.fillColor('#475569').fontSize(11).font('Helvetica-Oblique').text(cleanStr(data.advice)).moveDown(1.5);
-                            
+                            doc.fontSize(11).font('Helvetica').text(`Vitality (Health): ${data.metrics?.health || 0}`);
+                            doc.text(`Abundance (Wealth): ${data.metrics?.wealth || 0}`).moveDown(1);
                             doc.fillColor('#7c3aed').fontSize(14).font('Helvetica-Bold').text(`Soul Reflections`, { underline: true }).moveDown(0.5);
                             data.qna.forEach(item => {
-                                doc.fillColor('#334155').fontSize(11).font('Helvetica-Bold').text(`Question: ${cleanStr(item.question)}`);
-                                doc.fillColor('#64748b').fontSize(11).font('Helvetica').text(`Reflection: ${cleanStr(item.answer)}`).moveDown(0.8);
+                                doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text(`Q: ${cleanStr(item.question)}`);
+                                doc.fillColor('#475569').font('Helvetica').text(`A: ${cleanStr(item.answer)}`).moveDown(0.5);
                             });
-                            
-                            if (data.journals && data.journals.length > 0) {
-                                doc.addPage();
-                                doc.fillColor('#334155').fontSize(14).font('Helvetica-Bold').text(`Recent Journal Archives`, { underline: true }).moveDown(1);
-                                data.journals.forEach(j => {
-                                    doc.fontSize(8).fillColor('#94a3b8').font('Helvetica').text(new Date(j.id).toLocaleDateString());
-                                    doc.fontSize(11).fillColor('#475569').text(cleanStr(j.content)).moveDown(0.6);
-                                });
-                            }
                         }
                         doc.end();
                     } catch (pdfErr) {
-                        console.error("CRITICAL PDF ERROR:", pdfErr);
-                        res.status(500).json({ error: "PDF Generation Failed: " + pdfErr.message });
+                        console.error("PDF Export Error:", pdfErr);
+                        res.status(500).send("PDF Generation Failed");
                         resolve();
                     }
                 });
