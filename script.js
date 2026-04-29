@@ -2805,7 +2805,7 @@ function renderAttachmentChips() {
         
         if (file.mime_type.startsWith('image/')) {
             icon = `<img src="data:${file.mime_type};base64,${file.data}" class="w-4 h-4 rounded object-cover">`;
-        } else if (file.mime_type === 'text/plain' || file.raw) {
+        } else if (file.raw !== undefined) { // Check if 'raw' property exists, indicating it's considered editable text
             editBtn = `<button onclick="toggleLargeEditor(null, ${idx})" class="hover:text-cyan-400 transition" title="Edit text"><i class="fas fa-edit"></i></button>`;
         }
 
@@ -2831,40 +2831,72 @@ function removeAttachment(idx) {
 function toggleLargeEditor(content = null, attachmentIdx = -1) {
     const modal = document.getElementById('largeEditorModal');
     const editor = document.getElementById('largeEditorText');
+    const titleEl = document.getElementById('largeEditorTitle');
+    const filenameContainer = document.getElementById('largeEditorFilenameContainer');
+    const filenameInput = document.getElementById('largeEditorFilename');
     const isOpening = modal.classList.contains('hidden');
     
     if (isOpening) {
         editingAttachmentIdx = attachmentIdx;
         if (attachmentIdx !== -1) {
-            editor.value = pendingFiles[attachmentIdx].raw || atob(pendingFiles[attachmentIdx].data);
+            // Editing an attached file
+            const file = pendingFiles[attachmentIdx];
+            editor.value = file.raw || '';
+            filenameInput.value = file.name;
+            titleEl.innerText = `Editing: ${file.name}`;
+            filenameContainer.classList.remove('hidden'); // Show filename input
         } else {
+            // Using as a general large text input for chat
             editor.value = content || document.getElementById('chatInput').value;
+            titleEl.innerText = 'sOuLAI Advanced Editor';
+            filenameInput.value = ''; // Clear filename
+            filenameContainer.classList.add('hidden'); // Hide filename input
         }
         modal.classList.remove('hidden');
         editor.focus();
+        autoResize(editor); // Ensure editor resizes correctly on open
     } else {
         modal.classList.add('hidden');
         editingAttachmentIdx = -1;
+        // Clean up title/filename when closing
+        titleEl.innerText = 'sOuLAI Advanced Editor';
+        filenameInput.value = '';
+        filenameContainer.classList.add('hidden');
     }
 }
 
 function saveLargeEditor() {
     const content = document.getElementById('largeEditorText').value;
+    const newFileName = document.getElementById('largeEditorFilename').value.trim();
+
     if (editingAttachmentIdx !== -1) {
-        pendingFiles[editingAttachmentIdx].raw = content;
-        pendingFiles[editingAttachmentIdx].data = btoa(new TextEncoder().encode(content).reduce((data, byte) => data + String.fromCharCode(byte), ''));
-        renderAttachmentChips();
+        // Saving changes to an existing attached file
+        const fileToUpdate = pendingFiles[editingAttachmentIdx];
+        fileToUpdate.raw = content;
+        // Re-encode content to base64
+        fileToUpdate.data = btoa(new TextEncoder().encode(content).reduce((data, byte) => data + String.fromCharCode(byte), ''));
+        
+        if (newFileName && newFileName !== fileToUpdate.name) {
+            fileToUpdate.name = newFileName;
+        }
+
+        renderAttachmentChips(); // Re-render chips to show updated name/content
+        showToast(`File "${fileToUpdate.name}" updated.`, "success");
+
     } else {
+        // Original logic: content from chatInput or new large text to attach
         if (content.length > 3000) {
             addTextAsAttachment(content);
             document.getElementById('chatInput').value = '';
+            showToast("Large text attached as a file.", "success");
         } else {
             const input = document.getElementById('chatInput');
             input.value = content;
             autoResize(input);
+            showToast("Content applied to chat input.", "info");
         }
     }
-    toggleLargeEditor();
+    toggleLargeEditor(); // Close the modal
 }
 
 async function exportData(type, id, format, providedData = null) {
@@ -2940,8 +2972,21 @@ async function exportData(type, id, format, providedData = null) {
 
 // Paste handling
 document.getElementById('chatInput').addEventListener('paste', (e) => {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    const clipboardData = e.clipboardData || e.originalEvent.clipboardData;
+    const textData = clipboardData.getData('text/plain');
     const files = [];
+
+    // Check for large text paste
+    if (textData.length > 3000) { // Threshold for large text: 3000 characters
+        e.preventDefault();
+        addTextAsAttachment(textData);
+        e.target.value = '';
+        autoResize(e.target);
+        return;
+    }
+
+    // Check for file paste
+    const items = clipboardData.items;
     for (let item of items) {
         if (item.kind === 'file') {
             files.push(item.getAsFile());
@@ -2950,6 +2995,34 @@ document.getElementById('chatInput').addEventListener('paste', (e) => {
     if (files.length > 0) {
         e.preventDefault();
         handleAIFile(files);
+    }
+});
+
+// Add paste listener for miniChatInput
+document.getElementById('miniChatInput').addEventListener('paste', (e) => {
+    const clipboardData = e.clipboardData || e.originalEvent.clipboardData;
+    const textData = clipboardData.getData('text/plain');
+    const files = [];
+
+    // Check for large text paste
+    if (textData.length > 3000) { // Threshold for large text: 3000 characters
+        e.preventDefault();
+        addTextAsAttachment(textData);
+        e.target.value = '';
+        autoResize(e.target);
+        return;
+    }
+
+    // Check for file paste
+    const items = clipboardData.items;
+    for (let item of items) {
+        if (item.kind === 'file') {
+            files.push(item.getAsFile());
+        }
+    }
+    if (files.length > 0) {
+        e.preventDefault();
+        handleAIFile(files, true); // Pass true for mini chat
     }
 });
 
