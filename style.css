@@ -406,17 +406,21 @@ body {
     scrollbar-width: none;
 }
 
+/* --- Fix Scrollbar Visibility --- */
 .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: var(--primary) transparent;
+    /* Cyan for thumb, transparent for track */
+    scrollbar-color: var(--primary) rgba(255, 255, 255, 0.05);
 }
 
+/* Chrome, Edge, Safari scrollbar visible adjustments */
 .custom-scrollbar::-webkit-scrollbar {
-    width: 5px;
+    width: 6px !important; /* Increased from 4px/5px for visibility */
+    display: block !important;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(0, 0, 0, 0.2);
     border-radius: 10px;
 }
 
@@ -426,8 +430,23 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
+/* --- Note Editor (Modal) Fixes --- */
+#editNoteText, #notePreview {
+    overflow-y: auto !important; /* Force scrollbar to appear */
+    height: 100%;
+    scrollbar-gutter: stable; /* Prevents layout shift when scrollbar appears */
+}
+
+/* --- Note Input (Main Page) Fixes --- */
+#noteInput {
+    min-height: 120px; /* Sensible starting height */
+    max-height: 500px; /* Don't let it push the footer off screen */
+    overflow-y: auto !important;
+    line-height: 1.5;
+    width: 100%;
+    display: block;
+    resize: none;
+    transition: height 0.1s ease-out;
 }
 
 [data-theme="minimalist"] .custom-scrollbar::-webkit-scrollbar-track {
@@ -1269,6 +1288,12 @@ textarea, input[type="text"], input[type="number"], select {
 #chatInput, #noteInput, #editNoteText, #miniChatInput {
     resize: none !important;
     min-height: 44px;
+    height: auto;
+    transition: none; /* Removed transition to allow instant height calculation */
+}
+
+#noteInput, #editNoteText {
+    min-height: 120px;
 }
 
 textarea:focus, input:focus {

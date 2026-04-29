@@ -486,29 +486,24 @@ function wrapText(elId, before, after) {
     }
 }
 
-// Smart Bullets and Stats for Note Input
+// Update the "Smart Bullets" event listener to ensure autoResize triggers correctly
 document.addEventListener('input', (e) => {
     if (e.target.id === 'noteInput' || e.target.id === 'editNoteText') {
         const el = e.target;
-        autoResize(el);
-        const val = el.value;
         
-        // We handle logic when Enter is pressed (newline appended)
+        // Fix for Smart Bullets logic breaking auto-resize
+        const val = el.value;
         if (val.endsWith('\n')) {
             const lines = val.split('\n');
             const prevLine = lines[lines.length - 2];
             const trimmedPrev = prevLine.trim();
             
-            // Only create next checkbox if previous one is NOT empty
             if ((trimmedPrev.startsWith('- [ ] ') && trimmedPrev.length > 6) || 
                 (trimmedPrev.startsWith('- [x] ') && trimmedPrev.length > 6)) {
                 el.value += '- [ ] ';
             } 
             else if (trimmedPrev.startsWith('- ') && trimmedPrev.length > 2) {
                 el.value += '- ';
-            }
-            else if (trimmedPrev.startsWith('* ') && trimmedPrev.length > 2) {
-                el.value += '* ';
             }
             else if (trimmedPrev.match(/^\d+\. /)) {
                 const num = parseInt(trimmedPrev.match(/^\d+/)[0]);
@@ -517,6 +512,8 @@ document.addEventListener('input', (e) => {
                 }
             }
         }
+        
+        autoResize(el); // Ensure height updates after content/bullet changes
         updateEditorStats(el);
     }
 });
@@ -996,7 +993,6 @@ async function addNote() {
     notes.unshift(note);
     renderNotes();
     
-    // Clear Draft
     sessionStorage.removeItem('soul_note_draft');
     document.getElementById('restoreDraftBtn').classList.add('hidden');
     
@@ -1005,6 +1001,9 @@ async function addNote() {
     titleInput.value = '';
     document.getElementById('noteDeadline').value = '';
     if (noteType === 'todo') input.value = "- [ ] ";
+    
+    // Force shrink back to base
+    autoResize(input);
     
     updateEditorStats(input);
     showToast("Note anchored to the vault!", "success");
@@ -1105,11 +1104,12 @@ function handleEditorScroll(e) {
     isSyncScrolling = true;
     const editor = e.target;
     const preview = document.getElementById('notePreview');
-    if (preview && editor.scrollHeight > editor.clientHeight) {
-        const scrollPercentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
+    const scrollRange = editor.scrollHeight - editor.clientHeight;
+    if (preview && scrollRange > 0) {
+        const scrollPercentage = editor.scrollTop / scrollRange;
         preview.scrollTop = scrollPercentage * (preview.scrollHeight - preview.clientHeight);
     }
-    setTimeout(() => { isSyncScrolling = false; }, 50);
+    requestAnimationFrame(() => { isSyncScrolling = false; });
 }
 
 function handlePreviewScroll(e) {
@@ -1117,11 +1117,12 @@ function handlePreviewScroll(e) {
     isSyncScrolling = true;
     const preview = e.target;
     const editor = document.getElementById('editNoteText');
-    if (editor && preview.scrollHeight > preview.clientHeight) {
-        const scrollPercentage = preview.scrollTop / (preview.scrollHeight - preview.clientHeight);
+    const scrollRange = preview.scrollHeight - preview.clientHeight;
+    if (editor && scrollRange > 0) {
+        const scrollPercentage = preview.scrollTop / scrollRange;
         editor.scrollTop = scrollPercentage * (editor.scrollHeight - editor.clientHeight);
     }
-    setTimeout(() => { isSyncScrolling = false; }, 50);
+    requestAnimationFrame(() => { isSyncScrolling = false; });
 }
 
 function openNote(id) {
@@ -2739,34 +2740,38 @@ function toggleSTT(isMini = false) {
 
 let editingAttachmentIdx = -1;
 
+// Updated Auto-Resize Logic
 function autoResize(textarea) {
     if (!textarea) return;
+
+    // Force style reset to calculate correct scrollHeight
+    textarea.style.height = 'auto'; 
     
-    const isImmersive = textarea.id === 'editNoteText';
-    // For immersive editor, we only auto-resize if it's not in large screen mode 
-    // or if we want to allow it to grow. Following user request for all primary textareas.
+    const isLargeEditor = textarea.id === 'noteInput' || textarea.id === 'editNoteText';
+    const baseHeight = isLargeEditor ? 120 : 44; 
     
-    textarea.style.height = 'auto';
-    const maxHeight = 400;
-    const scrollHeight = textarea.scrollHeight;
+    // Use scrollHeight but ensure it's at least the base height
+    let newHeight = textarea.scrollHeight;
+    if (newHeight < baseHeight) newHeight = baseHeight;
     
-    // Set height with constraints
-    if (scrollHeight > maxHeight) {
+    const maxHeight = window.innerHeight * 0.6;
+    
+    if (newHeight > maxHeight) {
         textarea.style.height = maxHeight + 'px';
         textarea.style.overflowY = 'auto';
     } else {
-        // Use a minimum height of 40px if scrollHeight is 0
-        textarea.style.height = (scrollHeight || 40) + 'px';
+        textarea.style.height = newHeight + 'px';
         textarea.style.overflowY = 'hidden';
     }
-    
-    if (textarea.id === 'chatInput' && textarea.value.length > 3000) {
-        const content = textarea.value;
-        textarea.value = '';
-        textarea.style.height = 'auto';
-        addTextAsAttachment(content);
-    }
 }
+
+// Add a window resize listener to keep textareas responsive
+window.addEventListener('resize', () => {
+    ['chatInput', 'noteInput', 'editNoteText', 'miniChatInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) autoResize(el);
+    });
+});
 
 function prefillAIPrompt(text) {
     const input = document.getElementById('chatInput');
@@ -2996,6 +3001,7 @@ async function askMiniAI() {
     appendAIMessage('user', userDisplayMsg, 'miniChatBox');
     
     inputEl.value = '';
+    autoResize(inputEl);
     [document.getElementById('aiAttachmentPreview'), document.getElementById('miniAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
 
     const parts = [{ text: txt || " " }];
