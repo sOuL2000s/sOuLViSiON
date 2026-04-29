@@ -1328,6 +1328,17 @@ textarea:focus, input:focus {
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* sOuLCODE Specific */
+#codeEditor {
+    tab-size: 4;
+}
+
+#diffOriginal, #diffProposed {
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: 'Fira Code', monospace;
+}
+
 .streaming-msg .markdown-body::after {
     content: "▋";
     display: inline-block;

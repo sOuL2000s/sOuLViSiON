@@ -230,6 +230,9 @@ let noteFilter = 'all';
 let aiConversations = [];
 let selectedConversations = new Set();
 let currentChatId = null;
+let projectFiles = []; // { id: num, name: '', content: '', path: '' }
+let activeFileId = null;
+let aiProposedChange = null; 
 let musicList = [];
 let selectedTracks = new Set();
 let currentTrackIndex = 0;
@@ -435,6 +438,11 @@ document.addEventListener('keydown', (e) => {
             askMiniAI();
             return;
         }
+        if (active.id === 'codeChatInput') {
+            e.preventDefault();
+            askCodeAI();
+            return;
+        }
         if (active.id === 'authPass' || active.id === 'authEmail') handleAuth();
         if (active.id === 'donAmount' || active.id === 'donRemark') payNow();
     }
@@ -561,7 +569,7 @@ function setNoteFilter(filter) {
 const pageCache = new Map();
 
 function showPage(pageId, pushState = true) {
-    const validPages = ['home', 'notes', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz'];
+    const validPages = ['home', 'notes', 'code', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz'];
     if (!validPages.includes(pageId)) pageId = 'home';
 
     // Optimization: Don't re-render/re-toggle if already active
@@ -626,7 +634,7 @@ function showPage(pageId, pushState = true) {
 
         const widget = document.getElementById('aiWidget');
         const mini = document.getElementById('miniChat');
-        if (pageId === 'ai') {
+        if (pageId === 'ai' || pageId === 'code') {
             widget?.classList.add('hidden');
             mini?.classList.remove('show');
         } else {
@@ -2323,7 +2331,10 @@ async function loadConfig() {
 
 function updateAIUI() {
     const select = document.getElementById('modelSelect');
-    if(select) select.innerHTML = aiConfig.models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    const codeSelect = document.getElementById('codeModelSelect');
+    const options = aiConfig.models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    if(select) select.innerHTML = options;
+    if(codeSelect) codeSelect.innerHTML = options;
 }
 
 // --- AI LOGIC (Key Rotation + History) ---
@@ -6057,6 +6068,198 @@ document.addEventListener('visibilitychange', () => {
         if (isMusicPlaying) updateMusicUI();
     }
 });
+
+// --- sOuLCODE LOGIC ---
+async function handleCodeUpload(e) {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+
+    setLoading(true, `Indexing ${files.length} items...`);
+    
+    // Process files sequentially to ensure UI thread remains responsive and data integrity
+    for (const file of files) {
+        await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const content = event.target.result;
+                const path = file.webkitRelativePath || file.name;
+                projectFiles.push({
+                    id: Date.now() + Math.random(),
+                    name: file.name,
+                    path: path,
+                    content: content
+                });
+                resolve();
+            };
+            reader.onerror = () => resolve();
+            reader.readAsText(file);
+        });
+    }
+
+    renderFileTree();
+    setLoading(false);
+    showToast(`Workspace updated with ${files.length} items.`, "success");
+    e.target.value = ''; // Reset input to allow re-selection of same files
+}
+
+function renderFileTree() {
+    const tree = document.getElementById('fileTree');
+    if (!projectFiles.length) {
+        tree.innerHTML = '<p class="text-[10px] text-gray-500 italic text-center py-10">Upload a project to begin.</p>';
+        return;
+    }
+
+    tree.innerHTML = projectFiles.sort((a,b) => a.path.localeCompare(b.path)).map(f => {
+        const isActive = f.id === activeFileId;
+        const ext = f.name.split('.').pop();
+        let icon = 'fa-file-code';
+        if (['html', 'css', 'js', 'py', 'json'].includes(ext)) icon = `fa-file-${ext === 'js' ? 'code' : (ext === 'py' ? 'code' : ext)}`;
+        
+        return `
+            <div onclick="selectCodeFile('${f.id}')" class="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all hover:bg-white/5 ${isActive ? 'bg-blue-600/20 text-white border border-blue-500/30' : 'text-gray-400'}">
+                <i class="fas ${icon} text-[10px] opacity-70"></i>
+                <span class="text-[10px] font-medium truncate">${f.path}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function selectCodeFile(id) {
+    activeFileId = Number(id);
+    const file = projectFiles.find(f => f.id === activeFileId);
+    if (!file) return;
+
+    document.getElementById('activeFileName').innerText = file.path;
+    document.getElementById('codeEditor').value = file.content;
+    document.getElementById('downloadBtn').classList.remove('hidden');
+    renderFileTree();
+}
+
+function saveActiveFile() {
+    if (!activeFileId) return;
+    const file = projectFiles.find(f => f.id === activeFileId);
+    if (file) {
+        file.content = document.getElementById('codeEditor').value;
+        showToast("Local file updated.", "success");
+    }
+}
+
+function downloadActiveFile() {
+    if (!activeFileId) return;
+    const file = projectFiles.find(f => f.id === activeFileId);
+    if (!file) return;
+
+    const blob = new Blob([file.content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+async function askCodeAI() {
+    const inputEl = document.getElementById('codeChatInput');
+    const query = inputEl.value.trim();
+    if (!query) return;
+
+    const activeFile = projectFiles.find(f => f.id === activeFileId);
+    if (!activeFile) {
+        showToast("Please select a file to talk about first.", "warning");
+        return;
+    }
+
+    appendAIMessage('user', query, 'codeChatBox');
+    inputEl.value = '';
+    autoResize(inputEl);
+
+    const model = document.getElementById('codeModelSelect').value || aiConfig.unifiedModel;
+    const key = aiConfig.keys[currentKeyIndex];
+    const statusEl = document.getElementById('codeAIStatus');
+    statusEl.classList.remove('hidden');
+
+    const projectContext = projectFiles.map(f => `File: ${f.path}\nContent:\n${f.content}`).join('\n\n---\n\n');
+    
+    const prompt = `You are an expert AI code editor. 
+    CURRENT_PROJECT_CONTEXT:
+    ${projectContext}
+
+    ACTIVE_FILE: ${activeFile.path}
+    ACTIVE_FILE_CONTENT: ${activeFile.content}
+
+    USER_REQUEST: ${query}
+
+    INSTRUCTIONS:
+    1. You MUST directly edit the active file if the user requests changes.
+    2. Return your response in this exact format:
+       COMMENTARY: [Brief explanation of changes]
+       CODE_START
+       [Full new content of ${activeFile.path}]
+       CODE_END
+    3. If no code change is requested, just answer the question in plain text.`;
+
+    try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        
+        if (text.includes('CODE_START') && text.includes('CODE_END')) {
+            const commentary = text.split('CODE_START')[0].replace('COMMENTARY:', '').trim();
+            const newContent = text.split('CODE_START')[1].split('CODE_END')[0].trim();
+            
+            appendAIMessage('ai', commentary + "\n\n**Proposed changes are ready for review.**", 'codeChatBox');
+            
+            aiProposedChange = {
+                fileId: activeFile.id,
+                originalContent: activeFile.content,
+                newContent: newContent
+            };
+
+            showDiffOverlay();
+        } else {
+            appendAIMessage('ai', text, 'codeChatBox');
+        }
+    } catch (e) {
+        showToast("Code Assistant failed. Check console.", "error");
+    } finally {
+        statusEl.classList.add('hidden');
+    }
+}
+
+function showDiffOverlay() {
+    if (!aiProposedChange) return;
+    document.getElementById('diffOriginal').innerText = aiProposedChange.originalContent;
+    document.getElementById('diffProposed').innerText = aiProposedChange.newContent;
+    document.getElementById('diffOverlay').classList.remove('hidden');
+}
+
+function acceptAIChanges() {
+    if (!aiProposedChange) return;
+    const file = projectFiles.find(f => f.id === aiProposedChange.fileId);
+    if (file) {
+        file.content = aiProposedChange.newContent;
+        if (activeFileId === file.id) {
+            document.getElementById('codeEditor').value = file.content;
+        }
+        showToast("Changes applied to source.", "success");
+    }
+    closeDiffOverlay();
+}
+
+function rejectAIChanges() {
+    showToast("Changes discarded.", "info");
+    closeDiffOverlay();
+}
+
+function closeDiffOverlay() {
+    document.getElementById('diffOverlay').classList.add('hidden');
+    aiProposedChange = null;
+}
 
 // --- INIT ---
 // Performance optimized initialization sequence
