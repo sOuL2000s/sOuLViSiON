@@ -147,6 +147,47 @@
 
 [data-theme="minimalist"] body {
     color: #0f172a;
+    background-color: #f8fafc;
+}
+
+/* Immersive Editor Theme Overrides */
+.immersive-modal { background-color: var(--bg-dark) !important; }
+.theme-bg-primary { background-color: var(--bg-dark); }
+
+[data-theme="minimalist"] .immersive-modal,
+[data-theme="minimalist"] .theme-bg-primary {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+}
+
+[data-theme="minimalist"] #editNoteText {
+    color: #0f172a !important;
+}
+
+[data-theme="minimalist"] .immersive-modal .glass {
+    background: rgba(255, 255, 255, 0.95);
+    border-bottom: 1px solid #e2e8f0;
+}
+
+[data-theme="minimalist"] .immersive-modal .bg-black\/20,
+[data-theme="minimalist"] .immersive-modal .bg-black\/10 {
+    background-color: rgba(0, 0, 0, 0.02) !important;
+}
+
+[data-theme="minimalist"] .immersive-modal .border-white\/10,
+[data-theme="minimalist"] .immersive-modal .border-white\/5,
+[data-theme="minimalist"] .immersive-modal .border-r {
+    border-color: #e2e8f0 !important;
+}
+
+[data-theme="minimalist"] .immersive-toolbar {
+    background-color: #f1f5f9 !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+}
+
+[data-theme="minimalist"] .immersive-modal .text-gray-400,
+[data-theme="minimalist"] .immersive-modal .text-gray-500 {
+    color: #64748b !important;
 }
 
 [data-theme="minimalist"] .glass {
@@ -172,9 +213,21 @@
     color: #0f172a !important;
 }
 
-[data-theme="minimalist"] .markdown-body pre,
 [data-theme="minimalist"] .markdown-body code {
-    color: #ffffff !important;
+    background-color: rgba(0, 0, 0, 0.06) !important;
+    color: #c026d3 !important; /* Visible purple for inline code in light mode */
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+
+[data-theme="minimalist"] .markdown-body pre {
+    background-color: #f1f5f9 !important;
+    border: 1px solid #cbd5e1 !important;
+}
+
+[data-theme="minimalist"] .markdown-body pre code {
+    color: #0f172a !important;
+    background-color: transparent !important;
+    border: none !important;
 }
 
 [data-theme="minimalist"] #playPauseBtn,
@@ -194,11 +247,13 @@
 }
 
 /* Contrast overrides for Tailwind gray classes in light mode */
+[data-theme="minimalist"] .text-gray-300 { color: #475569 !important; }
 [data-theme="minimalist"] .text-gray-400 { color: #64748b !important; }
 [data-theme="minimalist"] .text-gray-500 { color: #475569 !important; }
 [data-theme="minimalist"] .text-gray-600 { color: #334155 !important; }
 [data-theme="minimalist"] .bg-gray-800 { background-color: #f1f5f9 !important; color: #0f172a !important; }
 [data-theme="minimalist"] .bg-gray-900 { background-color: #f8fafc !important; color: #0f172a !important; }
+[data-theme="minimalist"] h3.text-sm.font-bold.truncate.pr-16 { color: #0f172a !important; }
 /* Fix theme preview buttons in Dashboard for Minimalist mode */
 [data-theme="minimalist"] .bg-slate-900 { background-color: #0f172a !important; color: #ffffff !important; }
 [data-theme="minimalist"] .bg-black { background-color: #000000 !important; }
@@ -375,6 +430,15 @@ body {
     background: var(--primary);
 }
 
+[data-theme="minimalist"] .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="minimalist"] .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border: 1px solid #94a3b8;
+}
+
 /* --- Glassmorphism Effect --- */
 .glass {
     background: rgba(15, 23, 42, 0.6);
@@ -502,16 +566,24 @@ nav button:hover {
 
 /* Markdown Styling */
 .markdown-body {
-    font-size: 0.85rem;
-    line-height: 1.5;
+    font-size: 0.875rem;
+    line-height: 1.6;
     color: #e2e8f0;
     word-break: break-word;
+    overflow-wrap: break-word;
+}
+
+@media (max-width: 640px) {
+    .markdown-body {
+        font-size: 0.8rem;
+        line-height: 1.5;
+    }
 }
 
 @media (min-width: 768px) {
     .markdown-body {
-        font-size: 0.95rem;
-        line-height: 1.6;
+        font-size: 1rem;
+        line-height: 1.7;
     }
 }
 .markdown-body h1, .markdown-body h2, .markdown-body h3 {
@@ -1191,7 +1263,12 @@ nav button:hover {
 textarea, input[type="text"], input[type="number"], select {
     border: 1px solid var(--glass-border);
     outline: none;
-    transition: border 0.3s;
+    transition: border 0.3s, height 0.1s ease-out;
+}
+
+#chatInput, #noteInput, #editNoteText, #miniChatInput {
+    resize: none !important;
+    min-height: 44px;
 }
 
 textarea:focus, input:focus {

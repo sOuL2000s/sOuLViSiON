@@ -468,11 +468,89 @@ export default async function handler(req, res) {
                     try {
                         const cleanStr = (str) => {
                             if (typeof str !== 'string') return "";
-                            return str.replace(/[^\x20-\x7E\xA0-\xFF\n\r\t]/g, " ");
+                            // Replace characters that are not in WinAnsiEncoding with space to prevent PDFKit errors
+                            // Supporting common Western European characters and stripping emojis/non-latin
+                            return str.replace(/[^\x00-\x7F\xA0-\xFF]/g, " ");
                         };
 
-                        const doc = new PDFDocument({ margin: 50, size: 'A4' });
+                        const doc = new PDFDocument({ margin: 50, size: 'A4', autoFirstPage: true });
                         let chunks = [];
+
+                        const drawHeader = () => {
+                            const title = type === 'note' ? (data.title || 'Untitled Note') : (data.name || 'Conversation Export');
+                            doc.save();
+                            doc.rect(0, 0, doc.page.width, 40).fill('#0f172a');
+                            doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(14).text('sOuLViSiON', 50, 15);
+                            doc.fillColor('#94a3b8').font('Helvetica').fontSize(8).text(`${type.toUpperCase()} | ${new Date().toLocaleDateString()} | ${cleanStr(title)}`, 150, 18, { align: 'right', width: 395 });
+                            doc.restore();
+                            doc.y = 70;
+                        };
+
+                        doc.on('pageAdded', drawHeader);
+                        drawHeader();
+
+                        const renderMarkdown = (text) => {
+                            const lines = text.split('\n');
+                            let inCodeBlock = false;
+                            
+                            lines.forEach(line => {
+                                const trimmed = line.trim();
+                                
+                                // Code Blocks
+                                if (trimmed.startsWith('```')) {
+                                    inCodeBlock = !inCodeBlock;
+                                    if (inCodeBlock) doc.moveDown(0.5);
+                                    else doc.moveDown(1);
+                                    return;
+                                }
+
+                                if (inCodeBlock) {
+                                    doc.save();
+                                    doc.fillColor('#f8fafc').font('Courier').fontSize(9).text(cleanStr(line), { lineGap: 2, indent: 10 });
+                                    doc.restore();
+                                    return;
+                                }
+
+                                // Headers
+                                if (trimmed.startsWith('# ')) {
+                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(18).text(cleanStr(trimmed.substring(2))).moveDown(0.5);
+                                } else if (trimmed.startsWith('## ')) {
+                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(16).text(cleanStr(trimmed.substring(3))).moveDown(0.4);
+                                } else if (trimmed.startsWith('### ')) {
+                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(14).text(cleanStr(trimmed.substring(4))).moveDown(0.3);
+                                } 
+                                // Blockquotes
+                                else if (trimmed.startsWith('>')) {
+                                    doc.save();
+                                    const y = doc.y;
+                                    doc.strokeColor('#06b6d4').lineWidth(2).moveTo(50, y).lineTo(50, y + 12).stroke();
+                                    doc.fillColor('#64748b').font('Helvetica-Oblique').fontSize(11).text(cleanStr(trimmed.substring(1).trim()), 65, y).moveDown(0.5);
+                                    doc.restore();
+                                }
+                                // Plain text with basic inline support
+                                else if (trimmed === '') {
+                                    doc.moveDown(0.5);
+                                } else {
+                                    doc.fillColor('#334155').font('Helvetica').fontSize(11);
+                                    
+                                    // Robust inline parsing: Bold (**), Italic (*), Inline Code (`)
+                                    const parts = line.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
+                                    parts.forEach(part => {
+                                        if (part.startsWith('**') && part.endsWith('**')) {
+                                            doc.font('Helvetica-Bold').text(cleanStr(part.slice(2, -2)), { continued: true });
+                                        } else if (part.startsWith('*') && part.endsWith('*')) {
+                                            doc.font('Helvetica-Oblique').text(cleanStr(part.slice(1, -1)), { continued: true });
+                                        } else if (part.startsWith('`') && part.endsWith('`')) {
+                                            doc.font('Courier').fillColor('#c026d3').text(cleanStr(part.slice(1, -1)), { continued: true });
+                                            doc.fillColor('#334155');
+                                        } else {
+                                            doc.font('Helvetica').text(cleanStr(part), { continued: true });
+                                        }
+                                    });
+                                    doc.text('', { continued: false }).moveDown(0.5);
+                                }
+                            });
+                        };
 
                         doc.on('error', err => {
                             console.error("PDFKit Stream Error:", err);
@@ -489,54 +567,46 @@ export default async function handler(req, res) {
                             resolve();
                         });
 
-                        doc.font('Helvetica-Bold');
-                        doc.fillColor('#06b6d4').fontSize(24).text(`sOuLViSiON`, { align: 'center' });
-                        doc.fillColor('#333333').fontSize(10).text(`${type.toUpperCase()} EXPORT`, { align: 'center' });
-                        doc.moveDown(0.5);
-                        doc.fontSize(8).font('Helvetica').fillColor('#999999').text(`Generated on: ${new Date().toLocaleString()}`, { align: 'center' });
-                        doc.moveDown();
-                        doc.strokeColor('#eeeeee').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-                        doc.moveDown(2);
-
                         if (type === 'chat' && data.messages) {
                             data.messages.forEach(m => {
                                 doc.fillColor(m.role === 'user' ? '#7c3aed' : '#06b6d4')
                                    .fontSize(10).font('Helvetica-Bold').text(m.role.toUpperCase(), { continued: true })
-                                   .fillColor('#999999').font('Helvetica').text(`  |  ${new Date().toLocaleTimeString()}`);
+                                   .fillColor('#94a3b8').font('Helvetica').text(`  |  ${new Date(data.id).toLocaleTimeString()}`);
                                 doc.moveDown(0.5);
-                                doc.fillColor('#333333').fontSize(11).text(cleanStr(m.content), { align: 'left', lineGap: 2 });
-                                doc.moveDown(1.5);
+                                renderMarkdown(m.content);
+                                doc.moveDown(1);
                             });
                         } else if (type === 'note') {
-                            doc.fillColor('#06b6d4').fontSize(18).font('Helvetica-Bold').text(cleanStr(data.title) || 'Untitled Note');
-                            doc.fillColor('#999999').fontSize(9).font('Helvetica').text(`Type: ${(data.type || 'Note').toUpperCase()} | Deadline: ${data.deadline || 'None'}`);
-                            doc.moveDown();
-                            doc.strokeColor('#eeeeee').moveTo(50, doc.y).lineTo(545, doc.y).stroke();
-                            doc.moveDown();
-                            doc.fillColor('#333333').fontSize(12).text(cleanStr(data.text), { lineGap: 3 });
+                            doc.fillColor('#06b6d4').fontSize(22).font('Helvetica-Bold').text(cleanStr(data.title) || 'Untitled Note');
+                            doc.fillColor('#94a3b8').fontSize(9).font('Helvetica').text(`TYPE: ${(data.type || 'Note').toUpperCase()} | DEADLINE: ${data.deadline || 'NONE'}`);
+                            doc.moveDown(0.5);
+                            doc.strokeColor('#e2e8f0').lineWidth(0.5).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+                            doc.moveDown(1.5);
+                            renderMarkdown(data.text);
                         } else if (type === 'report') {
-                            doc.fillColor('#ef4444').fontSize(22).font('Helvetica-Bold').text(`SPIRITUAL PROGRESS REPORT`, { align: 'center' });
-                            doc.moveDown();
-                            doc.fillColor('#333333').fontSize(14).font('Helvetica-Bold').text(`Metrics & Abundance`, { underline: true });
-                            doc.fontSize(10).font('Helvetica').text(`Vitality (Health): ${data.metrics.health}`);
-                            doc.fontSize(10).text(`Prosperity (Wealth): ${data.metrics.wealth}`);
-                            doc.moveDown();
-                            doc.fillColor('#06b6d4').fontSize(14).font('Helvetica-Bold').text(`Soul Wisdom`, { underline: true });
-                            doc.fillColor('#444444').fontSize(11).font('Helvetica-Oblique').text(cleanStr(data.advice));
-                            doc.moveDown();
-                            doc.fillColor('#7c3aed').fontSize(14).font('Helvetica-Bold').text(`Inner Reflections`, { underline: true });
+                            doc.fillColor('#06b6d4').fontSize(24).font('Helvetica-Bold').text(`SOUL REPORT`, { align: 'center' }).moveDown(1);
+                            
+                            doc.fillColor('#334155').fontSize(14).font('Helvetica-Bold').text(`Metrics Overview`, { underline: true }).moveDown(0.5);
+                            doc.fontSize(11).font('Helvetica').text(`Vitality (Health Score): ${data.metrics.health}`);
+                            doc.text(`Prosperity (Abundance): ${data.metrics.wealth}`).moveDown(1.5);
+                            
+                            doc.fillColor('#06b6d4').fontSize(14).font('Helvetica-Bold').text(`Divine Guidance`, { underline: true }).moveDown(0.5);
+                            doc.fillColor('#475569').fontSize(11).font('Helvetica-Oblique').text(cleanStr(data.advice)).moveDown(1.5);
+                            
+                            doc.fillColor('#7c3aed').fontSize(14).font('Helvetica-Bold').text(`Soul Reflections`, { underline: true }).moveDown(0.5);
                             data.qna.forEach(item => {
-                                doc.fillColor('#333333').fontSize(10).font('Helvetica-Bold').text(`Q: ${cleanStr(item.question)}`);
-                                doc.fillColor('#666666').fontSize(10).font('Helvetica').text(`A: ${cleanStr(item.answer)}`);
-                                doc.moveDown(0.5);
+                                doc.fillColor('#334155').fontSize(11).font('Helvetica-Bold').text(`Question: ${cleanStr(item.question)}`);
+                                doc.fillColor('#64748b').fontSize(11).font('Helvetica').text(`Reflection: ${cleanStr(item.answer)}`).moveDown(0.8);
                             });
-                            doc.moveDown();
-                            doc.fillColor('#333333').fontSize(14).font('Helvetica-Bold').text(`Journal Logs`, { underline: true });
-                            data.journals.forEach(j => {
-                                doc.fontSize(8).fillColor('#999999').font('Helvetica').text(new Date(j.id).toLocaleDateString());
-                                doc.fontSize(10).fillColor('#444444').text(cleanStr(j.content));
-                                doc.moveDown(0.5);
-                            });
+                            
+                            if (data.journals && data.journals.length > 0) {
+                                doc.addPage();
+                                doc.fillColor('#334155').fontSize(14).font('Helvetica-Bold').text(`Recent Journal Archives`, { underline: true }).moveDown(1);
+                                data.journals.forEach(j => {
+                                    doc.fontSize(8).fillColor('#94a3b8').font('Helvetica').text(new Date(j.id).toLocaleDateString());
+                                    doc.fontSize(11).fillColor('#475569').text(cleanStr(j.content)).moveDown(0.6);
+                                });
+                            }
                         }
                         doc.end();
                     } catch (pdfErr) {

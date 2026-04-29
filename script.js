@@ -490,6 +490,7 @@ function wrapText(elId, before, after) {
 document.addEventListener('input', (e) => {
     if (e.target.id === 'noteInput' || e.target.id === 'editNoteText') {
         const el = e.target;
+        autoResize(el);
         const val = el.value;
         
         // We handle logic when Enter is pressed (newline appended)
@@ -656,6 +657,12 @@ function showPage(pageId, pushState = true) {
         if (pageId === 'focus') {
             initFocusPage();
         }
+
+        // Trigger auto-resize for primary textareas on page entry
+        ['chatInput', 'noteInput', 'editNoteText', 'miniChatInput'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) autoResize(el);
+        });
         
         if (pageId === 'manage' && currentUser?.isAdmin) {
             loadConfig();
@@ -1025,6 +1032,9 @@ function renderNotes(providedNotes = null) {
         return;
     }
 
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const isMinimalist = currentTheme === 'minimalist';
+    
     list.innerHTML = filteredNotes.map(n => {
         let deadlineBadge = '';
         if (n.deadline) {
@@ -1048,9 +1058,9 @@ function renderNotes(providedNotes = null) {
                 </div>
                 <div class="mb-3">
                     <span class="text-[9px] font-black uppercase tracking-widest ${isTodo ? 'text-purple-400' : 'text-cyan-400'}">${isTodo ? 'Task List' : 'Note'}</span>
-                    <h3 class="text-sm font-bold truncate pr-16">${displayTitle}</h3>
+                    <h3 class="text-sm font-bold truncate pr-16 ${isMinimalist ? 'text-slate-900' : 'text-white'}">${displayTitle}</h3>
                 </div>
-                <div class="prose prose-invert prose-sm max-h-48 overflow-hidden mb-6 flex-grow">
+                <div class="prose ${isMinimalist ? '' : 'prose-invert'} prose-sm max-h-48 overflow-hidden mb-6 flex-grow">
                     ${isLocked ? `
                         <div class="flex flex-col items-center justify-center py-4 text-gray-500 opacity-50">
                             <i class="fas fa-lock text-3xl mb-2"></i>
@@ -1089,6 +1099,31 @@ function renderNotes(providedNotes = null) {
     }).join('');
 }
 
+let isSyncScrolling = false;
+function handleEditorScroll(e) {
+    if (isSyncScrolling) return;
+    isSyncScrolling = true;
+    const editor = e.target;
+    const preview = document.getElementById('notePreview');
+    if (preview && editor.scrollHeight > editor.clientHeight) {
+        const scrollPercentage = editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
+        preview.scrollTop = scrollPercentage * (preview.scrollHeight - preview.clientHeight);
+    }
+    setTimeout(() => { isSyncScrolling = false; }, 50);
+}
+
+function handlePreviewScroll(e) {
+    if (isSyncScrolling) return;
+    isSyncScrolling = true;
+    const preview = e.target;
+    const editor = document.getElementById('editNoteText');
+    if (editor && preview.scrollHeight > preview.clientHeight) {
+        const scrollPercentage = preview.scrollTop / (preview.scrollHeight - preview.clientHeight);
+        editor.scrollTop = scrollPercentage * (editor.scrollHeight - editor.clientHeight);
+    }
+    setTimeout(() => { isSyncScrolling = false; }, 50);
+}
+
 function openNote(id) {
     id = Number(id);
     const note = notes.find(n => n.id === id);
@@ -1112,12 +1147,14 @@ function openNote(id) {
     }
 
     document.getElementById('editNoteId').value = id;
-    document.getElementById('editNoteText').value = note.text;
+    const editor = document.getElementById('editNoteText');
+    editor.value = note.text;
     document.getElementById('editNoteDeadline').value = note.deadline || '';
     document.getElementById('editNoteMeta').innerText = `CREATED: ${new Date(id).toLocaleString()}`;
     document.getElementById('wordGoal').value = note.wordGoal || 0;
     
-    updateEditorStats(document.getElementById('editNoteText'));
+    updateEditorStats(editor);
+    autoResize(editor);
     updateGoalProgress();
     
     document.getElementById('noteModal').classList.remove('hidden');
@@ -2481,8 +2518,10 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
     const box = document.getElementById(targetBoxId);
     let msgDiv = null;
 
-    if (isStreaming || role === 'ai') {
-        msgDiv = box.querySelector('.streaming-msg');
+    // Robust selection: Only reuse the last message if it's an active stream and role matches
+    const lastMsg = box.lastElementChild;
+    if (lastMsg && lastMsg.classList.contains('streaming-msg') && role === 'ai') {
+        msgDiv = lastMsg;
     }
 
     if (!msgDiv) {
@@ -2495,11 +2534,20 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
         box.appendChild(msgDiv);
     }
 
-    if (!isStreaming && role === 'ai') {
+    // Sync streaming state class
+    if (isStreaming) {
+        msgDiv.classList.add('streaming-msg');
+    } else {
         msgDiv.classList.remove('streaming-msg');
     }
 
     const contentDiv = msgDiv.querySelector('.markdown-body');
+    
+    // Check scroll position before content update for accurate auto-scroll intent
+    // We stick to bottom only if the user is already there (or very close)
+    const threshold = 150;
+    const isAtBottom = (box.scrollHeight - box.scrollTop) <= (box.clientHeight + threshold);
+
     contentDiv.innerHTML = renderMD(content);
 
     // Add Copy Buttons to Code Blocks
@@ -2574,7 +2622,9 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
         }
     }
 
-    box.scrollTop = box.scrollHeight;
+    if (isAtBottom || !isStreaming) {
+        box.scrollTop = box.scrollHeight;
+    }
     return msgDiv;
 }
 
@@ -2690,10 +2740,27 @@ function toggleSTT(isMini = false) {
 let editingAttachmentIdx = -1;
 
 function autoResize(textarea) {
-    textarea.style.height = 'auto';
-    textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    if (!textarea) return;
     
-    if (textarea.value.length > 3000 && textarea.id === 'chatInput') {
+    const isImmersive = textarea.id === 'editNoteText';
+    // For immersive editor, we only auto-resize if it's not in large screen mode 
+    // or if we want to allow it to grow. Following user request for all primary textareas.
+    
+    textarea.style.height = 'auto';
+    const maxHeight = 400;
+    const scrollHeight = textarea.scrollHeight;
+    
+    // Set height with constraints
+    if (scrollHeight > maxHeight) {
+        textarea.style.height = maxHeight + 'px';
+        textarea.style.overflowY = 'auto';
+    } else {
+        // Use a minimum height of 40px if scrollHeight is 0
+        textarea.style.height = (scrollHeight || 40) + 'px';
+        textarea.style.overflowY = 'hidden';
+    }
+    
+    if (textarea.id === 'chatInput' && textarea.value.length > 3000) {
         const content = textarea.value;
         textarea.value = '';
         textarea.style.height = 'auto';
@@ -2894,6 +2961,7 @@ async function askAI() {
     const userMsg = input + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
     appendAIMessage('user', userMsg, 'chatBox');
     inputEl.value = '';
+    autoResize(inputEl);
     [document.getElementById('aiAttachmentPreview'), document.getElementById('miniAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
 
     if(conv && conv.messages.length === 0) {
@@ -3044,43 +3112,66 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
             appendAIMessage('ai', '<div class="typing-dots"><span></span><span></span><span></span></div>', targetBoxId, true);
             
             let buffer = "";
+            let lastUIUpdate = 0;
+            const UI_UPDATE_INTERVAL = 32; // ~30fps throttled UI updates for peak performance
+
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) {
-                    if (buffer.trim()) processBuffer(buffer.trim());
-                    break;
-                }
+                if (done) break;
+                
+                // decoder.decode with {stream: true} correctly handles multi-byte characters split across chunks
                 buffer += decoder.decode(value, { stream: true });
-                buffer = processBuffer(buffer);
-            }
-
-            function processBuffer(data) {
-                let tempBuffer = data;
-                while (true) {
-                    let startIdx = tempBuffer.indexOf('{');
-                    if (startIdx === -1) break;
+                
+                let startIdx;
+                // Improved JSON Stream Buffer: Accumulates fragments until valid objects are resolved
+                while ((startIdx = buffer.indexOf('{')) !== -1) {
                     let braceCount = 0;
                     let endIdx = -1;
-                    for (let i = startIdx; i < tempBuffer.length; i++) {
-                        if (tempBuffer[i] === '{') braceCount++;
-                        else if (tempBuffer[i] === '}') braceCount--;
-                        if (braceCount === 0) { endIdx = i; break; }
-                    }
-                    if (endIdx === -1) break;
-                    const chunkStr = tempBuffer.substring(startIdx, endIdx + 1);
-                    try {
-                        const chunk = JSON.parse(chunkStr);
-                        const textPart = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                        if (textPart) {
-                            fullContent += textPart;
-                            appendAIMessage('ai', fullContent, targetBoxId, true);
+                    for (let i = startIdx; i < buffer.length; i++) {
+                        if (buffer[i] === '{') braceCount++;
+                        else if (buffer[i] === '}') braceCount--;
+                        
+                        if (braceCount === 0) {
+                            endIdx = i;
+                            break;
                         }
-                    } catch (e) {}
-                    tempBuffer = tempBuffer.substring(endIdx + 1).trim();
-                    if (tempBuffer.startsWith(',')) tempBuffer = tempBuffer.substring(1).trim();
+                    }
+
+                    if (endIdx !== -1) {
+                        const chunkStr = buffer.substring(startIdx, endIdx + 1);
+                        try {
+                            const chunk = JSON.parse(chunkStr);
+                            const textPart = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                            if (textPart) {
+                                fullContent += textPart;
+                                
+                                // Throttled UI Update logic (Max ~30fps)
+                                const now = Date.now();
+                                if (now - lastUIUpdate > UI_UPDATE_INTERVAL) {
+                                    let displayContent = fullContent;
+                                    
+                                    // Markdown fragment protection: close open tags for stable preview
+                                    const codeBlockCount = (displayContent.match(/```/g) || []).length;
+                                    if (codeBlockCount % 2 !== 0) displayContent += "\n```";
+                                    const boldCount = (displayContent.match(/\*\*/g) || []).length;
+                                    if (boldCount % 2 !== 0) displayContent += "**";
+                                    
+                                    appendAIMessage('ai', displayContent, targetBoxId, true);
+                                    lastUIUpdate = now;
+                                }
+                            }
+                            buffer = buffer.substring(endIdx + 1);
+                        } catch (e) {
+                            // If parsing fails despite matched braces, consume opening char to recover
+                            buffer = buffer.substring(startIdx + 1);
+                        }
+                    } else {
+                        break; // Incomplete object in buffer, wait for next stream chunk
+                    }
                 }
-                return tempBuffer;
             }
+            // Final render pass to ensure any remaining buffered content is displayed
+            appendAIMessage('ai', fullContent, targetBoxId, true);
         } else {
             const data = await response.json();
             fullContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
@@ -3776,6 +3867,7 @@ async function toggleBreathingSession() {
     const text = document.getElementById('breathAssistText');
     const bar = document.getElementById('breathPhaseBar');
     const btn = document.getElementById('breathStartBtn');
+    const syncTimer = document.getElementById('syncFocusTimer')?.checked;
 
     if (breathingState.active) {
         // End Session
@@ -3783,15 +3875,32 @@ async function toggleBreathingSession() {
         breathingState.active = false;
         breathingState.phase = 0;
         
-        // Save practice time
-        if (breathingState.sessionSeconds > 10 && currentUser) {
+        if (syncTimer) pauseFocusAction();
+
+        // Save practice time and automate journal
+        if (breathingState.sessionSeconds > 5) {
             const minutes = Math.round(breathingState.sessionSeconds / 60 * 10) / 10;
-            await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ type: 'breathing_practice', duration: breathingState.sessionSeconds, minutes: minutes })
-            });
-            syncFocusData();
+            const logMsg = `Completed ${minutes}m of Box Breathing meditation.`;
+            
+            const journalInput = document.getElementById('journalInput');
+            if (journalInput) {
+                journalInput.value = (journalInput.value ? journalInput.value + '\n' : '') + logMsg;
+            }
+
+            if (currentUser) {
+                await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        type: 'breathing_practice', 
+                        duration: breathingState.sessionSeconds, 
+                        minutes: minutes,
+                        timestamp: Date.now() 
+                    })
+                });
+                syncFocusData();
+            }
+            showToast(logMsg, "info");
         }
 
         circle.style.transform = 'scale(1)';
@@ -3808,6 +3917,11 @@ async function toggleBreathingSession() {
     breathingState.sessionSeconds = 0;
     btn.innerText = 'End Session';
     btn.classList.replace('bg-teal-600', 'bg-red-600');
+
+    if (syncTimer) {
+        toggleFocusMode('stopwatch');
+        startFocusAction();
+    }
 
     const phases = [
         { text: 'Inhale', scale: 1.5, color: '#14b8a6', freq: 440 },
@@ -4006,12 +4120,32 @@ function startFocusAction() {
     document.getElementById('focusStartBtn').classList.add('hidden');
     document.getElementById('focusPauseBtn').classList.remove('hidden');
 
-    focusInterval = setInterval(() => {
+    focusInterval = setInterval(async () => {
         if (focusMode === 'timer') {
             if (focusTimeRemaining <= 0) {
                 clearInterval(focusInterval);
                 focusInterval = null;
                 focusChime.play();
+                
+                const mins = document.getElementById('focusTimerRange').value;
+                const logMsg = `Completed ${mins}m focus session.`;
+                const journalInput = document.getElementById('journalInput');
+                if (journalInput) journalInput.value = (journalInput.value ? journalInput.value + '\n' : '') + logMsg;
+                
+                if (currentUser) {
+                    await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            type: 'focus_session', 
+                            duration: mins * 60, 
+                            minutes: parseInt(mins), 
+                            timestamp: Date.now() 
+                        })
+                    });
+                    syncFocusData();
+                }
+
                 showToast("Focus session complete!", "success");
                 resetFocusAction();
                 return;
@@ -5010,6 +5144,8 @@ function setTheme(theme) {
         currentUser.theme = theme;
         localStorage.setItem('soulUser', JSON.stringify(currentUser));
     }
+    // Re-render components that rely on theme-conditional classes
+    if (document.getElementById('notes').classList.contains('active')) renderNotes();
 }
 
 async function saveAdminConfig() {
@@ -5856,6 +5992,14 @@ const initApp = async () => {
     updateAuthUI();
     initCustomCursor();
 
+    // Initial resize trigger for pre-filled or visible textareas
+    setTimeout(() => {
+        ['chatInput', 'noteInput', 'editNoteText', 'miniChatInput'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) autoResize(el);
+        });
+    }, 100);
+
     // 2. Non-critical metadata
     const yearEl = document.getElementById('currentYear');
     if (yearEl) yearEl.innerText = new Date().getFullYear();
@@ -5924,6 +6068,14 @@ const initApp = async () => {
         }
 
         document.getElementById('aiWidget').onclick = toggleMiniChat;
+
+        // Synced Scrolling Initialization
+        const editorEl = document.getElementById('editNoteText');
+        const previewEl = document.getElementById('notePreview');
+        if (editorEl && previewEl) {
+            editorEl.addEventListener('scroll', handleEditorScroll, { passive: true });
+            previewEl.addEventListener('scroll', handlePreviewScroll, { passive: true });
+        }
 
         // Start polling/monitoring
         setInterval(checkSystemHealth, 30000);
