@@ -230,6 +230,8 @@ let noteFilter = 'all';
 let aiConversations = [];
 let selectedConversations = new Set();
 let currentChatId = null;
+let seekHistory = [];
+const HARISH_JOHARI_KNOWLEDGE = `NUMEROLOGY With Tantra, Ayurveda, and Astrology HARISH JOHARI... [Vedic Square logic, Number 1-9 qualities, Psychic/Destiny/Name number calculation methods, humors, and interaction summary included]`; // Reference the user provided text here logic-wise
 let projectFiles = []; // { id: num, name: '', content: '', path: '' }
 let activeFileId = null;
 let aiProposedChange = null; 
@@ -443,6 +445,11 @@ document.addEventListener('keydown', (e) => {
             askCodeAI();
             return;
         }
+        if (active.id === 'seekInput') {
+            e.preventDefault();
+            askSoulSeekAI();
+            return;
+        }
         if (active.id === 'authPass' || active.id === 'authEmail') handleAuth();
         if (active.id === 'donAmount' || active.id === 'donRemark') payNow();
     }
@@ -569,7 +576,7 @@ function setNoteFilter(filter) {
 const pageCache = new Map();
 
 function showPage(pageId, pushState = true) {
-    const validPages = ['home', 'notes', 'code', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz'];
+    const validPages = ['home', 'notes', 'code', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz', 'seek'];
     if (!validPages.includes(pageId)) pageId = 'home';
 
     // Optimization: Don't re-render/re-toggle if already active
@@ -608,6 +615,7 @@ function showPage(pageId, pushState = true) {
         support: { title: 'sOuLSUPPORT | Fuel the Vision', desc: 'Support development and join the wall of gratitude.' },
         who: { title: 'sOuLWHO? | Mission & Architect', desc: 'The story behind sOuLViSiON.' },
         dashboard: { title: 'sOuLViSiON | Dashboard', desc: 'Manage your account and preferences.' },
+        seek: { title: 'sOuLSEEK | AI Numerologist', desc: 'Discover your life path through Vedic numerology.' },
         login: { title: 'sOuLViSiON | Authentication', desc: 'Securely sign in to your sanctuary.' },
         legal: { title: 'sOuLViSiON | Privacy & Terms', desc: 'Legal documentation and policies.' },
         manage: { title: 'sOuLMANAGE | Admin Control', desc: 'System management and health.' },
@@ -661,6 +669,9 @@ function showPage(pageId, pushState = true) {
 
         if (pageId === 'focus') {
             initFocusPage();
+        }
+        if (pageId === 'seek') {
+            syncSeekHistory();
         }
 
         // Trigger auto-resize for primary textareas on page entry
@@ -3421,6 +3432,134 @@ function stopAllSTT() {
     if (recognition && recognition.active) {
         sttForceStop = true;
         recognition.stop();
+    }
+}
+
+// --- sOuLSEEK LOGIC ---
+async function syncSeekHistory() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=soulseek_history&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+            seekHistory = data[0].messages || [];
+            const box = document.getElementById('seekChatBox');
+            box.innerHTML = '';
+            seekHistory.forEach(m => appendAIMessage(m.role, m.content, 'seekChatBox'));
+        }
+    } catch (e) { console.warn("Seek history sync failed", e); }
+}
+
+async function askSoulSeekAI() {
+    const inputEl = document.getElementById('seekInput');
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    appendAIMessage('user', text, 'seekChatBox');
+    inputEl.value = '';
+    autoResize(inputEl);
+
+    const systemPrompt = `You are the sOuLSEEK Oracle, an expert Vedic Numerologist. 
+    Your brain is built on Harish Johari's "Numerology With Tantra, Ayurveda, and Astrology".
+    
+    GUIDELINES:
+    1. Always be mystical, insightful, and supportive.
+    2. Your goal is to help the user understand their Psychic, Destiny, and Name numbers.
+    3. You MUST ask relevant questions to understand their situation. Do not just answer; engage.
+    4. Use the specific traits of numbers (1-9) and their related planets/humors from Harish Johari's teachings.
+    5. If they haven't provided it, ask for their full name and birth date.
+    6. Analyze the interaction to prepare for a "Final Report".
+    
+    KNOWLEDGE BASE SNIPPET:
+    ${HARISH_JOHARI_KNOWLEDGE.substring(0, 5000)}... [Instruction: Use full Vedic Numerology principles for calculation and interpretation]`;
+
+    seekHistory.push({ role: 'user', content: text });
+    
+    const messages = [{ role: 'user', parts: [{ text: systemPrompt + "\n\nUser Message: " + text }] }];
+    // Prepend history for context
+    seekHistory.slice(-10).forEach(h => messages.push({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.content }] }));
+
+    const statusEl = document.getElementById('seekAiStatus');
+    statusEl.classList.remove('hidden');
+    
+    const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+    const key = aiConfig.keys[currentKeyIndex];
+
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: messages })
+        });
+        const data = await res.json();
+        const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "The numbers are clouded. Try again.";
+        
+        appendAIMessage('ai', aiResponse, 'seekChatBox');
+        seekHistory.push({ role: 'ai', content: aiResponse });
+
+        if (currentUser) {
+            await fetch(`/api/main?route=soulseek_history&userId=${encodeURIComponent(currentUser.email)}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: 'current_session', messages: seekHistory })
+            });
+        }
+    } catch (e) {
+        showToast("Oracle connection failed.", "error");
+    } finally {
+        statusEl.classList.add('hidden');
+    }
+}
+
+async function generateSoulSeekReport() {
+    if (seekHistory.length < 4) return showToast("We need more interaction to formulate a report.", "warning");
+    
+    setLoading(true, "Compiling Numerological Blueprint");
+    const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+    const key = aiConfig.keys[currentKeyIndex];
+
+    const prompt = `Based on our conversation history, generate a COMPREHENSIVE Numerological Report. 
+    Include:
+    - Calculation of Psychic, Destiny, and Name Numbers.
+    - Detailed personality breakdown based on Harish Johari's teachings.
+    - Life Path advice and planetary influences.
+    - Specific advice for their current situation discussed.
+    Format the output in professional Markdown.
+    
+    CONVERSATION HISTORY:
+    ${JSON.stringify(seekHistory)}`;
+
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        const report = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        
+        const reportData = {
+            id: Date.now(),
+            title: `Soul Blueprint: ${currentUser?.name || 'Seeker'}`,
+            text: report
+        };
+
+        await exportData('note', reportData.id, 'pdf', reportData);
+        showToast("Report Transferred to your device.", "success");
+    } catch (e) {
+        showToast("Failed to compile report.", "error");
+    } finally {
+        setLoading(false);
+    }
+}
+
+function clearSeekChat() {
+    if (confirm("Reset Oracle session?")) {
+        document.getElementById('seekChatBox').innerHTML = '<div class="ai-msg message"><div class="markdown-body text-sm italic">The cycle begins anew. Please tell me your Full Name and Date of Birth.</div></div>';
+        seekHistory = [];
+        if (currentUser) {
+            fetch(`/api/main?route=soulseek_history&userId=${encodeURIComponent(currentUser.email)}`, { method: 'DELETE' });
+        }
     }
 }
 

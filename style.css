@@ -521,7 +521,7 @@ nav button:hover {
 }
 
 /* --- sOuLAI Chat Bubbles --- */
-#ai.active {
+#ai.active, #seek.active {
     height: calc(100vh - 140px);
     display: flex;
     flex-direction: column;
@@ -533,7 +533,7 @@ nav button:hover {
 }
 
 /* Force chatBox to handle scrolling and keep status/input pinned at bottom */
-#chatBox, #miniChatBox {
+#chatBox, #miniChatBox, #seekChatBox {
     flex: 1 1 auto;
     overflow-y: auto;
     min-height: 0;

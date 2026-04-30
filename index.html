@@ -107,6 +107,7 @@
             <button onclick="showPage('cricket')" class="text-left hover:text-cyan-400"><i class="fas fa-baseball-bat-ball w-8"></i> sOuLCRICKET</button>
             <button onclick="showPage('snake')" class="text-left hover:text-cyan-400"><i class="fas fa-wave-square w-8"></i> sOuLSNAKE</button>
             <button onclick="showPage('focus')" class="text-left hover:text-cyan-400"><i class="fas fa-spa w-8"></i> sOuLFOCUS</button>
+            <button onclick="showPage('seek')" class="text-left hover:text-cyan-400"><i class="fas fa-compass w-8"></i> sOuLSEEK</button>
             <button onclick="showPage('quiz')" class="text-left hover:text-cyan-400"><i class="fas fa-lightbulb w-8"></i> sOuLQUIZ</button>
             <button onclick="showPage('fun')" class="text-left hover:text-cyan-400"><i class="fas fa-smile w-8"></i> sOuLFUN</button>
             <button onclick="showPage('support')" class="text-left hover:text-cyan-400"><i class="fas fa-hand-holding-heart w-8"></i> sOuLSUPPORT</button>
@@ -132,38 +133,44 @@
     </div>
 
     <!-- Navigation -->
-    <nav class="glass sticky top-0 z-50 p-4 flex justify-between items-center px-4 md:px-8 gap-4">
+    <nav class="glass sticky top-0 z-50 p-4 flex justify-between items-center px-4 xl:px-8 gap-4">
         <div class="flex items-center gap-4 shrink-0">
-            <button onclick="toggleSidebar()" class="md:hidden text-xl p-2"><i class="fas fa-bars"></i></button>
+            <button onclick="toggleSidebar()" class="xl:hidden text-xl p-2"><i class="fas fa-bars"></i></button>
             <h1 class="text-xl md:text-2xl font-bold tracking-tighter text-cyan-400 cursor-pointer" onclick="showPage('home')">sOuLViSiON</h1>
         </div>
         
-        <div class="hidden md:flex items-center gap-1 lg:gap-4 overflow-hidden">
-            <button onclick="showPage('home')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Home</button>
-            <button onclick="showPage('notes')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Notes</button>
-            <button onclick="showPage('code')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Code</button>
-            <button onclick="showPage('ai')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">AI</button>
-            <button onclick="showPage('quiz')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Quiz</button>
-            <button onclick="showPage('play')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Music</button>
-            <button onclick="showPage('focus')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Focus</button>
+        <div class="hidden xl:flex items-center gap-0.5 lg:gap-1 xl:gap-2 overflow-hidden">
+            <button onclick="showPage('home')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Home</button>
+            <button onclick="showPage('notes')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Notes</button>
+            <button onclick="showPage('code')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Code</button>
+            <button onclick="showPage('ai')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">AI</button>
+            <button onclick="showPage('quiz')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Quiz</button>
+            <button onclick="showPage('play')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Music</button>
+            <button onclick="showPage('focus')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Focus</button>
+            <button onclick="showPage('seek')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Seek</button>
+            <button onclick="showPage('random')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Random</button>
+            <button onclick="showPage('cricket')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Cricket</button>
+            <button onclick="showPage('snake')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Snake</button>
+            <button onclick="showPage('fun')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Fun</button>
 
-            <button id="dashboardBtn" onclick="showPage('dashboard')" class="hidden text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Dashboard</button>
-            <button onclick="showPage('support')" class="text-xs lg:text-sm font-medium hover:text-cyan-400 px-2 py-1">Support</button>
-            <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400 text-xs lg:text-sm font-medium px-2 py-1 border border-red-500/20 rounded-md bg-red-500/5">Admin</button>
+            <button id="dashboardBtn" onclick="showPage('dashboard')" class="hidden text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Dash</button>
+            <button onclick="showPage('support')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Support</button>
+            <button onclick="showPage('who')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Who?</button>
+            <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400 text-[10px] xl:text-xs font-medium px-1.5 py-1 border border-red-500/20 rounded-md bg-red-500/5">Admin</button>
         </div>
 
         <div id="userProfile" class="flex items-center gap-2 md:gap-3 shrink-0">
-            <div id="globalHealthIndicator" class="hidden flex items-center gap-2 px-1.5 md:px-2 py-1 rounded-full bg-white/5 border border-white/5" title="System Health">
+            <div id="globalHealthIndicator" class="hidden xl:flex items-center gap-2 px-1.5 md:px-2 py-1 rounded-full bg-white/5 border border-white/5" title="System Health">
                 <span class="relative flex h-2 w-2">
                     <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                     <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500" id="healthDot"></span>
                 </span>
                 <span class="hidden md:block text-[8px] font-black text-gray-500 uppercase tracking-tighter" id="healthText">Stable</span>
             </div>
-            <span id="userNameDisplay" class="text-xs hidden xl:block font-mono text-gray-400 truncate max-w-[100px]"></span>
-            <button id="authBtn" onclick="showPage('login')" class="bg-cyan-600/20 text-cyan-400 border border-cyan-600/30 px-3 md:px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold hover:bg-cyan-600 hover:text-white transition-all whitespace-nowrap flex items-center gap-2">
-                <i class="fas fa-sign-in-alt md:hidden"></i>
-                <span class="hidden md:inline">Login</span>
+            <span id="userNameDisplay" class="text-xs hidden 2xl:block font-mono text-gray-400 truncate max-w-[100px]"></span>
+            <button id="authBtn" onclick="showPage('login')" class="bg-cyan-600/20 text-cyan-400 border border-cyan-600/30 px-3 xl:px-4 py-1.5 rounded-lg text-xs md:text-sm font-bold hover:bg-cyan-600 hover:text-white transition-all whitespace-nowrap flex items-center gap-2">
+                <i class="fas fa-sign-in-alt xl:hidden"></i>
+                <span class="hidden xl:inline">Login</span>
             </button>
         </div>
     </nav>
@@ -416,6 +423,16 @@
                     <h3 class="text-xl font-bold mb-2">sOuLFOCUS</h3>
                     <p class="text-sm text-gray-400">Deep work timer, life metrics, and soul journaling.</p>
                     <div class="mt-4 text-red-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+
+                <div class="glass p-8 group hover:border-orange-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('seek')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-compass text-6xl"></i>
+                    </div>
+                    <i class="fas fa-compass text-3xl mb-4 text-orange-400"></i>
+                    <h3 class="text-xl font-bold mb-2">sOuLSEEK</h3>
+                    <p class="text-sm text-gray-400">AI Numerologist. Discover your path through Vedic wisdom.</p>
+                    <div class="mt-4 text-orange-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
                 </div>
 
                 <div class="glass p-8 group hover:border-pink-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('fun')">
@@ -1420,6 +1437,55 @@
             </div>
         </section>
 
+        <!-- sOuLSEEK Page -->
+        <section id="seek" class="page">
+            <div class="max-w-4xl mx-auto flex flex-col h-[85vh]">
+                <div class="text-center mb-6">
+                    <h2 class="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-600">sOuLSEEK</h2>
+                    <p class="text-gray-500 text-[10px] uppercase tracking-[0.4em]">The Digital Oracle of Numbers</p>
+                </div>
+
+                <div class="flex-grow glass flex flex-col overflow-hidden relative border-t-4 border-orange-500">
+                    <div class="p-3 border-b border-white/10 flex justify-between items-center bg-orange-950/10">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center">
+                                <i class="fas fa-om text-orange-400"></i>
+                            </div>
+                            <div>
+                                <h3 class="text-xs font-bold text-white leading-none">Vedic Numerologist</h3>
+                                <p class="text-[8px] text-orange-400 font-mono uppercase mt-1">Wisdom Core Active</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="generateSoulSeekReport()" class="bg-orange-600/20 text-orange-400 border border-orange-500/30 px-3 py-1 rounded-lg text-[9px] font-black uppercase hover:bg-orange-600 hover:text-white transition-all">
+                                <i class="fas fa-file-contract mr-1"></i> Get Final Report
+                            </button>
+                            <button onclick="clearSeekChat()" class="text-gray-500 hover:text-red-400 transition p-1"><i class="fas fa-trash-can"></i></button>
+                        </div>
+                    </div>
+
+                    <div id="seekChatBox" class="flex-grow overflow-y-auto p-4 md:p-6 flex flex-col gap-6 custom-scrollbar bg-black/20">
+                        <div class="ai-msg message">
+                            <div class="markdown-body text-sm italic">
+                                Greetings, Seeker. I am your guide through the lattice of numbers. To begin our journey into your soul's blueprint, please tell me your **Full Name** and **Full Date of Birth**.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="seekAiStatus" class="hidden px-4 py-2 border-t border-white/5 bg-orange-900/10">
+                        <span class="text-[8px] font-black text-orange-400 uppercase animate-pulse">Consulting the ancient squares...</span>
+                    </div>
+
+                    <div class="p-4 border-t border-white/10 bg-black/40">
+                        <div class="flex gap-3">
+                            <textarea id="seekInput" rows="1" class="flex-grow bg-gray-800 p-3 rounded-xl border border-gray-700 text-sm resize-none outline-none focus:border-orange-500 transition custom-scrollbar" placeholder="Share your name, birthdate, or ask a question..." oninput="autoResize(this)"></textarea>
+                            <button onclick="askSoulSeekAI()" id="seekSendBtn" class="bg-orange-600 w-12 h-12 rounded-xl flex items-center justify-center hover:bg-orange-500 transition shadow-lg shadow-orange-900/20 active:scale-95"><i class="fas fa-paper-plane"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Quiz Page -->
         <section id="quiz" class="page">
             <div class="max-w-6xl mx-auto py-10">
@@ -1883,7 +1949,7 @@
                     <textarea id="modelList" class="w-full bg-gray-900 p-4 rounded-xl h-24 mb-4 border border-gray-800 font-mono text-xs" placeholder='[{"name":"Pro 1.5", "id":"gemini-1.5-pro"}]'></textarea>
                     
                     <div class="mb-6">
-                        <label class="block text-xs text-gray-500 mb-1">Unified Core AI Model ID (Quiz, Focus, & Mini Chat)</label>
+                        <label class="block text-xs text-gray-500 mb-1">Unified Core AI Model ID (Quiz, Focus, Seek & Mini Chat)</label>
                         <input id="unifiedModelId" type="text" placeholder="gemini-1.5-flash" class="w-full bg-gray-900 p-3 rounded-lg border border-gray-800 text-sm">
                     </div>
 

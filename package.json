@@ -6,6 +6,7 @@
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "google-auth-library": "^10.6.2",
+    "he": "^1.2.0",
     "https-proxy-agent": "5.0.1",
     "mongodb": "^7.1.1",
     "nodemailer": "^8.0.5",
