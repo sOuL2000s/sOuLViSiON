@@ -467,11 +467,15 @@
                 <div class="w-full lg:w-72 glass flex flex-col p-4 shrink-0 overflow-hidden">
                     <div class="flex flex-col gap-3 mb-4">
                         <h2 class="text-lg font-black text-blue-400 uppercase tracking-tighter">sOuLCODE Explorer</h2>
-                        <div class="flex gap-2">
-                            <input type="file" id="codeFileInput" class="hidden" multiple onchange="handleCodeUpload(event)">
-                            <button onclick="document.getElementById('codeFileInput').click()" class="flex-1 bg-white/5 border border-white/10 py-2 rounded-lg text-[10px] font-bold hover:bg-blue-600 transition uppercase"><i class="fas fa-file-upload mr-1"></i> Files</button>
-                            <input type="file" id="codeFolderInput" class="hidden" webkitdirectory directory multiple onchange="handleCodeUpload(event)">
-                            <button onclick="document.getElementById('codeFolderInput').click()" class="flex-1 bg-white/5 border border-white/10 py-2 rounded-lg text-[10px] font-bold hover:bg-blue-600 transition uppercase"><i class="fas fa-folder-plus mr-1"></i> Folder</button>
+                        <div class="flex flex-col gap-2">
+                            <div class="flex gap-2">
+                                <input type="file" id="codeFileInput" class="hidden" multiple onchange="handleCodeUpload(event)">
+                                <button onclick="document.getElementById('codeFileInput').click()" class="w-full bg-white/5 border border-white/10 py-2 rounded-lg text-[10px] font-bold hover:bg-blue-600 transition uppercase" title="Upload Files"><i class="fas fa-file-upload mr-1"></i> Upload Files</button>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="createNewCodeFile()" class="flex-1 bg-white/5 border border-white/10 py-2 rounded-lg text-[10px] font-bold hover:bg-blue-600 transition uppercase" title="Blank Notebook"><i class="fas fa-plus mr-1"></i> New File</button>
+                                <button onclick="clearCodeWorkspace()" class="flex-1 bg-white/5 border border-white/10 py-2 rounded-lg text-[10px] font-bold hover:bg-red-600 transition uppercase text-gray-500 hover:text-white" title="Reset Session"><i class="fas fa-trash-can mr-1"></i> Reset</button>
+                            </div>
                         </div>
                     </div>
                     <div id="fileTree" class="flex-grow overflow-y-auto custom-scrollbar space-y-1 pr-2 min-h-[150px]">
@@ -488,12 +492,13 @@
                             <span id="editStatus" class="hidden text-[9px] font-black bg-blue-600 text-white px-2 py-0.5 rounded animate-pulse uppercase">Syncing...</span>
                         </div>
                         <div class="flex gap-2">
+                            <button onclick="deleteActiveFolder()" id="deleteFolderBtn" class="hidden bg-white/5 p-1.5 rounded-lg text-[10px] text-gray-400 hover:text-red-500 transition" title="Remove Folder Collection"><i class="fas fa-folder-minus"></i></button>
                             <button onclick="downloadActiveFile()" id="downloadBtn" class="hidden bg-white/5 p-1.5 rounded-lg text-[10px] text-gray-400 hover:text-white transition" title="Download File"><i class="fas fa-download"></i></button>
                             <button onclick="saveActiveFile()" class="bg-blue-600 px-4 py-1.5 rounded-lg text-[10px] font-black text-white hover:bg-blue-500 transition shadow-lg shadow-blue-900/20 uppercase">Save</button>
                         </div>
                     </div>
                     <div class="flex-grow relative bg-black/20">
-                        <textarea id="codeEditor" class="absolute inset-0 w-full h-full p-6 bg-transparent text-gray-300 font-mono text-xs md:text-sm resize-none outline-none custom-scrollbar leading-relaxed" spellcheck="false" placeholder="// Select a file or start coding..."></textarea>
+                        <textarea id="codeEditor" oninput="handleCodeInput()" class="absolute inset-0 w-full h-full p-6 bg-transparent text-gray-300 font-mono text-xs md:text-sm resize-none outline-none custom-scrollbar leading-relaxed" spellcheck="false" placeholder="// Select a file or start coding..."></textarea>
                         
                         <!-- AI Diff/Review Overlay -->
                         <div id="diffOverlay" class="hidden absolute inset-0 bg-blue-900/95 z-20 flex flex-col p-4 backdrop-blur-md animate-fadeIn">
@@ -504,12 +509,12 @@
                                     <button onclick="acceptAIChanges()" class="bg-green-600 px-4 py-1.5 rounded-lg text-[9px] font-black text-white hover:bg-green-500 transition shadow-lg shadow-green-900/20 uppercase">Apply</button>
                                 </div>
                             </div>
-                            <div class="flex-grow flex flex-col md:grid md:grid-cols-2 gap-4 overflow-hidden">
-                                <div class="flex flex-col h-1/2 md:h-full">
+                            <div class="flex-grow flex flex-col md:grid md:grid-cols-2 gap-4 min-h-0">
+                                <div class="flex flex-col h-1/2 md:h-full min-h-0">
                                     <span class="text-[9px] font-black text-gray-400 uppercase mb-1">Original</span>
                                     <pre id="diffOriginal" class="flex-grow bg-black/40 p-3 rounded-xl text-[10px] overflow-auto border border-white/5 custom-scrollbar"></pre>
                                 </div>
-                                <div class="flex flex-col h-1/2 md:h-full">
+                                <div class="flex flex-col h-1/2 md:h-full min-h-0">
                                     <span class="text-[9px] font-black text-blue-400 uppercase mb-1">Proposed Update</span>
                                     <pre id="diffProposed" class="flex-grow bg-blue-900/20 p-3 rounded-xl text-[10px] overflow-auto border border-blue-500/20 custom-scrollbar text-blue-100"></pre>
                                 </div>

@@ -1133,6 +1133,35 @@ function handlePreviewScroll(e) {
     requestAnimationFrame(() => { isSyncScrolling = false; });
 }
 
+// --- sOuLCODE Diff Scroll Sync ---
+let isDiffSyncScrolling = false;
+
+function handleDiffOriginalScroll(e) {
+    if (isDiffSyncScrolling) return;
+    isDiffSyncScrolling = true;
+    const origin = e.target;
+    const target = document.getElementById('diffProposed');
+    const scrollRange = origin.scrollHeight - origin.clientHeight;
+    if (target && scrollRange > 0) {
+        const scrollPercentage = origin.scrollTop / scrollRange;
+        target.scrollTop = scrollPercentage * (target.scrollHeight - target.clientHeight);
+    }
+    requestAnimationFrame(() => { isDiffSyncScrolling = false; });
+}
+
+function handleDiffProposedScroll(e) {
+    if (isDiffSyncScrolling) return;
+    isDiffSyncScrolling = true;
+    const origin = e.target;
+    const target = document.getElementById('diffOriginal');
+    const scrollRange = origin.scrollHeight - origin.clientHeight;
+    if (target && scrollRange > 0) {
+        const scrollPercentage = origin.scrollTop / scrollRange;
+        target.scrollTop = scrollPercentage * (target.scrollHeight - target.clientHeight);
+    }
+    requestAnimationFrame(() => { isDiffSyncScrolling = false; });
+}
+
 function openNote(id) {
     id = Number(id);
     const note = notes.find(n => n.id === id);
@@ -6070,55 +6099,89 @@ document.addEventListener('visibilitychange', () => {
 });
 
 // --- sOuLCODE LOGIC ---
+const CODE_EXCLUSIONS = ['node_modules', '.git', '.vercel', '.next', 'dist', 'build', '.env', 'package-lock.json', 'yarn.lock', 'venv', '__pycache__', '.vscode'];
+
 async function handleCodeUpload(e) {
-    const files = Array.from(e.target.files);
+    let files = Array.from(e.target.files);
     if (!files.length) return;
 
-    setLoading(true, `Indexing ${files.length} items...`);
-    
-    // Process files sequentially to ensure UI thread remains responsive and data integrity
-    for (const file of files) {
-        await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                const content = event.target.result;
-                const path = file.webkitRelativePath || file.name;
-                projectFiles.push({
-                    id: Date.now() + Math.random(),
-                    name: file.name,
-                    path: path,
-                    content: content
-                });
-                resolve();
-            };
-            reader.onerror = () => resolve();
-            reader.readAsText(file);
+    // Optional user-defined exclusions for large projects
+    let customExclusions = [];
+    if (files.length > 50) {
+        const userInput = prompt(`Project contains ${files.length} items. \nStandard exclusions (node_modules, etc.) are active. \nEnter additional comma-separated keywords to exclude (or leave blank):`, "");
+        if (userInput) {
+            customExclusions = userInput.split(',').map(s => s.trim().toLowerCase()).filter(s => s);
+        }
+    }
+
+    const allExclusions = [...CODE_EXCLUSIONS, ...customExclusions];
+
+    let skipped = 0;
+    const processList = files.filter(f => {
+        const fullPath = (f.webkitRelativePath || f.name).toLowerCase();
+        const pathSegments = fullPath.split('/');
+        
+        // Accurate segment matching to avoid accidental exclusion of similarly named files
+        const isEx = allExclusions.some(x => {
+            const pattern = x.toLowerCase();
+            return pathSegments.some(segment => segment === pattern) || fullPath.includes(pattern);
         });
+
+        if(isEx) skipped++;
+        return !isEx;
+    });
+
+    if(!processList.length) {
+        showToast("No valid source files found after filtering.", "warning");
+        e.target.value = ''; return;
+    }
+
+    setLoading(true, `Indexing ${processList.length} items...`);
+    
+    // Chunked processing to maintain UI responsiveness
+    const CHUNK_SIZE = 25;
+    for (let i = 0; i < processList.length; i += CHUNK_SIZE) {
+        const chunk = processList.slice(i, i + CHUNK_SIZE);
+        await Promise.all(chunk.map(file => {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    projectFiles.push({ 
+                        id: Date.now() + Math.random(), 
+                        name: file.name, 
+                        path: file.webkitRelativePath || file.name, 
+                        content: ev.target.result 
+                    });
+                    resolve();
+                };
+                reader.onerror = () => resolve();
+                reader.readAsText(file);
+            });
+        }));
     }
 
     renderFileTree();
     setLoading(false);
-    showToast(`Workspace updated with ${files.length} items.`, "success");
-    e.target.value = ''; // Reset input to allow re-selection of same files
+    showToast(`Workspace Ready. Indexed ${processList.length} files, skipped ${skipped} ignored items.`, "success");
+    e.target.value = '';
 }
 
 function renderFileTree() {
     const tree = document.getElementById('fileTree');
     if (!projectFiles.length) {
-        tree.innerHTML = '<p class="text-[10px] text-gray-500 italic text-center py-10">Upload a project to begin.</p>';
+        tree.innerHTML = '<div class="py-10 text-center"><p class="text-[10px] text-gray-500 italic mb-4">Workspace empty.</p><button onclick="createNewCodeFile()" class="text-[9px] font-black text-blue-400 hover:underline">NEW BLANK FILE</button></div>';
         return;
     }
 
     tree.innerHTML = projectFiles.sort((a,b) => a.path.localeCompare(b.path)).map(f => {
         const isActive = f.id === activeFileId;
-        const ext = f.name.split('.').pop();
-        let icon = 'fa-file-code';
-        if (['html', 'css', 'js', 'py', 'json'].includes(ext)) icon = `fa-file-${ext === 'js' ? 'code' : (ext === 'py' ? 'code' : ext)}`;
-        
         return `
-            <div onclick="selectCodeFile('${f.id}')" class="flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-all hover:bg-white/5 ${isActive ? 'bg-blue-600/20 text-white border border-blue-500/30' : 'text-gray-400'}">
-                <i class="fas ${icon} text-[10px] opacity-70"></i>
-                <span class="text-[10px] font-medium truncate">${f.path}</span>
+            <div onclick="selectCodeFile('${f.id}')" class="group flex items-center justify-between p-2 rounded-lg cursor-pointer transition-all hover:bg-white/5 ${isActive ? 'bg-blue-600/20 text-white border border-blue-500/30' : 'text-gray-400'}">
+                <div class="flex items-center gap-2 min-w-0">
+                    <i class="fas fa-file-code text-[10px] opacity-70"></i>
+                    <span class="text-[10px] font-medium truncate">${f.path}</span>
+                </div>
+                <button onclick="event.stopPropagation(); deleteCodeFile('${f.id}')" class="opacity-0 group-hover:opacity-100 hover:text-red-500 p-1"><i class="fas fa-trash-alt text-[9px]"></i></button>
             </div>
         `;
     }).join('');
@@ -6128,19 +6191,74 @@ function selectCodeFile(id) {
     activeFileId = Number(id);
     const file = projectFiles.find(f => f.id === activeFileId);
     if (!file) return;
-
     document.getElementById('activeFileName').innerText = file.path;
     document.getElementById('codeEditor').value = file.content;
     document.getElementById('downloadBtn').classList.remove('hidden');
+    const folderBtn = document.getElementById('deleteFolderBtn');
+    if(file.path.includes('/')) folderBtn.classList.remove('hidden');
+    else folderBtn.classList.add('hidden');
     renderFileTree();
 }
 
-function saveActiveFile() {
+function deleteCodeFile(id) {
+    const numId = Number(id);
+    projectFiles = projectFiles.filter(f => f.id !== numId);
+    if(activeFileId === numId) clearEditorState();
+    renderFileTree();
+}
+
+function deleteActiveFolder() {
+    const file = projectFiles.find(f => f.id === activeFileId);
+    if(!file || !file.path.includes('/')) return;
+    const folder = file.path.split('/').slice(0, -1).join('/') + '/';
+    if(!confirm(`Remove all files in ${folder}?`)) return;
+    projectFiles = projectFiles.filter(f => !f.path.startsWith(folder));
+    if(!projectFiles.find(f => f.id === activeFileId)) clearEditorState();
+    renderFileTree();
+    showToast(`Removed folder: ${folder}`, "warning");
+}
+
+function clearEditorState() {
+    activeFileId = null;
+    document.getElementById('codeEditor').value = '';
+    document.getElementById('activeFileName').innerText = 'No file selected';
+    document.getElementById('downloadBtn').classList.add('hidden');
+    document.getElementById('deleteFolderBtn').classList.add('hidden');
+}
+
+function clearCodeWorkspace() {
+    if(projectFiles.length && !confirm("Clear entire session?")) return;
+    projectFiles = [];
+    clearEditorState();
+    renderFileTree();
+}
+
+function createNewCodeFile() {
+    const name = prompt("Name your file:", "Untitled.txt") || "Untitled.txt";
+    const id = Date.now() + Math.random();
+    projectFiles.push({ id, name, path: name, content: '' });
+    renderFileTree();
+    selectCodeFile(id);
+}
+
+let codeAutoSaveTimeout;
+function handleCodeInput() {
+    const status = document.getElementById('editStatus');
+    if (status) status.classList.remove('hidden');
+    
+    clearTimeout(codeAutoSaveTimeout);
+    codeAutoSaveTimeout = setTimeout(() => {
+        saveActiveFile(true);
+        if (status) status.classList.add('hidden');
+    }, 1500);
+}
+
+function saveActiveFile(isAuto = false) {
     if (!activeFileId) return;
     const file = projectFiles.find(f => f.id === activeFileId);
     if (file) {
         file.content = document.getElementById('codeEditor').value;
-        showToast("Local file updated.", "success");
+        if (!isAuto) showToast("Local file updated.", "success");
     }
 }
 
@@ -6160,12 +6278,25 @@ function downloadActiveFile() {
 
 async function askCodeAI() {
     const inputEl = document.getElementById('codeChatInput');
+    const editorEl = document.getElementById('codeEditor');
     const query = inputEl.value.trim();
     if (!query) return;
 
-    const activeFile = projectFiles.find(f => f.id === activeFileId);
+    let activeFile = projectFiles.find(f => f.id === activeFileId);
+    
+    // Notebook Auto-Initialization: Use editor content if no file selected
+    if (!activeFile && editorEl.value.trim()) {
+        const id = Date.now() + Math.random();
+        activeFile = { id, name: 'notebook.txt', path: 'notebook.txt', content: editorEl.value };
+        projectFiles.push(activeFile);
+        activeFileId = id;
+        renderFileTree();
+        selectCodeFile(id);
+        showToast("Editor content indexed as notebook.", "info");
+    }
+
     if (!activeFile) {
-        showToast("Please select a file to talk about first.", "warning");
+        showToast("Upload a file or enter code in the editor to provide context.", "warning");
         return;
     }
 
@@ -6233,9 +6364,48 @@ async function askCodeAI() {
 
 function showDiffOverlay() {
     if (!aiProposedChange) return;
-    document.getElementById('diffOriginal').innerText = aiProposedChange.originalContent;
-    document.getElementById('diffProposed').innerText = aiProposedChange.newContent;
+    
+    const origLines = aiProposedChange.originalContent.split('\n');
+    const newLines = aiProposedChange.newContent.split('\n');
+    
+    let origHtml = "";
+    let newHtml = "";
+    
+    const maxLines = Math.max(origLines.length, newLines.length);
+    
+    for (let i = 0; i < maxLines; i++) {
+        const o = origLines[i];
+        const n = newLines[i];
+        
+        const oStr = o !== undefined ? escapeHtml(o) : null;
+        const nStr = n !== undefined ? escapeHtml(n) : null;
+
+        if (o === n) {
+            if (oStr !== null) origHtml += `<div>${oStr || '&nbsp;'}</div>`;
+            if (nStr !== null) newHtml += `<div>${nStr || '&nbsp;'}</div>`;
+        } else {
+            // Different lines: highlight deletion in red, addition in green
+            if (oStr !== null) origHtml += `<div class="bg-red-500/30 text-red-200 border-l-2 border-red-500 pl-1"> ${oStr || '&nbsp;'}</div>`;
+            else origHtml += `<div class="opacity-20">&nbsp;</div>`;
+            
+            if (nStr !== null) newHtml += `<div class="bg-green-500/30 text-green-200 border-l-2 border-green-500 pl-1"> ${nStr || '&nbsp;'}</div>`;
+            else newHtml += `<div class="opacity-20">&nbsp;</div>`;
+        }
+    }
+
+    document.getElementById('diffOriginal').innerHTML = origHtml;
+    document.getElementById('diffProposed').innerHTML = newHtml;
     document.getElementById('diffOverlay').classList.remove('hidden');
+}
+
+function escapeHtml(text) {
+    if (!text) return "";
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 function acceptAIChanges() {
@@ -6351,12 +6521,20 @@ const initApp = async () => {
 
         document.getElementById('aiWidget').onclick = toggleMiniChat;
 
-        // Synced Scrolling Initialization
+        // Synced Scrolling Initialization (Notes)
         const editorEl = document.getElementById('editNoteText');
         const previewEl = document.getElementById('notePreview');
         if (editorEl && previewEl) {
             editorEl.addEventListener('scroll', handleEditorScroll, { passive: true });
             previewEl.addEventListener('scroll', handlePreviewScroll, { passive: true });
+        }
+
+        // Synced Scrolling Initialization (Code Diff)
+        const diffOrig = document.getElementById('diffOriginal');
+        const diffProp = document.getElementById('diffProposed');
+        if (diffOrig && diffProp) {
+            diffOrig.addEventListener('scroll', handleDiffOriginalScroll, { passive: true });
+            diffProp.addEventListener('scroll', handleDiffProposedScroll, { passive: true });
         }
 
         // Start polling/monitoring

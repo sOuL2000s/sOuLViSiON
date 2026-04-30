@@ -1334,9 +1334,18 @@ textarea:focus, input:focus {
 }
 
 #diffOriginal, #diffProposed {
-    white-space: pre-wrap;
-    word-break: break-all;
+    white-space: pre; /* Changed to pre for horizontal scrolling support on desktop */
+    overflow-x: auto;
+    word-break: normal;
     font-family: 'Fira Code', monospace;
+    min-height: 0; /* Critical for scrollability inside grid/flex */
+}
+
+@media (max-width: 768px) {
+    #diffOriginal, #diffProposed {
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
 }
 
 .streaming-msg .markdown-body::after {
