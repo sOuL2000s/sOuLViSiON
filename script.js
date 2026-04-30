@@ -12,6 +12,10 @@ let quizState = {
     results: []
 };
 
+let consecutiveApiFailures = 0;
+let isAICooldownActive = false;
+let aiCooldownTimer = null; // To automatically clear cooldown
+
 function showToast(message, type = 'success', duration = 3000) {
     const container = document.getElementById('toastContainer');
     if (!container) return;
@@ -2359,22 +2363,37 @@ async function loadConfig() {
     if(data) {
         aiConfig.keys = data.keys || [];
         aiConfig.models = data.models || [];
-        aiConfig.unifiedModel = data.unifiedModel || "gemini-2.5-flash";
         aiConfig.razorpayKey = data.razorpayKey;
         updateAIUI();
         if (document.getElementById('statKeys')) document.getElementById('statKeys').innerText = aiConfig.keys.length;
         if (document.getElementById('apiKeys')) document.getElementById('apiKeys').value = aiConfig.keys.join(', ');
         if (document.getElementById('modelList')) document.getElementById('modelList').value = JSON.stringify(aiConfig.models);
-        if (document.getElementById('unifiedModelId')) document.getElementById('unifiedModelId').value = aiConfig.unifiedModel;
     }
 }
 
 function updateAIUI() {
-    const select = document.getElementById('modelSelect');
-    const codeSelect = document.getElementById('codeModelSelect');
     const options = aiConfig.models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
-    if(select) select.innerHTML = options;
-    if(codeSelect) codeSelect.innerHTML = options;
+
+    const modelSelects = [
+        document.getElementById('modelSelect'),
+        document.getElementById('codeModelSelect'),
+        document.getElementById('focusModelSelect'),
+        document.getElementById('seekModelSelect'),
+        document.getElementById('quizModelSelect'),
+        document.getElementById('miniModelSelect')
+    ];
+
+    modelSelects.forEach(select => {
+        if (select) {
+            const currentSelected = select.value; // Preserve current selection if possible
+            select.innerHTML = options;
+            if (currentSelected && select.querySelector(`option[value="${currentSelected}"]`)) {
+                select.value = currentSelected;
+            } else if (aiConfig.models.length > 0) {
+                select.value = aiConfig.models[0].id; // Default to first available model
+            }
+        }
+    });
 }
 
 // --- AI LOGIC (Key Rotation + History) ---
@@ -3079,8 +3098,13 @@ document.getElementById('miniChatInput').addEventListener('paste', (e) => {
 
 async function askAI() {
     stopAllSTT();
+    if (isAICooldownActive) {
+        showAICooldownOverlay();
+        return;
+    }
     const inputEl = document.getElementById('chatInput');
     const persona = document.getElementById('personaSelect').value;
+    const model = document.getElementById('modelSelect').value; // Get model from main chat dropdown
     let input = inputEl.value;
     if(!input.trim() && pendingFiles.length === 0) return;
     
@@ -3111,14 +3135,19 @@ async function askAI() {
     const attachmentsForApi = [...pendingFiles];
     pendingFiles = [];
     
-    await callGeminiAPI(input, 'chatBox', conv ? conv.messages : [], attachmentsForApi);
+    await callGeminiAPI(input, 'chatBox', conv ? conv.messages : [], attachmentsForApi, model); // Pass selected model
 }
 
 async function askMiniAI() {
     stopAllSTT();
+    if (isAICooldownActive) {
+        showAICooldownOverlay();
+        return;
+    }
     const inputEl = document.getElementById('miniChatInput');
     const box = document.getElementById('miniChatBox');
     const txt = inputEl.value;
+    const model = document.getElementById('miniModelSelect').value; // Get model from mini chat dropdown
     if(!txt.trim() && pendingFiles.length === 0) return;
     
     const userDisplayMsg = txt + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
@@ -3136,22 +3165,24 @@ async function askMiniAI() {
     const attachmentsForApi = [...pendingFiles];
     pendingFiles = [];
     
-    await callGeminiAPI(txt, 'miniChatBox', miniChatHistory, attachmentsForApi);
+    await callGeminiAPI(txt, 'miniChatBox', miniChatHistory, attachmentsForApi, model); // Pass selected model
 }
 
-async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attachments = []) {
+async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attachments = [], model = null) { // Accept model parameter
     document.title = '● AI is thinking...';
-    let model = "gemini-1.5-flash";
-    const isMini = targetBoxId === 'miniChatBox';
-    if (isMini) {
-        model = aiConfig.unifiedModel || "gemini-1.5-flash";
-    } else {
-        const modelSelect = document.getElementById('modelSelect');
-        model = (modelSelect && modelSelect.value) ? modelSelect.value : (aiConfig.models[0]?.id || "gemini-1.5-flash");
+    
+    // Ensure a model is selected, default to first available if not explicitly provided or found
+    if (!model) {
+        if (aiConfig.models.length > 0) {
+            model = aiConfig.models[0].id;
+        } else {
+            return alert("No AI models configured. Please ask admin to set them up.");
+        }
     }
     
     if(!aiConfig.keys.length) return alert("Please configure API Keys in Admin panel.");
 
+    const isMini = targetBoxId === 'miniChatBox';
     const statusEl = document.getElementById(isMini ? 'miniAiStatus' : 'aiStatus');
     const loadingPhrases = isStreamingMode ? [
         "Establishing neural stream...",
@@ -3346,8 +3377,26 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         console.warn(`Key ${currentKeyIndex} error: ${err.message}.`);
         if (aiConfig.keys.length > 1) {
             currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
-            return await callGeminiAPI(text, targetBoxId, history, attachments);
+            return await callGeminiAPI(text, targetBoxId, history, attachments, model); // Pass model for retry
         }
+        
+        // Error handling: Increment failure count
+        consecutiveApiFailures++;
+        if (consecutiveApiFailures >= 3 && !isAICooldownActive) { // Threshold for cooldown (e.g., 3 failures)
+            isAICooldownActive = true;
+            showAICooldownOverlay();
+            // Start a timer to automatically clear cooldown after some time (e.g., 5 minutes)
+            aiCooldownTimer = setTimeout(() => {
+                isAICooldownActive = false;
+                consecutiveApiFailures = 0;
+                hideAICooldownOverlay();
+                showToast("AI Cooldown lifted! Try again.", "info");
+            }, 5 * 60 * 1000); // 5 minutes
+            showToast("AI is on cooldown. Please wait or support.", "warning");
+            document.title = 'sOuLViSiON | Digital Sanctuary';
+            return; // Don't retry more if cooldown is active
+        }
+
         if(statusEl) statusEl.classList.add('hidden');
         
         if (err.message.includes("quota") || err.message.includes("API key")) {
@@ -3451,6 +3500,11 @@ async function syncSeekHistory() {
 }
 
 async function askSoulSeekAI() {
+    stopAllSTT();
+    if (isAICooldownActive) {
+        showAICooldownOverlay();
+        return;
+    }
     const inputEl = document.getElementById('seekInput');
     const text = inputEl.value.trim();
     if (!text) return;
@@ -3482,7 +3536,7 @@ async function askSoulSeekAI() {
     const statusEl = document.getElementById('seekAiStatus');
     statusEl.classList.remove('hidden');
     
-    const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+    const model = document.getElementById('seekModelSelect').value; // Get model from seek dropdown
     const key = aiConfig.keys[currentKeyIndex];
 
     try {
@@ -3636,7 +3690,8 @@ async function startQuiz(category) {
         Return ONLY a JSON array of objects with keys: "q" (the question), "o" (array of 4 options), "a" (index of correct option 0-3). 
         Do not include markdown blocks or any text other than the JSON. Ensure questions are challenging and diverse.`;
         
-        const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+        const model = document.getElementById('quizModelSelect').value; // Get model from quiz dropdown
+        quizState.model = model; // Store model in quizState
         const key = aiConfig.keys[currentKeyIndex];
         
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
@@ -3757,7 +3812,7 @@ async function finishQuiz() {
         const prompt = `The user completed a "${quizState.category}" quiz. Score: ${totalScore}/200. Correct: ${correctCount}/${quizState.questions.length}. 
         Give a single, concise, and mystical/intellectual one-sentence evaluation of their performance.`;
         
-        const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+        const model = document.getElementById('focusModelSelect').value; // Get model from focus dropdown
         const key = aiConfig.keys[currentKeyIndex];
         
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
@@ -4527,7 +4582,7 @@ async function startReportQuestionnaire() {
 
     try {
         const prompt = "Act as a spiritual guide. Generate 3 deep, philosophical questions for a self-actualization report. Return them as a simple numbered list. Do not include any other text.";
-        const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+        const model = document.getElementById('focusModelSelect').value; // Get model from focus dropdown
         const key = aiConfig.keys[currentKeyIndex];
         
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
@@ -5409,7 +5464,6 @@ function setTheme(theme) {
 async function saveAdminConfig() {
     const keys = document.getElementById('apiKeys').value.split(',').map(k => k.trim());
     const models = JSON.parse(document.getElementById('modelList').value);
-    const unifiedModel = document.getElementById('unifiedModelId').value.trim();
     const adminEmail = currentUser ? currentUser.email : '';
     
     setLoading(true, "Applying Admin Settings");
@@ -5417,7 +5471,7 @@ async function saveAdminConfig() {
         const res = await fetch(`/api/main?route=admin_config&adminEmail=${encodeURIComponent(adminEmail)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'ai_settings', keys, models, unifiedModel })
+            body: JSON.stringify({ type: 'ai_settings', keys, models }) // Removed unifiedModel
         });
         if(res.ok) { alert("Config Updated!"); loadConfig(); }
     } finally {
@@ -6150,6 +6204,33 @@ function updateGoalProgress() {
     }
 }
 
+function showAICooldownOverlay() {
+    const overlay = document.getElementById('aiCooldownOverlay');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+    }
+}
+
+function hideAICooldownOverlay() {
+    const overlay = document.getElementById('aiCooldownOverlay');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+function retryAICooldown() {
+    // Attempt to clear cooldown state and close overlay
+    isAICooldownActive = false;
+    consecutiveApiFailures = 0;
+    if (aiCooldownTimer) clearTimeout(aiCooldownTimer);
+    hideAICooldownOverlay();
+    showToast("Attempting to reconnect AI...", "info");
+}
+
+function goToSupportPage() {
+    hideAICooldownOverlay();
+    showPage('support');
+}
+
 
 
 function toggleSTTNote(inputId) {
@@ -6416,6 +6497,11 @@ function downloadActiveFile() {
 }
 
 async function askCodeAI() {
+    stopAllSTT();
+    if (isAICooldownActive) {
+        showAICooldownOverlay();
+        return;
+    }
     const inputEl = document.getElementById('codeChatInput');
     const editorEl = document.getElementById('codeEditor');
     const query = inputEl.value.trim();
@@ -6443,7 +6529,7 @@ async function askCodeAI() {
     inputEl.value = '';
     autoResize(inputEl);
 
-    const model = document.getElementById('codeModelSelect').value || aiConfig.unifiedModel;
+    const model = document.getElementById('codeModelSelect').value; // Get model from code dropdown
     const key = aiConfig.keys[currentKeyIndex];
     const statusEl = document.getElementById('codeAIStatus');
     statusEl.classList.remove('hidden');

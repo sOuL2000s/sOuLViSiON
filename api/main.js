@@ -264,10 +264,6 @@ export default async function handler(req, res) {
                 const config = (await col.findOne({ type: 'ai_settings' })) || {};
                 // Expose Razorpay Public Key from environment
                 config.razorpayKey = process.env.RAZORPAY_KEY_ID;
-                // Handle legacy field mapping if necessary
-                if (!config.unifiedModel && config.miniChatModel) {
-                    config.unifiedModel = config.miniChatModel;
-                }
                 return res.status(200).json(config);
             }
 
@@ -279,11 +275,13 @@ export default async function handler(req, res) {
             }
 
             if (method === 'POST') {
-                // Ensure field is renamed if present in payload
-                if (body.miniChatModel && !body.unifiedModel) {
-                    body.unifiedModel = body.miniChatModel;
-                }
-                await col.updateOne({ type: 'ai_settings' }, { $set: body }, { upsert: true });
+                // Ensure only 'keys' and 'models' are stored (remove any unified model concepts)
+                const updateDoc = {
+                    keys: body.keys,
+                    models: body.models,
+                    type: 'ai_settings' // Always ensure the type is consistent
+                };
+                await col.updateOne({ type: 'ai_settings' }, { $set: updateDoc }, { upsert: true });
                 return res.status(200).json({ success: true });
             }
         }
