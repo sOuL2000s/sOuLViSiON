@@ -500,96 +500,122 @@ export default async function handler(req, res) {
                         const renderMarkdown = (text) => {
                             const lines = text.split('\n');
                             let inCodeBlock = false;
-                            
+                            const pageWidth = doc.page.width - 100;
+
                             for (let i = 0; i < lines.length; i++) {
                                 let line = lines[i];
                                 const trimmed = line.trim();
 
-                                // Check for Page Overflow
-                                if (doc.y > 750) doc.addPage();
+                                if (doc.y > 720) doc.addPage();
 
-                                // 1. Code Block Toggle
+                                // Code Blocks
                                 if (trimmed.startsWith('```')) {
                                     inCodeBlock = !inCodeBlock;
-                                    doc.moveDown(0.5);
+                                    if (inCodeBlock) doc.moveDown(0.5);
+                                    else doc.moveDown(0.5);
                                     continue;
                                 }
 
                                 if (inCodeBlock) {
                                     doc.save();
-                                    // Draw a light background for code
-                                    const codeWidth = doc.page.width - 100;
-                                    doc.rect(50, doc.y - 2, codeWidth, 14).fill('#1e293b');
-                                    doc.fillColor('#e2e8f0').font('Courier').fontSize(9).text(cleanStr(line), 60, doc.y, { lineGap: 0 });
+                                    const codeHeight = doc.heightOfString(line, { font: 'Courier', size: 9, width: pageWidth - 20 });
+                                    if (doc.y + codeHeight > 750) doc.addPage();
+                                    doc.rect(50, doc.y - 2, pageWidth, codeHeight + 4).fill('#1e293b');
+                                    doc.fillColor('#e2e8f0').font('Courier').fontSize(9).text(cleanStr(line), 60, doc.y, { width: pageWidth - 20 });
                                     doc.restore();
                                     continue;
                                 }
 
-                                // 2. Headers
-                                if (trimmed.startsWith('# ')) {
-                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(20).text(cleanStr(trimmed.substring(2))).moveDown(0.5);
-                                    continue;
-                                } else if (trimmed.startsWith('## ')) {
-                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(16).text(cleanStr(trimmed.substring(3))).moveDown(0.4);
-                                    continue;
-                                } else if (trimmed.startsWith('### ')) {
-                                    doc.fillColor('#0891b2').font('Helvetica-Bold').fontSize(14).text(cleanStr(trimmed.substring(4))).moveDown(0.3);
+                                // Horizontal Rule
+                                if (trimmed.match(/^---$|^\*\*\*$|^___$/)) {
+                                    doc.moveDown(0.5).strokeColor('#334155').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke().moveDown(1);
                                     continue;
                                 }
 
-                                // 3. Horizontal Rule
-                                if (trimmed === '---' || trimmed === '***') {
-                                    doc.strokeColor('#334155').lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke().moveDown(1);
+                                // Headers
+                                const headerMatch = line.match(/^(#{1,3})\s+(.*)/);
+                                if (headerMatch) {
+                                    const level = headerMatch[1].length;
+                                    const content = headerMatch[2];
+                                    const sizes = [0, 22, 18, 14];
+                                    const colors = [null, '#06b6d4', '#06b6d4', '#0891b2'];
+                                    doc.fillColor(colors[level]).font('Helvetica-Bold').fontSize(sizes[level]).text(cleanStr(content)).moveDown(0.5);
                                     continue;
                                 }
 
-                                // 4. Blockquotes
+                                // Blockquotes
                                 if (trimmed.startsWith('>')) {
                                     doc.save();
-                                    doc.strokeColor('#06b6d4').lineWidth(2).moveTo(55, doc.y).lineTo(55, doc.y + 12).stroke();
-                                    doc.fillColor('#64748b').font('Helvetica-Oblique').fontSize(11).text(cleanStr(trimmed.substring(1).trim()), 70, doc.y);
+                                    const bqText = cleanStr(line.replace(/^>\s?/, ''));
+                                    const bqHeight = doc.heightOfString(bqText, { font: 'Helvetica-Oblique', size: 11, width: pageWidth - 25 });
+                                    if (doc.y + bqHeight > 750) doc.addPage();
+                                    doc.strokeColor('#06b6d4').lineWidth(2).moveTo(55, doc.y).lineTo(55, doc.y + bqHeight).stroke();
+                                    doc.fillColor('#64748b').font('Helvetica-Oblique').fontSize(11).text(bqText, 70, doc.y, { width: pageWidth - 25 });
                                     doc.restore();
                                     doc.moveDown(0.2);
                                     continue;
                                 }
 
-                                // 5. Lists
-                                let isListItem = false;
-                                if (trimmed.match(/^(\*|-|\d+\.)\s/)) {
-                                    isListItem = true;
-                                    const bullet = trimmed.split(' ')[0];
-                                    doc.fillColor('#06b6d4').font('Helvetica-Bold').text(bullet, 55, doc.y, { continued: true });
-                                    line = line.substring(line.indexOf(' ') + 1);
-                                }
-
-                                // 6. Standard Paragraphs with Inline styles
+                                // Standard line / Paragraph / List Item
                                 if (trimmed === '') {
                                     doc.moveDown(0.5);
-                                } else {
-                                    const indent = isListItem ? 75 : 50;
-                                    doc.fillColor('#334155').font('Helvetica').fontSize(11);
-                                    
-                                    // Better Inline Parsing: split by Bold, Italic, Code
-                                    const parts = line.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`)/g);
-                                    
-                                    parts.forEach((part, index) => {
-                                        const isLast = index === parts.length - 1;
-                                        
-                                        if (part.startsWith('**') && part.endsWith('**')) {
-                                            doc.font('Helvetica-Bold').text(cleanStr(part.slice(2, -2)), indent, doc.y, { continued: !isLast });
-                                        } else if (part.startsWith('*') && part.endsWith('*')) {
-                                            doc.font('Helvetica-Oblique').text(cleanStr(part.slice(1, -1)), indent, doc.y, { continued: !isLast });
-                                        } else if (part.startsWith('`') && part.endsWith('`')) {
-                                            doc.font('Courier').fillColor('#c026d3').text(cleanStr(part.slice(1, -1)), indent, doc.y, { continued: !isLast });
-                                            doc.fillColor('#334155').font('Helvetica');
-                                        } else {
-                                            doc.font('Helvetica').text(cleanStr(part), indent, doc.y, { continued: !isLast });
-                                        }
-                                    });
-                                    // Force end of line to prevent entanglement with next loop
-                                    doc.text('', { continued: false }); 
-                                    doc.moveDown(0.2);
+                                    continue;
                                 }
+
+                                let xOffset = 50;
+                                let listPrefix = '';
+                                
+                                // Check for Task List / Checklist
+                                const taskMatch = line.match(/^(\s*[*+-] )\[([ xX])\]\s+(.*)/);
+                                if (taskMatch) {
+                                    listPrefix = taskMatch[2].trim().toLowerCase() === 'x' ? ' [X] ' : ' [ ] ';
+                                    line = taskMatch[3];
+                                    xOffset = 70;
+                                } else {
+                                    // Regular Unordered/Ordered List
+                                    const listMatch = line.match(/^(\s*(\*|-|\d+\.)\s+)(.*)/);
+                                    if (listMatch) {
+                                        listPrefix = listMatch[2] + ' ';
+                                        line = listMatch[3];
+                                        xOffset = 70;
+                                    }
+                                }
+
+                                doc.fontSize(11).fillColor('#334155');
+
+                                // Handle Prefix (Bullet/Checkbox)
+                                if (listPrefix) {
+                                    doc.font('Helvetica-Bold').text(listPrefix, 50, doc.y, { continued: true });
+                                }
+
+                                // Inline Style Parser (Bold, Italic, Link, Inline Code)
+                                const inlineRegex = /(\[.*?\]\(.*?\))|(\*\*.*?\*\*)|(\*.*?\*)|(`.*?`)/g;
+                                const parts = line.split(inlineRegex).filter(p => p !== undefined && p !== '');
+
+                                parts.forEach((part, index) => {
+                                    const isLast = index === parts.length - 1;
+                                    const options = { continued: !isLast, width: pageWidth - (xOffset - 50) };
+                                    if (index === 0) options.x = xOffset;
+
+                                    if (part.startsWith('[') && part.includes('](')) {
+                                        const linkMatch = part.match(/\[(.*?)\]\((.*?)\)/);
+                                        if (linkMatch) {
+                                            const [_, linkText, url] = linkMatch;
+                                            doc.fillColor('#2563eb').font('Helvetica-Bold').text(cleanStr(linkText), { ...options, link: url, underline: true });
+                                        }
+                                    } else if (part.startsWith('**') && part.endsWith('**')) {
+                                        doc.fillColor('#1e293b').font('Helvetica-Bold').text(cleanStr(part.slice(2, -2)), options);
+                                    } else if (part.startsWith('*') && part.endsWith('*')) {
+                                        doc.fillColor('#334155').font('Helvetica-Oblique').text(cleanStr(part.slice(1, -1)), options);
+                                    } else if (part.startsWith('`') && part.endsWith('`')) {
+                                        doc.fillColor('#c026d3').font('Courier').text(cleanStr(part.slice(1, -1)), options);
+                                    } else {
+                                        doc.fillColor('#334155').font('Helvetica').text(cleanStr(part), options);
+                                    }
+                                });
+
+                                doc.text('', { continued: false }); // Reset continuation
+                                doc.moveDown(0.2);
                             }
                         };
 
