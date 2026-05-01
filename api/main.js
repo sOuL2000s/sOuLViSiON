@@ -475,11 +475,17 @@ export default async function handler(req, res) {
                         // Helper to safely handle characters not supported by standard PDF fonts
                         const cleanStr = (str) => {
                             if (typeof str !== 'string') return "";
-                            return str.replace(/[^\x00-\x7F\xA0-\xFF]/g, " ");
+                            // Expanded range for common punctuation, currency, and symbols
+                            return str.replace(/[^\x00-\x7F\u00A0-\u00FF\u2010-\u2043\u2200-\u22FF]/g, " ");
                         };
 
                         const drawHeader = () => {
-                            const title = type === 'note' ? (data.title || 'Untitled Note') : (data.name || 'Conversation Export');
+                            let title = "Export";
+                            if (type === 'note') title = data.title || 'Untitled Note';
+                            else if (type === 'chat') title = data.name || 'Conversation';
+                            else if (type === 'report') title = data.name || 'Soul Report';
+                            else if (type === 'seek_report') title = data.title || 'Numerology Blueprint';
+
                             doc.save();
                             doc.rect(0, 0, doc.page.width, 40).fill('#0f172a');
                             doc.fillColor('#06b6d4').font('Helvetica-Bold').fontSize(14).text('sOuLViSiON', 50, 15);
@@ -618,10 +624,35 @@ export default async function handler(req, res) {
                             doc.fillColor('#334155').fontSize(14).font('Helvetica-Bold').text(`Metrics Overview`, { underline: true }).moveDown(0.5);
                             doc.fontSize(11).font('Helvetica').text(`Vitality (Health): ${data.metrics?.health || 0}`);
                             doc.text(`Abundance (Wealth): ${data.metrics?.wealth || 0}`).moveDown(1);
+                            
                             doc.fillColor('#7c3aed').fontSize(14).font('Helvetica-Bold').text(`Soul Reflections`, { underline: true }).moveDown(0.5);
                             data.qna.forEach(item => {
                                 doc.fillColor('#1e293b').fontSize(11).font('Helvetica-Bold').text(`Q: ${cleanStr(item.question)}`);
                                 doc.fillColor('#475569').font('Helvetica').text(`A: ${cleanStr(item.answer)}`).moveDown(0.5);
+                                if (doc.y > 700) doc.addPage();
+                            });
+
+                            if (data.analysis) {
+                                doc.addPage();
+                                doc.fillColor('#06b6d4').fontSize(18).font('Helvetica-Bold').text(`AI Holistic Analysis`).moveDown(1);
+                                renderMarkdown(data.analysis);
+                            }
+                        } else if (type === 'seek_report') {
+                            doc.fillColor('#f97316').fontSize(24).font('Helvetica-Bold').text(`NUMEROLOGY BLUEPRINT`, { align: 'center' }).moveDown(1);
+                            doc.fillColor('#475569').fontSize(10).font('Helvetica').text(`Calculated for: ${cleanStr(data.title)}`, { align: 'center' }).moveDown(2);
+                            
+                            doc.fillColor('#ea580c').fontSize(16).font('Helvetica-Bold').text(`Vedic Synthesis`).moveDown(0.5);
+                            renderMarkdown(data.summary || "");
+                            
+                            doc.addPage();
+                            doc.fillColor('#64748b').fontSize(16).font('Helvetica-Bold').text(`Journey History`).moveDown(1);
+                            
+                            (data.history || []).forEach(m => {
+                                const role = m.role === 'user' ? 'Seeker' : 'Oracle';
+                                doc.fillColor(m.role === 'user' ? '#7c3aed' : '#f97316').fontSize(10).font('Helvetica-Bold').text(role.toUpperCase());
+                                doc.moveDown(0.2);
+                                doc.fillColor('#334155').font('Helvetica').fontSize(10).text(cleanStr(m.content)).moveDown(1);
+                                if (doc.y > 700) doc.addPage();
                             });
                         }
                         doc.end();

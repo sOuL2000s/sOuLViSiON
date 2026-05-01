@@ -9124,7 +9124,8 @@ async function generateSoulSeekReport() {
     if (seekHistory.length < 4) return showToast("We need more interaction to formulate a report.", "warning");
     
     setLoading(true, "Compiling Numerological Blueprint");
-    const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+    // Ensure we use the selected model from the UI
+    const model = document.getElementById('seekModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
     const key = aiConfig.keys[currentKeyIndex];
 
     const prompt = `Based on our conversation history, generate a COMPREHENSIVE Numerological Report. 
@@ -9145,18 +9146,21 @@ async function generateSoulSeekReport() {
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
         const data = await res.json();
-        const report = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const aiSummary = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
         
         const reportData = {
             id: Date.now(),
-            title: `Soul Blueprint: ${currentUser?.name || 'Seeker'}`,
-            text: report
+            title: currentUser?.name || 'Seeker',
+            summary: aiSummary,
+            history: seekHistory
         };
 
-        await exportData('note', reportData.id, 'pdf', reportData);
+        // Call export with dedicated seek_report type to include conversation history automatically in backend
+        await exportData('seek_report', reportData.id, 'pdf', reportData);
         showToast("Report Transferred to your device.", "success");
     } catch (e) {
         showToast("Failed to compile report.", "error");
+        console.error("Seek Report Error:", e);
     } finally {
         setLoading(false);
     }
@@ -10360,6 +10364,25 @@ async function finishReport() {
     document.getElementById('reportGenerating').classList.remove('hidden');
 
     try {
+        // AI Analysis Generation
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const key = aiConfig.keys[currentKeyIndex];
+        const analysisPrompt = `Act as a high-level psychological and spiritual analyst. 
+        Based on the following reflections and metrics, provide a deep, insightful, and constructive analysis of the user's current state of soul and productivity. 
+        METRICS: Health=${document.getElementById('metricHealth').innerText}, Wealth=${document.getElementById('metricWealth').innerText}
+        REFLECTIONS:
+        ${reportSteps.answers.map(a => `Q: ${a.question}\nA: ${a.answer}`).join('\n\n')}
+        
+        Provide the analysis in structured Markdown with sections for "Core Strengths", "Mental Blocks", and "Path Forward".`;
+
+        const analysisRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: analysisPrompt }] }] })
+        });
+        const analysisData = await analysisRes.json();
+        const aiAnalysis = analysisData.candidates?.[0]?.content?.parts?.[0]?.text || "The Oracle remains silent on this path.";
+
         // Save answers to persistence
         await fetch(`/api/main?route=user_reports&userId=${encodeURIComponent(currentUser.email)}`, {
             method: 'POST',
@@ -10367,6 +10390,7 @@ async function finishReport() {
             body: JSON.stringify({
                 timestamp: Date.now(),
                 qna: reportSteps.answers,
+                analysis: aiAnalysis,
                 metrics: {
                     health: document.getElementById('metricHealth').innerText,
                     wealth: document.getElementById('metricWealth').innerText
@@ -10384,6 +10408,7 @@ async function finishReport() {
             name: `${currentUser.name}'s Soul Report`,
             journals: journals,
             qna: reportSteps.answers,
+            analysis: aiAnalysis,
             metrics: {
                 health: document.getElementById('metricHealth').innerText,
                 wealth: document.getElementById('metricWealth').innerText
