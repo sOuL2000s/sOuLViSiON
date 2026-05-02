@@ -11984,6 +11984,61 @@ function goToSupportPage() {
     showPage('support');
 }
 
+// --- PROMPT ARCHITECT LOGIC ---
+function togglePromptArchitect() {
+    const modal = document.getElementById('promptArchitectModal');
+    if (modal.classList.contains('hidden')) {
+        modal.classList.remove('hidden');
+        document.getElementById('archPersona').focus();
+    } else {
+        modal.classList.add('hidden');
+    }
+}
+
+function applyArchitectPrompt() {
+    const persona = document.getElementById('archPersona').value.trim() || "Expert Assistant";
+    const objective = document.getElementById('archObjective').value.trim();
+    const tone = document.getElementById('archTone').value.trim() || "Professional";
+    const format = document.getElementById('archFormat').value.trim() || "Markdown";
+    const exclusions = document.getElementById('archExclusions').value.trim() || "None";
+
+    if (!objective) return alert("Please specify an objective for the Architect.");
+
+    const masterPrompt = `Act as a ${persona}. Your goal is to execute the following task with a perfect balance of radical creativity and rigorous logical precision.
+
+### 1. THE OBJECTIVE
+${objective}
+
+### 2. OPERATIONAL FRAMEWORK
+To ensure the highest quality output, follow these cognitive protocols:
+* **First-Principles Thinking:** Strip the problem down to its fundamental truths and build up from there. Do not rely on clichés or standard templates.
+* **Lateral Thinking:** Explore non-obvious connections and innovative approaches that differentiate this from average results.
+* **High-Resolution Detail:** Provide depth, nuance, and specific examples. Avoid vague abstractions.
+* **Structural Integrity:** Ensure the output is logically sound, internally consistent, and ready for immediate implementation.
+
+### 3. CONSTRAINTS & STYLE
+* **Tone:** ${tone}
+* **Format:** ${format}
+* **Exclusions:** ${exclusions}
+
+### 4. EXECUTION STEP-BY-STEP
+Before providing the final answer, perform these internal steps:
+1. **Drafting:** Silently brainstorm three different approaches to this task.
+2. **Critique:** Evaluate those approaches for logic gaps or lack of originality.
+3. **Synthesis:** Combine the best elements into a final, superior execution.
+
+**Now, proceed with the task. Surprise me with your depth and intelligence.**`;
+
+    const input = document.getElementById('chatInput');
+    input.value = masterPrompt;
+    autoResize(input);
+    togglePromptArchitect();
+    showToast("Master Blueprint forged and loaded.", "success");
+    
+    // Smooth scroll to input if needed
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 
 
 function toggleSTTNote(inputId) {
