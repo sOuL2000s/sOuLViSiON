@@ -70,6 +70,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.1/math.js"></script>
     <link rel="stylesheet" href="style.css">
     <link rel="icon" type="image/svg+xml" href="logo.svg">
     <link rel="apple-touch-icon" href="logo.svg">
@@ -109,6 +110,7 @@
             <button onclick="showPage('focus')" class="text-left hover:text-cyan-400"><i class="fas fa-spa w-8"></i> sOuLFOCUS</button>
             <button onclick="showPage('seek')" class="text-left hover:text-cyan-400"><i class="fas fa-compass w-8"></i> sOuLSEEK</button>
             <button onclick="showPage('quiz')" class="text-left hover:text-cyan-400"><i class="fas fa-lightbulb w-8"></i> sOuLQUIZ</button>
+            <button onclick="showPage('solve')" class="text-left hover:text-cyan-400"><i class="fas fa-calculator w-8"></i> sOuLSOLVE</button>
             <button onclick="showPage('fun')" class="text-left hover:text-cyan-400"><i class="fas fa-smile w-8"></i> sOuLFUN</button>
             <button onclick="showPage('support')" class="text-left hover:text-cyan-400"><i class="fas fa-hand-holding-heart w-8"></i> sOuLSUPPORT</button>
             <button onclick="showPage('who')" class="text-left hover:text-cyan-400"><i class="fas fa-ghost w-8"></i> sOuLWHO?</button>
@@ -145,6 +147,7 @@
             <button onclick="showPage('code')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Code</button>
             <button onclick="showPage('ai')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">AI</button>
             <button onclick="showPage('quiz')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Quiz</button>
+            <button onclick="showPage('solve')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Solve</button>
             <button onclick="showPage('play')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Music</button>
             <button onclick="showPage('focus')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Focus</button>
             <button onclick="showPage('seek')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Seek</button>
@@ -469,6 +472,16 @@
                     <div class="mt-4 text-cyan-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
                 </div>
 
+                <div class="glass p-8 group hover:border-emerald-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('solve')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-calculator text-6xl"></i>
+                    </div>
+                    <i class="fas fa-calculator text-3xl mb-4 text-emerald-400"></i>
+                    <h3 class="text-xl font-bold mb-2">sOuLSOLVE</h3>
+                    <p class="text-sm text-gray-400">The ultimate high-performance Omni-Calculator engine.</p>
+                    <div class="mt-4 text-emerald-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+
                 <div class="glass p-8 group hover:border-gray-300/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('who')">
                     <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
                         <i class="fas fa-ghost text-6xl"></i>
@@ -477,6 +490,93 @@
                     <h3 class="text-xl font-bold mb-2">sOuLWHO?</h3>
                     <p class="text-sm text-gray-400">The story, the mission, and the people behind sOuLViSiON.</p>
                     <div class="mt-4 text-gray-300 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- sOuLSOLVE Page -->
+        <section id="solve" class="page">
+            <div class="max-w-6xl mx-auto py-4 md:py-10">
+                <div class="text-center mb-8">
+                    <h2 class="text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-600">sOuLSOLVE</h2>
+                    <p class="text-gray-500 text-xs mt-2 uppercase tracking-[0.3em]">Synaptic Logic & Precision Computation</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start h-auto lg:h-[700px]">
+                    <!-- History Sidebar -->
+                    <div class="lg:col-span-3 flex flex-col h-full gap-4 order-2 lg:order-1">
+                        <div class="glass p-4 flex flex-col h-full overflow-hidden">
+                            <div class="flex justify-between items-center mb-4">
+                                <h4 class="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Temporal Log</h4>
+                                <button onclick="clearSolveHistory()" class="text-[9px] text-red-400 hover:text-red-300 uppercase font-bold">Clear</button>
+                            </div>
+                            <div id="solveHistory" class="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                                <p class="text-[10px] text-gray-600 italic text-center py-10">No calculations recorded.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Display & Input -->
+                    <div class="lg:col-span-6 flex flex-col h-full gap-4 order-1 lg:order-2">
+                        <!-- Advanced Display -->
+                        <div class="glass p-6 flex flex-col justify-between relative overflow-hidden min-h-[180px] bg-black/40 border-t-4 border-emerald-500">
+                            <div class="flex justify-between items-start">
+                                <div id="solveModeBadge" class="text-[8px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded tracking-widest uppercase">PRO MODE</div>
+                                <div class="flex gap-2">
+                                    <button onclick="toggleSolveMode()" class="text-[9px] text-gray-500 hover:text-white uppercase font-black transition">Switch Mode</button>
+                                </div>
+                            </div>
+                            
+                            <div class="flex flex-col items-end mt-4">
+                                <div id="solveExpression" class="text-gray-500 text-sm md:text-lg font-mono truncate w-full text-right h-8 mb-1"></div>
+                                <div id="solveResult" class="text-4xl md:text-6xl font-black text-white tracking-tighter tabular-nums truncate w-full text-right drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]">0</div>
+                                <div id="solveLatexPreview" class="mt-2 min-h-[30px] w-full flex justify-end items-center text-emerald-400/60 opacity-80 overflow-x-auto no-scrollbar"></div>
+                            </div>
+
+                            <div id="solveError" class="absolute bottom-2 left-6 right-6 text-[10px] text-red-400 font-bold uppercase tracking-wide hidden animate-pulse">
+                                <i class="fas fa-exclamation-triangle mr-1"></i> Syntax Error
+                            </div>
+                        </div>
+
+                        <!-- Interface -->
+                        <div class="glass p-2 md:p-4 flex-grow flex flex-col">
+                            <div class="relative mb-4">
+                                <input id="solveInput" type="text" placeholder="Enter expression... (e.g. 50cm + 2m, det([1,2;3,4]), cos(45 deg))" 
+                                    class="w-full bg-black/40 border border-white/10 p-4 rounded-xl text-lg font-mono outline-none focus:border-emerald-500 transition-all shadow-inner"
+                                    oninput="onSolveInput()"
+                                    onkeydown="if(event.key==='Enter') executeSolve()">
+                                <button onclick="executeSolve()" class="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center hover:bg-emerald-500 transition active:scale-90 shadow-lg shadow-emerald-900/20">
+                                    <i class="fas fa-equals"></i>
+                                </button>
+                            </div>
+
+                            <div id="solvePad" class="grid grid-cols-4 sm:grid-cols-5 gap-2 flex-grow overflow-y-auto pr-1 custom-scrollbar">
+                                <!-- Dynamic Buttons Generated by JS -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Extension -->
+                    <div class="lg:col-span-3 flex flex-col h-full gap-4 order-3">
+                        <div class="glass flex flex-col h-full overflow-hidden border-l-4 border-purple-500">
+                            <div class="p-3 border-b border-white/5 bg-purple-900/5 flex justify-between items-center">
+                                <div class="flex items-center gap-2">
+                                    <i class="fas fa-brain text-purple-400 text-[10px]"></i>
+                                    <span class="text-[9px] font-black text-white uppercase tracking-widest">Compute AI</span>
+                                </div>
+                                <select id="solveModelSelect" class="bg-gray-800/50 border border-white/10 p-1 rounded-md text-[8px] font-bold text-purple-300 outline-none max-w-[80px] cursor-pointer"></select>
+                            </div>
+                            <div id="solveAIChat" class="flex-grow p-4 overflow-y-auto space-y-4 text-[11px] custom-scrollbar bg-black/10">
+                                <div class="text-gray-500 italic">I can explain complex steps, convert units, or extend your variables. Hit the AI button on a calculation to begin.</div>
+                            </div>
+                            <div class="p-3 bg-black/40 border-t border-white/5">
+                                <div class="flex gap-2">
+                                    <input id="solveAIInput" type="text" placeholder="Ask about logic..." class="flex-grow bg-gray-800 text-[10px] p-2 rounded border border-gray-700 outline-none focus:border-purple-500">
+                                    <button onclick="askSolveAI()" class="bg-purple-600 w-8 h-8 rounded flex items-center justify-center active:scale-95"><i class="fas fa-paper-plane text-[10px]"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </section>

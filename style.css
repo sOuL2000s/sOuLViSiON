@@ -1,3 +1,16 @@
+/* --- sOuLSOLVE Styles --- */
+.solve-btn {
+    @apply flex items-center justify-center p-3 md:p-4 bg-white/5 border border-white/5 rounded-xl text-xs md:text-sm font-bold hover:bg-emerald-600/20 hover:border-emerald-500/50 transition-all active:scale-90 shadow-sm uppercase tracking-tighter;
+}
+
+#solvePad .font-black {
+    @apply text-lg;
+}
+
+#solveLatexPreview .katex {
+    font-size: 1.1em !important;
+}
+
 /* --- Custom Cursor Global Suppression --- */
 @media (pointer: fine) {
     body.cursor-active, 

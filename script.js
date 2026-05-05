@@ -1,6 +1,14 @@
 // --- STATE MANAGEMENT ---
 let currentUser = JSON.parse(localStorage.getItem('soulUser')) || null;
 
+let solveState = {
+    mode: 'pro', // simple or pro
+    history: [],
+    lastAnswer: 0,
+    isAIWorking: false,
+    activeExpression: ""
+};
+
 let quizState = {
     active: false,
     questions: [],
@@ -6126,7 +6134,7 @@ function setNoteFilter(filter) {
 const pageCache = new Map();
 
 function showPage(pageId, pushState = true) {
-    const validPages = ['home', 'notes', 'code', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz', 'seek'];
+    const validPages = ['home', 'notes', 'code', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz', 'seek', 'solve'];
     if (!validPages.includes(pageId)) pageId = 'home';
 
     // Optimization: Don't re-render/re-toggle if already active
@@ -6222,6 +6230,11 @@ function showPage(pageId, pushState = true) {
         }
         if (pageId === 'seek') {
             syncSeekHistory();
+        }
+
+        if (pageId === 'solve') {
+            initSolveInterface();
+            syncSolveHistory();
         }
 
         // Trigger auto-resize for primary textareas on page entry
@@ -6395,7 +6408,8 @@ async function syncAllData() {
             syncRandomHistory(),
             syncMusicPlaylist(),
             syncFocusData(),
-            syncQuizLeaderboard()
+            syncQuizLeaderboard(),
+            syncSolveHistory()
         ];
         
         if (currentUser.isAdmin) {
@@ -8036,7 +8050,8 @@ function updateAIUI() {
         document.getElementById('focusModelSelect'),
         document.getElementById('seekModelSelect'),
         document.getElementById('quizModelSelect'),
-        document.getElementById('miniModelSelect')
+        document.getElementById('miniModelSelect'),
+        document.getElementById('solveModelSelect')
     ];
 
     modelSelects.forEach(select => {
@@ -12284,6 +12299,257 @@ document.addEventListener('visibilitychange', () => {
         }
     } else {
         if (isMusicPlaying) updateMusicUI();
+    }
+});
+
+// --- sOuLSOLVE LOGIC ---
+const SOLVE_BUTTONS = {
+    simple: [
+        { label: 'C', cmd: 'clear', class: 'text-red-400' },
+        { label: '(', cmd: '(' },
+        { label: ')', cmd: ')' },
+        { label: 'DEL', cmd: 'backspace', class: 'text-orange-400' },
+        { label: '7', cmd: '7' }, { label: '8', cmd: '8' }, { label: '9', cmd: '9' },
+        { label: '÷', cmd: '/', class: 'text-emerald-400 font-black' },
+        { label: '4', cmd: '4' }, { label: '5', cmd: '5' }, { label: '6', cmd: '6' },
+        { label: '×', cmd: '*', class: 'text-emerald-400 font-black' },
+        { label: '1', cmd: '1' }, { label: '2', cmd: '2' }, { label: '3', cmd: '3' },
+        { label: '-', cmd: '-', class: 'text-emerald-400 font-black' },
+        { label: '0', cmd: '0' }, { label: '.', cmd: '.' }, { label: 'ANS', cmd: 'ans' },
+        { label: '+', cmd: '+', class: 'text-emerald-400 font-black' }
+    ],
+    pro: [
+        { label: 'C', cmd: 'clear', class: 'text-red-400' },
+        { label: '(', cmd: '(' }, { label: ')', cmd: ')' },
+        { label: 'MOD', cmd: '%' },
+        { label: 'DEL', cmd: 'backspace', class: 'text-orange-400' },
+        
+        { label: 'sin', cmd: 'sin(' }, { label: 'cos', cmd: 'cos(' }, { label: 'tan', cmd: 'tan(' }, { label: 'π', cmd: 'pi' }, { label: '÷', cmd: '/', class: 'text-emerald-400' },
+        
+        { label: 'log', cmd: 'log(' }, { label: 'ln', cmd: 'log(' }, { label: '√', cmd: 'sqrt(' }, { label: '^', cmd: '^' }, { label: '×', cmd: '*', class: 'text-emerald-400' },
+        
+        { label: '7', cmd: '7' }, { label: '8', cmd: '8' }, { label: '9', cmd: '9' }, { label: '!', cmd: '!' }, { label: '-', cmd: '-', class: 'text-emerald-400' },
+        
+        { label: '4', cmd: '4' }, { label: '5', cmd: '5' }, { label: '6', cmd: '6' }, { label: 'e', cmd: 'e' }, { label: '+', cmd: '+', class: 'text-emerald-400' },
+        
+        { label: '1', cmd: '1' }, { label: '2', cmd: '2' }, { label: '3', cmd: '3' }, { label: 'ANS', cmd: 'ans' }, { label: '=', cmd: 'equal', class: 'bg-emerald-600 text-white' },
+        
+        { label: '0', cmd: '0' }, { label: '00', cmd: '00' }, { label: '.', cmd: '.' }, { label: 'unit', cmd: 'unit(' }, { label: 'matrix', cmd: '[[]]' }
+    ]
+};
+
+function initSolveInterface() {
+    renderSolvePad();
+    document.getElementById('solveModeBadge').innerText = solveState.mode === 'pro' ? 'PRO MODE' : 'SIMPLE MODE';
+}
+
+function renderSolvePad() {
+    const pad = document.getElementById('solvePad');
+    const config = SOLVE_BUTTONS[solveState.mode];
+    
+    pad.innerHTML = config.map(b => {
+        let onClick = `handleSolveBtn('${b.cmd}')`;
+        if (b.cmd === 'equal') onClick = 'executeSolve()';
+        
+        return `<button onclick="${onClick}" class="solve-btn ${b.class || ''}">${b.label}</button>`;
+    }).join('');
+}
+
+function toggleSolveMode() {
+    solveState.mode = solveState.mode === 'simple' ? 'pro' : 'simple';
+    initSolveInterface();
+    showToast(`Switched to ${solveState.mode.toUpperCase()} Interface`, "info");
+}
+
+function handleSolveBtn(cmd) {
+    const input = document.getElementById('solveInput');
+    if (cmd === 'clear') {
+        input.value = '';
+        solveState.activeExpression = "";
+    } else if (cmd === 'backspace') {
+        input.value = input.value.slice(0, -1);
+    } else if (cmd === 'ans') {
+        input.value += solveState.lastAnswer;
+    } else if (cmd === '[[]]') {
+        input.value += '[[1, 2], [3, 4]]';
+    } else {
+        input.value += cmd;
+    }
+    onSolveInput();
+    input.focus();
+}
+
+function onSolveInput() {
+    const raw = document.getElementById('solveInput').value;
+    const resultEl = document.getElementById('solveResult');
+    const previewEl = document.getElementById('solveLatexPreview');
+    const errorEl = document.getElementById('solveError');
+    
+    if (!raw.trim()) {
+        resultEl.innerText = '0';
+        previewEl.innerHTML = '';
+        errorEl.classList.add('hidden');
+        return;
+    }
+
+    try {
+        // High-speed real-time preview evaluation
+        const res = math.evaluate(raw);
+        let formatted = res;
+        if (typeof res === 'number') formatted = math.format(res, { precision: 10 });
+        else if (res && res.isResultSet) formatted = res.entries[0];
+        
+        resultEl.innerText = formatted;
+        resultEl.classList.remove('text-red-400');
+        errorEl.classList.add('hidden');
+        
+        // Try to generate LaTeX preview if not too complex
+        try {
+            const node = math.parse(raw);
+            const latex = node.toTex({parenthesis: 'keep', implicit: 'hide'});
+            katex.render(latex, previewEl, { throwOnError: false });
+        } catch (e) { previewEl.innerHTML = ''; }
+
+    } catch (e) {
+        // Non-intrusive error display for real-time
+        errorEl.classList.remove('hidden');
+    }
+}
+
+async function executeSolve() {
+    const input = document.getElementById('solveInput');
+    const expr = input.value.trim();
+    if (!expr) return;
+
+    try {
+        const result = math.evaluate(expr);
+        solveState.lastAnswer = result;
+        
+        const historyItem = {
+            id: Date.now(),
+            expr,
+            res: math.format(result, { precision: 14 }),
+            timestamp: Date.now()
+        };
+
+        solveState.history.unshift(historyItem);
+        renderSolveHistory();
+        
+        // Clear main input for next one but keep result in big display
+        document.getElementById('solveExpression').innerText = expr;
+        input.value = '';
+        onSolveInput(); // Reset UI
+        document.getElementById('solveResult').innerText = historyItem.res;
+
+        if (currentUser) {
+            await fetch(`/api/main?route=solve_history&userId=${encodeURIComponent(currentUser.email)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(historyItem)
+            });
+        }
+    } catch (e) {
+        showToast("Invalid mathematical syntax.", "error");
+    }
+}
+
+function renderSolveHistory() {
+    const list = document.getElementById('solveHistory');
+    if (solveState.history.length === 0) {
+        list.innerHTML = '<p class="text-[10px] text-gray-600 italic text-center py-10">No calculations recorded.</p>';
+        return;
+    }
+
+    list.innerHTML = solveState.history.map(h => `
+        <div class="p-2 bg-emerald-900/5 border border-white/5 rounded-lg group hover:border-emerald-500/30 transition cursor-pointer" onclick="resumeSolve('${h.expr.replace(/'/g, "\\'")}')">
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-[8px] text-gray-500 font-mono">${new Date(h.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                <button onclick="event.stopPropagation(); deleteSolveItem(${h.id})" class="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition text-[8px] uppercase">Remove</button>
+            </div>
+            <p class="text-[10px] font-mono text-gray-400 truncate">${h.expr}</p>
+            <p class="text-xs font-black text-emerald-400 truncate mt-0.5">= ${h.res}</p>
+            <div class="mt-2 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button onclick="event.stopPropagation(); extendSolveWithAI(${h.id})" class="text-[8px] bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded border border-purple-500/20 hover:bg-purple-600 hover:text-white">EXTEND WITH AI</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function resumeSolve(expr) {
+    document.getElementById('solveInput').value = expr;
+    onSolveInput();
+    document.getElementById('solveInput').focus();
+}
+
+async function deleteSolveItem(id) {
+    solveState.history = solveState.history.filter(h => h.id !== id);
+    renderSolveHistory();
+    if (currentUser) {
+        await fetch(`/api/main?route=solve_history&userId=${encodeURIComponent(currentUser.email)}&id=${id}`, { method: 'DELETE' });
+    }
+}
+
+async function clearSolveHistory() {
+    if (!confirm("Wipe calculation logs?")) return;
+    solveState.history = [];
+    renderSolveHistory();
+    if (currentUser) {
+        await fetch(`/api/main?route=solve_history&userId=${encodeURIComponent(currentUser.email)}`, { method: 'DELETE' });
+    }
+}
+
+async function syncSolveHistory() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=solve_history&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            solveState.history = data;
+            renderSolveHistory();
+        }
+    } catch (e) { console.warn("Solve history sync failed"); }
+}
+
+async function extendSolveWithAI(id) {
+    const item = solveState.history.find(h => h.id === id);
+    if (!item) return;
+
+    const prompt = `Provide a brief but deep mathematical insight or an interesting extension related to this calculation: "${item.expr} = ${item.res}". 
+    Explain the underlying logic or provide a related formula/concept in Markdown.`;
+    
+    document.getElementById('solveAIInput').value = `Explain ${item.expr}`;
+    await askSolveAI(prompt);
+}
+
+async function askSolveAI(customPrompt = null) {
+    if (isAICooldownActive) return showAICooldownOverlay();
+    
+    const inputEl = document.getElementById('solveAIInput');
+    const query = customPrompt || inputEl.value.trim();
+    if (!query) return;
+
+    appendAIMessage('user', query, 'solveAIChat');
+    inputEl.value = '';
+
+    const model = document.getElementById('solveModelSelect').value;
+    const key = aiConfig.keys[currentKeyIndex];
+    
+    const chatBox = document.getElementById('solveAIChat');
+    const history = [{ role: 'user', content: query }];
+
+    await callGeminiAPI(query, 'solveAIChat', history, [], model);
+}
+
+// Keyboard shortcuts for Solver
+document.addEventListener('keydown', (e) => {
+    if (document.getElementById('solve').classList.contains('active')) {
+        const input = document.getElementById('solveInput');
+        if (document.activeElement !== input && document.activeElement !== document.getElementById('solveAIInput')) {
+            // Auto-focus main input if user starts typing digits or math ops
+            if (/^[0-9\+\-\*\/\(\)\.\^]/.test(e.key)) {
+                input.focus();
+            }
+        }
     }
 });
 
