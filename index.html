@@ -557,22 +557,30 @@
                     </div>
 
                     <!-- AI Extension -->
-                    <div class="lg:col-span-3 flex flex-col h-full gap-4 order-3">
+                    <div class="lg:col-span-3 flex flex-col h-[500px] lg:h-full gap-4 order-3 overflow-hidden">
                         <div class="glass flex flex-col h-full overflow-hidden border-l-4 border-purple-500">
-                            <div class="p-3 border-b border-white/5 bg-purple-900/5 flex justify-between items-center">
+                            <div class="p-3 border-b border-white/5 bg-purple-900/5 flex justify-between items-center shrink-0">
                                 <div class="flex items-center gap-2">
                                     <i class="fas fa-brain text-purple-400 text-[10px]"></i>
                                     <span class="text-[9px] font-black text-white uppercase tracking-widest">Compute AI</span>
                                 </div>
                                 <select id="solveModelSelect" class="bg-gray-800/50 border border-white/10 p-1 rounded-md text-[8px] font-bold text-purple-300 outline-none max-w-[80px] cursor-pointer"></select>
                             </div>
-                            <div id="solveAIChat" class="flex-grow p-4 overflow-y-auto space-y-4 text-[11px] custom-scrollbar bg-black/10">
+                            <div id="solveAIChat" class="flex-grow p-4 overflow-y-auto space-y-4 text-[11px] custom-scrollbar bg-black/10 min-h-0">
                                 <div class="text-gray-500 italic">I can explain complex steps, convert units, or extend your variables. Hit the AI button on a calculation to begin.</div>
                             </div>
-                            <div class="p-3 bg-black/40 border-t border-white/5">
-                                <div class="flex gap-2">
-                                    <input id="solveAIInput" type="text" placeholder="Ask about logic..." class="flex-grow bg-gray-800 text-[10px] p-2 rounded border border-gray-700 outline-none focus:border-purple-500">
-                                    <button onclick="askSolveAI()" class="bg-purple-600 w-8 h-8 rounded flex items-center justify-center active:scale-95"><i class="fas fa-paper-plane text-[10px]"></i></button>
+                            <div id="solveAIStatus" class="hidden px-4 py-1 border-t border-white/5 bg-purple-900/10 shrink-0">
+                                <span class="text-[8px] font-black text-purple-400 uppercase animate-pulse">Computing Insight...</span>
+                            </div>
+                            <div id="solveAttachmentPreview" class="px-3 py-1 flex gap-1 flex-wrap empty:hidden border-t border-white/5 bg-black/10 shrink-0"></div>
+                            <div class="p-3 bg-black/40 border-t border-white/5 shrink-0">
+                                <div class="flex gap-2 items-center">
+                                    <input type="file" id="solveAIFileInput" class="hidden" multiple onchange="handleAIFile(event)">
+                                    <button onclick="document.getElementById('solveAIFileInput').click()" class="bg-gray-800 text-gray-400 hover:text-purple-400 w-8 h-8 rounded-lg border border-gray-700 transition-all flex items-center justify-center shrink-0" title="Attach Files"><i class="fas fa-paperclip text-[10px]"></i></button>
+                                    <input id="solveAIInput" type="text" placeholder="Ask about logic..." 
+                                        class="flex-grow bg-gray-800 text-[10px] p-2 rounded border border-gray-700 outline-none focus:border-purple-500"
+                                        onkeydown="if(event.key==='Enter') askSolveAI()">
+                                    <button onclick="askSolveAI()" id="solveAISendBtn" class="bg-purple-600 w-8 h-8 rounded flex items-center justify-center active:scale-95 shrink-0"><i class="fas fa-paper-plane text-[10px]"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -663,10 +671,13 @@
                     <div id="codeAIStatus" class="hidden px-4 py-2 border-t border-white/5 bg-blue-900/10">
                         <span class="text-[8px] font-black text-blue-400 uppercase animate-pulse">AI is working...</span>
                     </div>
+                    <div id="codeAttachmentPreview" class="px-4 py-1 flex gap-2 flex-wrap empty:hidden border-t border-white/5 bg-black/10"></div>
                     <div class="p-3 border-t border-white/10 bg-black/40">
-                        <div class="flex gap-2">
+                        <div class="flex gap-2 items-center">
+                            <input type="file" id="codeChatFileInput" class="hidden" multiple onchange="handleAIFile(event)">
+                            <button onclick="document.getElementById('codeChatFileInput').click()" class="bg-gray-800 text-gray-400 hover:text-blue-400 w-10 h-10 rounded-xl border border-gray-700 transition-all flex items-center justify-center shrink-0" title="Attach Files"><i class="fas fa-paperclip text-sm"></i></button>
                             <textarea id="codeChatInput" rows="1" class="flex-grow bg-gray-800 p-3 rounded-xl border border-gray-700 text-xs resize-none outline-none focus:border-blue-500 transition custom-scrollbar" placeholder="Ask AI to edit code..." oninput="autoResize(this)"></textarea>
-                            <button onclick="askCodeAI()" id="codeAISendBtn" class="bg-blue-600 w-10 h-10 rounded-xl flex items-center justify-center hover:bg-blue-500 transition shadow-lg shadow-blue-900/20 active:scale-95"><i class="fas fa-paper-plane text-xs"></i></button>
+                            <button onclick="askCodeAI()" id="codeAISendBtn" class="bg-blue-600 w-10 h-10 rounded-xl flex items-center justify-center hover:bg-blue-500 transition shadow-lg shadow-blue-900/20 active:scale-95 shrink-0"><i class="fas fa-paper-plane text-xs"></i></button>
                         </div>
                     </div>
                 </div>

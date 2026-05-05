@@ -47,20 +47,53 @@ function showToast(message, type = 'success', duration = 3000) {
 let isStreamingMode = true;
 let currentAbortController = null;
 
-function toggleSendButton(isMini, isStopping) {
-    const btn = document.getElementById(isMini ? 'miniAiSendBtn' : 'aiSendBtn');
+function toggleSendButton(type, isStopping) {
+    // type can be 'main', 'mini', 'code', 'solve'
+    let btnId;
+    let baseColor = 'bg-purple-600';
+    let hoverColor = 'hover:bg-purple-700';
+    let shadowColor = 'shadow-purple-600/20';
+    let iconSize = 'text-xs md:text-base';
+    let clickFn;
+
+    if (type === 'main') {
+        btnId = 'aiSendBtn';
+        clickFn = askAI;
+    } else if (type === 'mini') {
+        btnId = 'miniAiSendBtn';
+        iconSize = 'text-xs';
+        clickFn = askMiniAI;
+    } else if (type === 'code') {
+        btnId = 'codeAISendBtn';
+        baseColor = 'bg-blue-600';
+        hoverColor = 'hover:bg-blue-500';
+        shadowColor = 'shadow-blue-900/20';
+        iconSize = 'text-xs';
+        clickFn = askCodeAI;
+    } else if (type === 'solve') {
+        btnId = 'solveAISendBtn';
+        iconSize = 'text-[10px]';
+        clickFn = askSolveAI;
+    } else {
+        // Fallback for older boolean type param
+        btnId = type ? 'miniAiSendBtn' : 'aiSendBtn';
+        clickFn = type ? askMiniAI : askAI;
+        if (type) iconSize = 'text-xs';
+    }
+
+    const btn = document.getElementById(btnId);
     if (!btn) return;
     
     if (isStopping) {
-        btn.innerHTML = `<i class="fas fa-stop ${isMini ? 'text-xs' : 'text-xs md:text-base'}"></i>`;
-        btn.classList.remove('bg-purple-600', 'hover:bg-purple-700', 'shadow-purple-600/20');
+        btn.innerHTML = `<i class="fas fa-stop ${iconSize}"></i>`;
+        btn.classList.remove(baseColor, hoverColor, shadowColor);
         btn.classList.add('bg-red-600', 'hover:bg-red-700', 'shadow-red-600/20', 'animate-pulse');
         btn.onclick = stopAIStream;
     } else {
-        btn.innerHTML = `<i class="fas fa-paper-plane ${isMini ? 'text-xs' : 'text-xs md:text-base'}"></i>`;
-        btn.classList.add('bg-purple-600', 'hover:bg-purple-700', 'shadow-purple-600/20');
+        btn.innerHTML = `<i class="fas fa-paper-plane ${iconSize}"></i>`;
+        btn.classList.add(baseColor, hoverColor, shadowColor);
         btn.classList.remove('bg-red-600', 'hover:bg-red-700', 'shadow-red-600/20', 'animate-pulse');
-        btn.onclick = isMini ? askMiniAI : askAI;
+        btn.onclick = clickFn;
     }
 }
 
@@ -69,15 +102,14 @@ function stopAIStream() {
         currentAbortController.abort();
         currentAbortController = null;
         
-        // Reset both buttons
-        toggleSendButton(false, false);
-        toggleSendButton(true, false);
+        // Reset all buttons
+        ['main', 'mini', 'code', 'solve'].forEach(t => toggleSendButton(t, false));
         
         // Clear UI indicators
-        const statusEl = document.getElementById('aiStatus');
-        const miniStatusEl = document.getElementById('miniAiStatus');
-        if (statusEl) statusEl.classList.add('hidden');
-        if (miniStatusEl) miniStatusEl.classList.add('hidden');
+        ['aiStatus', 'miniAiStatus', 'codeAIStatus', 'solveAIStatus'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        });
         
         showToast("AI silenced.", "warning");
     }
@@ -6008,6 +6040,11 @@ document.addEventListener('keydown', (e) => {
             askSoulSeekAI();
             return;
         }
+        if (active.id === 'solveAIInput') {
+            e.preventDefault();
+            askSolveAI();
+            return;
+        }
         if (active.id === 'authPass' || active.id === 'authEmail') handleAuth();
         if (active.id === 'donAmount' || active.id === 'donRemark') payNow();
     }
@@ -8536,7 +8573,9 @@ function addTextAsAttachment(content, name = null) {
 function renderAttachmentChips() {
     const preview = document.getElementById('aiAttachmentPreview');
     const miniPreview = document.getElementById('miniAttachmentPreview');
-    [preview, miniPreview].forEach(p => { if(p) p.innerHTML = ''; });
+    const codePreview = document.getElementById('codeAttachmentPreview');
+    const solvePreview = document.getElementById('solveAttachmentPreview');
+    [preview, miniPreview, codePreview, solvePreview].forEach(p => { if(p) p.innerHTML = ''; });
 
     pendingFiles.forEach((file, idx) => {
         const chip = document.createElement('div');
@@ -8547,7 +8586,7 @@ function renderAttachmentChips() {
         
         if (file.mime_type.startsWith('image/')) {
             icon = `<img src="data:${file.mime_type};base64,${file.data}" class="w-4 h-4 rounded object-cover">`;
-        } else if (file.raw !== undefined) { // Check if 'raw' property exists, indicating it's considered editable text
+        } else if (file.raw !== undefined) {
             editBtn = `<button onclick="toggleLargeEditor(null, ${idx})" class="hover:text-cyan-400 transition" title="Edit text"><i class="fas fa-edit"></i></button>`;
         }
 
@@ -8560,7 +8599,11 @@ function renderAttachmentChips() {
             </div>
         `;
         
-        const target = (document.getElementById('ai').classList.contains('active')) ? preview : miniPreview;
+        let target = miniPreview;
+        if (document.getElementById('ai').classList.contains('active')) target = preview;
+        else if (document.getElementById('code').classList.contains('active')) target = codePreview;
+        else if (document.getElementById('solve').classList.contains('active')) target = solvePreview;
+        
         if(target) target.appendChild(chip);
     });
 }
@@ -8768,6 +8811,32 @@ document.getElementById('miniChatInput').addEventListener('paste', (e) => {
     }
 });
 
+['codeChatInput', 'solveAIInput'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+        el.addEventListener('paste', (e) => {
+            const clipboardData = e.clipboardData || e.originalEvent.clipboardData;
+            const textData = clipboardData.getData('text/plain');
+            const files = [];
+            if (textData.length > 3000) {
+                e.preventDefault();
+                addTextAsAttachment(textData);
+                e.target.value = '';
+                if (typeof autoResize === 'function') autoResize(e.target);
+                return;
+            }
+            const items = clipboardData.items;
+            for (let item of items) {
+                if (item.kind === 'file') files.push(item.getAsFile());
+            }
+            if (files.length > 0) {
+                e.preventDefault();
+                handleAIFile(files);
+            }
+        });
+    }
+});
+
 async function askAI() {
     stopAllSTT();
     if (isAICooldownActive) {
@@ -8840,10 +8909,9 @@ async function askMiniAI() {
     await callGeminiAPI(txt, 'miniChatBox', miniChatHistory, attachmentsForApi, model); // Pass selected model
 }
 
-async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attachments = [], model = null) { // Accept model parameter
+async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attachments = [], model = null) {
     document.title = '● AI is thinking...';
     
-    // Ensure a model is selected, default to first available if not explicitly provided or found
     if (!model) {
         if (aiConfig.models.length > 0) {
             model = aiConfig.models[0].id;
@@ -8854,8 +8922,13 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
     
     if(!aiConfig.keys.length) return alert("Please configure API Keys in Admin panel.");
 
-    const isMini = targetBoxId === 'miniChatBox';
-    const statusEl = document.getElementById(isMini ? 'miniAiStatus' : 'aiStatus');
+    let type = 'main';
+    if (targetBoxId === 'miniChatBox') type = 'mini';
+    else if (targetBoxId === 'codeChatBox') type = 'code';
+    else if (targetBoxId === 'solveAIChat') type = 'solve';
+
+    const statusEl = document.getElementById(type === 'mini' ? 'miniAiStatus' : (type === 'code' ? 'codeAIStatus' : (type === 'solve' ? 'solveAIStatus' : 'aiStatus')));
+    
     const loadingPhrases = isStreamingMode ? [
         "Establishing neural stream...",
         "Buffering consciousness...",
@@ -8875,7 +8948,7 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
     let loadingInterval = null;
 
     if(statusEl) { 
-        toggleSendButton(isMini, true);
+        toggleSendButton(type, true);
         statusEl.innerHTML = `
             <div class="neural-loader">
                 <div class="neural-grid">
@@ -8898,6 +8971,8 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
                 </div>
             </div>`; 
         statusEl.classList.remove('hidden'); 
+    } else {
+        toggleSendButton(type, true);
     }
 
     const contents = history.map(m => ({
@@ -9011,9 +9086,26 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         }
 
         if (loadingInterval) clearInterval(loadingInterval);
-        appendAIMessage('ai', fullContent, targetBoxId, false);
         
-        toggleSendButton(isMini, false);
+        if (type === 'code' && fullContent.includes('CODE_START') && fullContent.includes('CODE_END')) {
+             const commentary = fullContent.split('CODE_START')[0].replace('COMMENTARY:', '').trim();
+             const newContent = fullContent.split('CODE_START')[1].split('CODE_END')[0].trim();
+             appendAIMessage('ai', commentary + "\n\n**Proposed changes are ready for review.**", targetBoxId, false);
+             
+             let activeFile = projectFiles.find(f => f.id === activeFileId);
+             if (activeFile) {
+                 aiProposedChange = {
+                     fileId: activeFile.id,
+                     originalContent: activeFile.content,
+                     newContent: newContent
+                 };
+                 showDiffOverlay();
+             }
+        } else {
+            appendAIMessage('ai', fullContent, targetBoxId, false);
+        }
+        
+        toggleSendButton(type, false);
         currentAbortController = null;
         
         if(statusEl) {
@@ -12526,18 +12618,23 @@ async function askSolveAI(customPrompt = null) {
     
     const inputEl = document.getElementById('solveAIInput');
     const query = customPrompt || inputEl.value.trim();
-    if (!query) return;
+    if (!query && pendingFiles.length === 0) return;
 
-    appendAIMessage('user', query, 'solveAIChat');
+    const userMsg = query + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
+    appendAIMessage('user', userMsg, 'solveAIChat');
     inputEl.value = '';
+    [document.getElementById('aiAttachmentPreview'), document.getElementById('miniAttachmentPreview'), document.getElementById('codeAttachmentPreview'), document.getElementById('solveAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
 
     const model = document.getElementById('solveModelSelect').value;
-    const key = aiConfig.keys[currentKeyIndex];
     
-    const chatBox = document.getElementById('solveAIChat');
-    const history = [{ role: 'user', content: query }];
+    const parts = [{ text: query || " " }];
+    pendingFiles.forEach(f => parts.push({ inline_data: { mime_type: f.mime_type, data: f.data } }));
+    const history = [{ role: 'user', content: userMsg, parts }];
 
-    await callGeminiAPI(query, 'solveAIChat', history, [], model);
+    const attachmentsForApi = [...pendingFiles];
+    pendingFiles = [];
+
+    await callGeminiAPI(query, 'solveAIChat', history, attachmentsForApi, model);
 }
 
 // Keyboard shortcuts for Solver
@@ -12740,7 +12837,7 @@ async function askCodeAI() {
     const inputEl = document.getElementById('codeChatInput');
     const editorEl = document.getElementById('codeEditor');
     const query = inputEl.value.trim();
-    if (!query) return;
+    if (!query && pendingFiles.length === 0) return;
 
     let activeFile = projectFiles.find(f => f.id === activeFileId);
     
@@ -12755,28 +12852,30 @@ async function askCodeAI() {
         showToast("Editor content indexed as notebook.", "info");
     }
 
-    if (!activeFile) {
+    if (!activeFile && pendingFiles.length === 0) {
         showToast("Upload a file or enter code in the editor to provide context.", "warning");
         return;
     }
 
-    appendAIMessage('user', query, 'codeChatBox');
+    const userMsg = query + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
+    appendAIMessage('user', userMsg, 'codeChatBox');
     inputEl.value = '';
     autoResize(inputEl);
+    [document.getElementById('aiAttachmentPreview'), document.getElementById('miniAttachmentPreview'), document.getElementById('codeAttachmentPreview'), document.getElementById('solveAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
 
-    const model = document.getElementById('codeModelSelect').value; // Get model from code dropdown
-    const key = aiConfig.keys[currentKeyIndex];
-    const statusEl = document.getElementById('codeAIStatus');
-    statusEl.classList.remove('hidden');
-
+    const model = document.getElementById('codeModelSelect').value;
+    
     const projectContext = projectFiles.map(f => `File: ${f.path}\nContent:\n${f.content}`).join('\n\n---\n\n');
     
-    const prompt = `You are an expert AI code editor. 
+    let activeFilePath = activeFile ? activeFile.path : 'None';
+    let activeFileContent = activeFile ? activeFile.content : 'None';
+
+    const systemPrompt = `You are an expert AI code editor. 
     CURRENT_PROJECT_CONTEXT:
     ${projectContext}
 
-    ACTIVE_FILE: ${activeFile.path}
-    ACTIVE_FILE_CONTENT: ${activeFile.content}
+    ACTIVE_FILE: ${activeFilePath}
+    ACTIVE_FILE_CONTENT: ${activeFileContent}
 
     USER_REQUEST: ${query}
 
@@ -12785,41 +12884,18 @@ async function askCodeAI() {
     2. Return your response in this exact format:
        COMMENTARY: [Brief explanation of changes]
        CODE_START
-       [Full new content of ${activeFile.path}]
+       [Full new content of ${activeFilePath}]
        CODE_END
     3. If no code change is requested, just answer the question in plain text.`;
 
-    try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-        
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-        
-        if (text.includes('CODE_START') && text.includes('CODE_END')) {
-            const commentary = text.split('CODE_START')[0].replace('COMMENTARY:', '').trim();
-            const newContent = text.split('CODE_START')[1].split('CODE_END')[0].trim();
-            
-            appendAIMessage('ai', commentary + "\n\n**Proposed changes are ready for review.**", 'codeChatBox');
-            
-            aiProposedChange = {
-                fileId: activeFile.id,
-                originalContent: activeFile.content,
-                newContent: newContent
-            };
+    const parts = [{ text: systemPrompt }];
+    pendingFiles.forEach(f => parts.push({ inline_data: { mime_type: f.mime_type, data: f.data } }));
+    
+    const history = [{ role: 'user', content: userMsg, parts }];
+    const attachmentsForApi = [...pendingFiles];
+    pendingFiles = [];
 
-            showDiffOverlay();
-        } else {
-            appendAIMessage('ai', text, 'codeChatBox');
-        }
-    } catch (e) {
-        showToast("Code Assistant failed. Check console.", "error");
-    } finally {
-        statusEl.classList.add('hidden');
-    }
+    await callGeminiAPI(query, 'codeChatBox', history, attachmentsForApi, model);
 }
 
 function showDiffOverlay() {
