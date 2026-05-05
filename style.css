@@ -1482,11 +1482,121 @@ textarea:focus, input:focus {
     min-height: 0; /* Critical for scrollability inside grid/flex */
 }
 
-#diffOriginal > div, #diffProposed > div {
+#diffOriginal > div, #diffProposed > div, #compareDiffLeft > div, #compareDiffRight > div {
     min-height: 1.5em;
     line-height: 1.5;
     padding-right: 1rem;
 }
+
+#compareDiffLeft, #compareDiffRight {
+    scrollbar-gutter: stable;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+.diff-row {
+    display: flex;
+    align-items: stretch;
+    min-height: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    position: relative;
+}
+
+.diff-row:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.line-num {
+    flex: 0 0 35px;
+    padding: 0 5px;
+    text-align: right;
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.3);
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.diff-content {
+    flex-grow: 1;
+    padding: 2px 10px;
+    white-space: pre;
+    overflow-x: auto;
+    display: flex;
+    align-items: center;
+}
+
+.diff-row.delete {
+    background: rgba(239, 68, 68, 0.1);
+}
+.diff-row.delete .diff-content {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.diff-row.add {
+    background: rgba(16, 185, 129, 0.1);
+}
+.diff-row.add .diff-content {
+    color: #6ee7b7;
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.diff-row.empty {
+    opacity: 0.3;
+    background: repeating-linear-gradient(
+        45deg,
+        rgba(255, 255, 255, 0.02),
+        rgba(255, 255, 255, 0.02) 10px,
+        transparent 10px,
+        transparent 20px
+    );
+}
+
+.merge-action-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    font-size: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: all 0.2s;
+    z-index: 20;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+
+.merge-action-btn.right { right: -10px; }
+.merge-action-btn.left { left: -10px; }
+
+/* Diff Stats Visibility in Minimalist */
+[data-theme="minimalist"] #compareStats span {
+    border: 1px solid #cbd5e1;
+}
+
+.diff-row:hover .merge-action-btn {
+    opacity: 1;
+}
+
+.merge-action-btn:hover {
+    transform: translateY(-50%) scale(1.2);
+    background: white;
+    color: var(--primary);
+}
+
+[data-theme="minimalist"] .diff-row.delete { background: #fee2e2; }
+[data-theme="minimalist"] .diff-row.delete .diff-content { color: #b91c1c; }
+[data-theme="minimalist"] .diff-row.add { background: #d1fae5; }
+[data-theme="minimalist"] .diff-row.add .diff-content { color: #047857; }
+[data-theme="minimalist"] .line-num { background: #f1f5f9; color: #94a3b8; }
 
 @media (max-width: 768px) {
     #diffOriginal, #diffProposed {
