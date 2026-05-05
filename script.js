@@ -4164,8 +4164,11 @@ function startQuizTimer() {
     quizState.timeLeft = 100;
     document.getElementById('quizTimerBox').classList.remove('hidden');
     
+    // 30 seconds = 30000ms. Interval is 50ms.
+    // 30000 / 50 = 600 ticks.
+    // 100 / 600 = 0.1666...
     quizState.timer = setInterval(() => {
-        quizState.timeLeft -= 0.5;
+        quizState.timeLeft -= (100 / 600);
         document.getElementById('quizTimerBar').style.width = quizState.timeLeft + '%';
         if (quizState.timeLeft <= 0) {
             clearInterval(quizState.timer);
@@ -4181,12 +4184,27 @@ async function handleQuizAnswer(idx) {
     
     // UI feedback
     const btns = document.querySelectorAll('.quiz-opt-btn');
-    btns.forEach(b => b.disabled = true);
+    btns.forEach(b => {
+        b.disabled = true;
+        b.classList.add('opacity-50');
+    });
     
     if (idx !== -1) {
-        document.getElementById(`opt-${idx}`).classList.add(isCorrect ? 'quiz-correct' : 'quiz-wrong');
+        const selectedBtn = document.getElementById(`opt-${idx}`);
+        selectedBtn.classList.remove('opacity-50');
+        selectedBtn.classList.add(isCorrect ? 'quiz-correct' : 'quiz-wrong');
     }
-    document.getElementById(`opt-${correctIdx}`).classList.add('quiz-correct');
+    
+    const correctBtn = document.getElementById(`opt-${correctIdx}`);
+    correctBtn.classList.remove('opacity-50');
+    correctBtn.classList.add('quiz-correct');
+    
+    // Explicitly show correct answer context
+    if (!isCorrect && idx !== -1) {
+        showToast(`Incorrect. The correct answer was ${String.fromCharCode(65 + correctIdx)}.`, "error", 1500);
+    } else if (idx === -1) {
+        showToast(`Time up! Correct answer: ${String.fromCharCode(65 + correctIdx)}.`, "warning", 1500);
+    }
 
     if (isCorrect) {
         const bonus = Math.round(quizState.timeLeft / 10);
@@ -6598,51 +6616,52 @@ function renderTourStep() {
     if (prevHighlight) prevHighlight.classList.remove('tour-highlight');
 
     const target = document.querySelector(step.selector);
-    let ghostCenterX;
+    let ghostX, ghostY;
 
-    if (target && target.offsetParent !== null) { // Ensure target exists and is visible
+    if (target && target.offsetParent !== null) {
         target.classList.add('tour-highlight');
         const rect = target.getBoundingClientRect();
         
-        // Calculate safe top position (prevent off-screen)
-        let topPos = rect.top - 180;
-        if (topPos < 20) topPos = rect.bottom + 20; 
+        // Horizontal: center of target
+        ghostX = rect.left + rect.width / 2;
         
-        ghostCenterX = rect.left + rect.width / 2;
-        ghost.style.top = `${topPos}px`;
-        ghost.style.left = `${ghostCenterX}px`;
+        // Vertical: Prefer top, fallback to bottom if cut off
+        ghostY = rect.top - 180;
+        if (ghostY < 20) ghostY = rect.bottom + 20;
+
+        // Final viewport bounds check for vertical safety
+        if (ghostY + 300 > window.innerHeight) ghostY = window.innerHeight - 310;
+        
+        ghost.style.left = `${ghostX}px`;
+        ghost.style.top = `${ghostY}px`;
         ghost.style.transform = 'translateX(-50%)';
     } else {
-        ghost.style.top = step.pos.top;
-        ghost.style.left = step.pos.left;
+        ghostX = (parseFloat(step.pos.left) / 100) * window.innerWidth;
+        ghostY = (parseFloat(step.pos.top) / 100) * window.innerHeight;
+        ghost.style.left = `${ghostX}px`;
+        ghost.style.top = `${ghostY}px`;
         ghost.style.transform = 'translate(-50%, -50%)';
-        
-        // Estimate center X for percentage based positions
-        const percent = parseFloat(step.pos.left) || 50;
-        ghostCenterX = (percent / 100) * window.innerWidth;
     }
 
-    // Smart Horizontal Positioning for Tooltip
-    // Reset classes/styles to prevent conflicts
+    // Responsive Tooltip Alignment & Width
     tooltip.classList.remove('left-1/2', '-translate-x-1/2', 'left-0', 'right-0');
     tooltip.style.left = '';
     tooltip.style.right = '';
     tooltip.style.transform = '';
 
-    const tooltipWidth = 256; // Matching w-64 in Tailwind
+    const tooltipWidth = Math.min(256, window.innerWidth - 40);
+    tooltip.style.width = `${tooltipWidth}px`;
     const margin = 20;
 
-    if (ghostCenterX - (tooltipWidth / 2) < margin) {
-        // Too close to left edge
+    // Check if centering tooltip puts it offscreen
+    if (ghostX - (tooltipWidth / 2) < margin) {
         tooltip.classList.add('left-0');
         tooltip.style.transform = 'translateX(0)';
-    } else if (ghostCenterX + (tooltipWidth / 2) > window.innerWidth - margin) {
-        // Too close to right edge
+    } else if (ghostX + (tooltipWidth / 2) > window.innerWidth - margin) {
         tooltip.classList.add('right-0');
         tooltip.style.left = 'auto';
         tooltip.style.transform = 'translateX(0)';
     } else {
-        // Centered
         tooltip.classList.add('left-1/2', '-translate-x-1/2');
     }
 
