@@ -1248,6 +1248,108 @@ nav button:hover {
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* --- Analog Clock & Calendar Styles --- */
+.analog-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px; height: 12px;
+    background: var(--primary);
+    border-radius: 50%;
+    z-index: 10;
+    box-shadow: 0 0 10px var(--primary);
+}
+
+.analog-hand {
+    position: absolute;
+    bottom: 50%; left: 50%;
+    transform-origin: bottom center;
+    border-radius: 10px;
+    z-index: 5;
+    transition: transform 0.1s cubic-bezier(0.4, 2, 0.5, 1);
+}
+
+.analog-hand.hour {
+    width: 6px; height: 25%;
+    background: #fff;
+    margin-left: -3px;
+}
+
+.analog-hand.min {
+    width: 4px; height: 35%;
+    background: var(--primary);
+    margin-left: -2px;
+}
+
+.analog-hand.sec {
+    width: 2px; height: 40%;
+    background: #ef4444;
+    margin-left: -1px;
+}
+
+.analog-mark {
+    position: absolute;
+    background: rgba(255,255,255,0.2);
+}
+
+.clock-number {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 900;
+    color: #fff;
+    transform: translate(-50%, -50%);
+}
+
+.clock-number.n12 { top: 10%; left: 50%; }
+.clock-number.n1  { top: 16%; left: 70%; }
+.clock-number.n2  { top: 30%; left: 84%; }
+.clock-number.n3  { top: 50%; left: 90%; }
+.clock-number.n4  { top: 70%; left: 84%; }
+.clock-number.n5  { top: 84%; left: 70%; }
+.clock-number.n6  { top: 90%; left: 50%; }
+.clock-number.n7  { top: 84%; left: 30%; }
+.clock-number.n8  { top: 70%; left: 16%; }
+.clock-number.n9  { top: 50%; left: 10%; }
+.clock-number.n10 { top: 30%; left: 16%; }
+.clock-number.n11 { top: 16%; left: 30%; }
+
+@media (max-width: 768px) {
+    .clock-number { font-size: 10px; width: 18px; height: 18px; }
+}
+
+.cal-day {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    cursor: default;
+    transition: all 0.2s;
+}
+
+.cal-day.active-month:hover {
+    background: rgba(6, 182, 212, 0.1);
+    color: var(--primary);
+}
+
+.cal-day.today {
+    background: var(--primary) !important;
+    color: white !important;
+    font-weight: 900 !important;
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+}
+
+.cal-day.other-month {
+    opacity: 0.2;
+}
+
 /* --- Floating AI Widget --- */
 #aiWidget {
     z-index: 999;
@@ -1365,6 +1467,12 @@ textarea:focus, input:focus {
     word-break: normal;
     font-family: 'Fira Code', monospace;
     min-height: 0; /* Critical for scrollability inside grid/flex */
+}
+
+#diffOriginal > div, #diffProposed > div {
+    min-height: 1.5em;
+    line-height: 1.5;
+    padding-right: 1rem;
 }
 
 @media (max-width: 768px) {

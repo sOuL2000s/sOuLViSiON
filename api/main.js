@@ -303,6 +303,15 @@ export default async function handler(req, res) {
         if (query.route === 'messages' && method === 'POST') {
             const col = db.collection('messages');
             const data = typeof body === 'string' ? JSON.parse(body) : body;
+            
+            // Map attachments to nodemailer format
+            const attachments = (data.attachments || []).map(file => ({
+                filename: file.name,
+                content: file.content,
+                encoding: 'base64',
+                contentType: file.type
+            }));
+
             const doc = { ...data, timestamp: Date.now() };
             await col.insertOne(doc);
 
@@ -320,7 +329,8 @@ export default async function handler(req, res) {
                     to: process.env.MAIL_RECEIVER || process.env.MAIL_USER,
                     replyTo: data.email,
                     subject: `sOuLViSiON: New Message from ${data.name}`,
-                    text: `Name: ${data.name}\nEmail: ${data.email}\n\nMessage:\n${data.message}`
+                    text: `Name: ${data.name}\nEmail: ${data.email}\n\nMessage:\n${data.message}`,
+                    attachments: attachments
                 };
 
                 try {

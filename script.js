@@ -227,6 +227,11 @@ let aiConfig = { keys: [], models: [] };
 let currentKeyIndex = 0;
 let pendingFiles = [];
 let miniChatHistory = [];
+
+// --- TIME & CALENDAR STATE ---
+let clockType = 'digital';
+let timeFormat = localStorage.getItem('soul_time_format') || '12h';
+let calendarDate = new Date();
 let notes = [];
 let noteType = 'note';
 let sleepTimer = null;
@@ -6477,6 +6482,80 @@ async function syncMusicPlaylist() {
     } catch (e) { console.warn("Music playlist sync failed", e); }
 }
 
+function exportPlaylist() {
+    // Only export non-blob tracks (YouTube or external URLs)
+    const exportableTracks = musicList.filter(t => t.type === 'youtube' || (t.url && !t.url.startsWith('blob:')));
+    
+    if (exportableTracks.length === 0) {
+        return showToast("No online tracks found to export.", "warning");
+    }
+
+    const playlistData = {
+        version: "1.0",
+        exportedBy: currentUser ? currentUser.name : "Guest",
+        exportedAt: new Date().toISOString(),
+        tracks: exportableTracks
+    };
+
+    const blob = new Blob([JSON.stringify(playlistData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sOuLViSiON_Playlist_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Playlist exported as JSON.", "success");
+}
+
+function importPlaylist(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+        try {
+            const json = JSON.parse(event.target.result);
+            const incomingTracks = Array.isArray(json) ? json : json.tracks;
+            
+            if (!incomingTracks || !Array.isArray(incomingTracks)) {
+                throw new Error("Invalid playlist format.");
+            }
+
+            let addedCount = 0;
+            incomingTracks.forEach(track => {
+                // Prevent duplicates based on URL or YouTube ID
+                const isDuplicate = musicList.some(t => 
+                    (track.type === 'youtube' && t.id === track.id) || 
+                    (track.url && t.url === track.url)
+                );
+
+                if (!isDuplicate) {
+                    musicList.push(track);
+                    if (isShuffle) shuffledIndices.push(musicList.length - 1);
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                renderPlaylist();
+                saveMusicPlaylist();
+                showToast(`Imported ${addedCount} new tracks!`, "success");
+                if (!isMusicPlaying && musicList.length === addedCount) playTrack(0);
+            } else {
+                showToast("All tracks already exist in library.", "info");
+            }
+        } catch (err) {
+            console.error("Import Error:", err);
+            showToast("Import failed: Invalid file.", "error");
+        } finally {
+            e.target.value = '';
+        }
+    };
+    reader.readAsText(file);
+}
+
 function updateAuthUI() {
     if (currentUser && currentUser.theme) {
         setTheme(currentUser.theme);
@@ -7161,6 +7240,8 @@ function setPlayMode(mode) {
         searchBox.classList.add('hidden');
         searchBox.classList.remove('flex');
         addBtn.classList.remove('hidden');
+        addBtn.classList.add('flex');
+        addBtn.classList.replace('text-[10px]', 'text-[9px]');
         // Ensure library is expanded if it was collapsed when switching to offline mode
         if (libraryBox.classList.contains('collapsed-music-section')) {
             toggleMusicSection('localPlaylistContainer');
@@ -7806,6 +7887,27 @@ function toggleShuffle() {
     }
     document.getElementById('shuffleBtn').classList.toggle('control-active', isShuffle);
     renderPlaylist();
+}
+
+function shuffleAndPlay() {
+    if (musicList.length === 0) return showToast("Add some music first!", "warning");
+    
+    // Enable and force a fresh shuffle
+    isShuffle = true;
+    shuffledIndices = musicList.map((_, i) => i);
+    for (let i = shuffledIndices.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffledIndices[i], shuffledIndices[j]] = [shuffledIndices[j], shuffledIndices[i]];
+    }
+    
+    const shuffleBtn = document.getElementById('shuffleBtn');
+    if (shuffleBtn) shuffleBtn.classList.add('control-active');
+    
+    renderPlaylist();
+    
+    // Play the first song in the newly shuffled sequence
+    playTrack(shuffledIndices[0]);
+    showToast("Shuffle & Play sequence initiated.", "info");
 }
 
 function toggleRepeat() {
@@ -11171,6 +11273,56 @@ async function loadFeedbacks() {
 }
 
 // --- CONTACT FORM LOGIC ---
+let contactFiles = [];
+
+function handleContactFiles(input) {
+    const files = Array.from(input.files);
+    files.forEach(file => {
+        // Size Check: Vercel serverless has a body limit. Let's suggest staying under 4MB total.
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const base64 = e.target.result.split(',')[1];
+            contactFiles.push({
+                name: file.name,
+                type: file.type,
+                content: base64
+            });
+            renderContactFilePreview();
+        };
+        reader.readAsDataURL(file);
+    });
+    input.value = '';
+}
+
+function removeContactFile(idx) {
+    contactFiles.splice(idx, 1);
+    renderContactFilePreview();
+}
+
+function renderContactFilePreview() {
+    const container = document.getElementById('contactFilePreview');
+    const countEl = document.getElementById('contactFileCount');
+    container.innerHTML = '';
+    
+    if (contactFiles.length === 0) {
+        countEl.innerText = "No files selected";
+        return;
+    }
+
+    countEl.innerText = `${contactFiles.length} file${contactFiles.length > 1 ? 's' : ''} prepared`;
+
+    contactFiles.forEach((file, idx) => {
+        const chip = document.createElement('div');
+        chip.className = "bg-white/5 border border-white/10 px-2 py-1 rounded-lg flex items-center gap-2 text-[10px] text-gray-300 animate-fadeIn";
+        chip.innerHTML = `
+            <i class="fas fa-file-alt text-cyan-400"></i>
+            <span class="truncate max-w-[80px]">${file.name}</span>
+            <button type="button" onclick="removeContactFile(${idx})" class="hover:text-red-500 transition"><i class="fas fa-times"></i></button>
+        `;
+        container.appendChild(chip);
+    });
+}
+
 async function handleContact(e) {
     e.preventDefault();
     const name = document.getElementById('contactName').value;
@@ -11183,15 +11335,24 @@ async function handleContact(e) {
         const res = await fetch('/api/main?route=messages', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, message, timestamp: Date.now() })
+            body: JSON.stringify({ 
+                name, 
+                email, 
+                message, 
+                attachments: contactFiles,
+                timestamp: Date.now() 
+            })
         });
 
         if (res.ok) {
             status.innerText = "Message sent successfully! We'll get back to you soon.";
             status.className = "mt-4 text-center text-xs text-green-400 block";
             document.getElementById('contactForm').reset();
+            contactFiles = [];
+            renderContactFilePreview();
         } else {
-            throw new Error("Failed to send message");
+            const errData = await res.json();
+            throw new Error(errData.error || "Failed to send message");
         }
     } catch (err) {
         status.innerText = "Error: " + err.message;
@@ -12398,33 +12559,66 @@ async function askCodeAI() {
 function showDiffOverlay() {
     if (!aiProposedChange) return;
     
-    const origLines = aiProposedChange.originalContent.split('\n');
+    const oldLines = aiProposedChange.originalContent.split('\n');
     const newLines = aiProposedChange.newContent.split('\n');
+    
+    // Optimized Diff alignment using LCS (Longest Common Subsequence)
+    function getDiff(oldArr, newArr) {
+        const m = oldArr.length;
+        const n = newArr.length;
+        
+        // Use a single typed array for the DP table to improve memory efficiency
+        const dp = new Int32Array((m + 1) * (n + 1));
+        const getIdx = (i, j) => i * (n + 1) + j;
+
+        for (let i = 1; i <= m; i++) {
+            for (let j = 1; j <= n; j++) {
+                if (oldArr[i - 1] === newArr[j - 1]) {
+                    dp[getIdx(i, j)] = dp[getIdx(i - 1, j - 1)] + 1;
+                } else {
+                    dp[getIdx(i, j)] = Math.max(dp[getIdx(i - 1, j)], dp[getIdx(i, j - 1)]);
+                }
+            }
+        }
+
+        const result = [];
+        let i = m, j = n;
+        while (i > 0 || j > 0) {
+            if (i > 0 && j > 0 && oldArr[i - 1] === newArr[j - 1]) {
+                result.unshift({ type: 'equal', old: oldArr[i - 1], new: newArr[j - 1] });
+                i--; j--;
+            } else if (j > 0 && (i === 0 || dp[getIdx(i, j - 1)] >= dp[getIdx(i - 1, j)])) {
+                result.unshift({ type: 'add', new: newArr[j - 1] });
+                j--;
+            } else {
+                result.unshift({ type: 'delete', old: oldArr[i - 1] });
+                i--;
+            }
+        }
+        return result;
+    }
+
+    const diff = getDiff(oldLines, newLines);
     
     let origHtml = "";
     let newHtml = "";
     
-    const maxLines = Math.max(origLines.length, newLines.length);
-    
-    for (let i = 0; i < maxLines; i++) {
-        const o = origLines[i];
-        const n = newLines[i];
-        
-        const oStr = o !== undefined ? escapeHtml(o) : null;
-        const nStr = n !== undefined ? escapeHtml(n) : null;
+    diff.forEach(item => {
+        const oStr = item.old !== undefined ? escapeHtml(item.old) : null;
+        const nStr = item.new !== undefined ? escapeHtml(item.new) : null;
 
-        if (o === n) {
-            if (oStr !== null) origHtml += `<div>${oStr || '&nbsp;'}</div>`;
-            if (nStr !== null) newHtml += `<div>${nStr || '&nbsp;'}</div>`;
-        } else {
-            // Different lines: highlight deletion in red, addition in green
-            if (oStr !== null) origHtml += `<div class="bg-red-500/30 text-red-200 border-l-2 border-red-500 pl-1"> ${oStr || '&nbsp;'}</div>`;
-            else origHtml += `<div class="opacity-20">&nbsp;</div>`;
-            
-            if (nStr !== null) newHtml += `<div class="bg-green-500/30 text-green-200 border-l-2 border-green-500 pl-1"> ${nStr || '&nbsp;'}</div>`;
-            else newHtml += `<div class="opacity-20">&nbsp;</div>`;
+        if (item.type === 'equal') {
+            const content = (oStr || '').trim() === '' ? '&nbsp;' : oStr;
+            origHtml += `<div>${content}</div>`;
+            newHtml += `<div>${content}</div>`;
+        } else if (item.type === 'delete') {
+            origHtml += `<div class="bg-red-500/30 text-red-200 border-l-2 border-red-500 pl-1"> ${oStr || '&nbsp;'}</div>`;
+            newHtml += `<div class="opacity-10 bg-red-900/10">&nbsp;</div>`;
+        } else if (item.type === 'add') {
+            origHtml += `<div class="opacity-10 bg-green-900/10">&nbsp;</div>`;
+            newHtml += `<div class="bg-green-500/30 text-green-200 border-l-2 border-green-500 pl-1"> ${nStr || '&nbsp;'}</div>`;
         }
-    }
+    });
 
     document.getElementById('diffOriginal').innerHTML = origHtml;
     document.getElementById('diffProposed').innerHTML = newHtml;
@@ -12575,10 +12769,146 @@ const initApp = async () => {
         setInterval(checkAnnouncement, 60000);
         
         if (initialPath === 'snake') syncSnakeLeaderboard();
+        startTimeUpdates();
     });
 };
 
 // Use DOMContentLoaded instead of window.onload for faster initial execution
+// --- TIME & CALENDAR ENGINE ---
+function startTimeUpdates() {
+    const update = () => {
+        const now = new Date();
+        const is12h = timeFormat === '12h';
+        
+        // Update Navbar
+        const navTime = document.getElementById('navTime');
+        const navDate = document.getElementById('navDate');
+        if (navTime) navTime.innerText = now.toLocaleTimeString([], { hour12: is12h });
+        if (navDate) navDate.innerText = now.toLocaleDateString([], { month: 'short', day: '2-digit', year: 'numeric' });
+
+        // Update Modal if visible
+        const modal = document.getElementById('timeModal');
+        if (modal && !modal.classList.contains('hidden')) {
+            if (clockType === 'digital') {
+                document.getElementById('modalDigitalTime').innerText = now.toLocaleTimeString([], { hour12: is12h });
+                document.getElementById('modalDigitalDate').innerText = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: '2-digit' });
+            } else {
+                const hour = now.getHours();
+                const min = now.getMinutes();
+                const sec = now.getSeconds();
+
+                const hrDeg = (hour % 12) * 30 + min * 0.5;
+                const minDeg = min * 6 + sec * 0.1;
+                const secDeg = sec * 6;
+
+                document.getElementById('analogHour').style.transform = `translateX(-50%) rotate(${hrDeg}deg)`;
+                document.getElementById('analogMin').style.transform = `translateX(-50%) rotate(${minDeg}deg)`;
+                document.getElementById('analogSec').style.transform = `translateX(-50%) rotate(${secDeg}deg)`;
+            }
+        }
+    };
+    
+    update();
+    setInterval(update, 1000);
+}
+
+function openTimeModal() {
+    document.getElementById('timeModal').classList.remove('hidden');
+    document.getElementById('timeModal').classList.add('flex');
+    document.getElementById('userTimezone').innerText = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    renderCalendar();
+    setTimeFormat(timeFormat);
+    setClockType(clockType);
+    document.body.style.overflow = 'hidden';
+}
+
+function closeTimeModal() {
+    document.getElementById('timeModal').classList.add('hidden');
+    document.getElementById('timeModal').classList.remove('flex');
+    document.body.style.overflow = '';
+}
+
+function setClockType(type) {
+    clockType = type;
+    const btnD = document.getElementById('btnClockDigital');
+    const btnA = document.getElementById('btnClockAnalog');
+    const dispD = document.getElementById('displayDigital');
+    const dispA = document.getElementById('displayAnalog');
+    const formatToggle = document.getElementById('timeFormatToggle');
+
+    if (type === 'digital') {
+        if (btnD) btnD.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-cyan-600 text-white transition-all shadow-lg shadow-cyan-600/20";
+        if (btnA) btnA.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400 hover:text-white transition-all";
+        if (dispD) dispD.classList.remove('hidden');
+        if (dispA) dispA.classList.add('hidden');
+        if (formatToggle) formatToggle.classList.remove('hidden');
+    } else {
+        if (btnA) btnA.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-cyan-600 text-white transition-all shadow-lg shadow-cyan-600/20";
+        if (btnD) btnD.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400 hover:text-white transition-all";
+        if (dispA) dispA.classList.remove('hidden');
+        if (dispD) dispD.classList.add('hidden');
+        if (formatToggle) formatToggle.classList.add('hidden');
+    }
+}
+
+function setTimeFormat(format) {
+    timeFormat = format;
+    localStorage.setItem('soul_time_format', format);
+    const btn12 = document.getElementById('btnFormat12h');
+    const btn24 = document.getElementById('btnFormat24h');
+
+    if (format === '12h') {
+        if (btn12) btn12.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-cyan-600 text-white transition-all shadow-lg shadow-cyan-600/20";
+        if (btn24) btn24.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400 hover:text-white transition-all";
+    } else {
+        if (btn24) btn24.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-cyan-600 text-white transition-all shadow-lg shadow-cyan-600/20";
+        if (btn12) btn12.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400 hover:text-white transition-all";
+    }
+}
+
+function changeMonth(delta) {
+    calendarDate.setMonth(calendarDate.getMonth() + delta);
+    renderCalendar();
+}
+
+function renderCalendar() {
+    const grid = document.getElementById('calendarGrid');
+    const header = document.getElementById('calMonthYear');
+    
+    const year = calendarDate.getFullYear();
+    const month = calendarDate.getMonth();
+    
+    header.innerText = calendarDate.toLocaleDateString([], { month: 'long', year: 'numeric' });
+    
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    
+    let html = "";
+    
+    // Prev Month Padding
+    for (let i = firstDay; i > 0; i--) {
+        html += `<div class="cal-day other-month">${daysInPrevMonth - i + 1}</div>`;
+    }
+    
+    // Current Month
+    const today = new Date();
+    for (let i = 1; i <= daysInMonth; i++) {
+        const isToday = today.getDate() === i && today.getMonth() === month && today.getFullYear() === year;
+        html += `<div class="cal-day active-month ${isToday ? 'today' : ''}">${i}</div>`;
+    }
+    
+    // Next Month Padding
+    const totalCells = 42;
+    const consumed = firstDay + daysInMonth;
+    const remaining = totalCells - consumed;
+    for (let i = 1; i <= remaining; i++) {
+        html += `<div class="cal-day other-month">${i}</div>`;
+    }
+    
+    grid.innerHTML = html;
+}
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initApp);
 } else {
