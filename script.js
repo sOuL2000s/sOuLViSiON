@@ -280,6 +280,11 @@ let sleepTimer = null;
 let noteFilter = 'all';
 let aiConversations = [];
 let selectedConversations = new Set();
+// The problematic second declaration was here. Removed 'let'.
+// consecutiveApiFailures = 0;
+// isAICooldownActive = false;
+// aiCooldownTimer = null; // To automatically clear cooldown
+
 let currentChatId = null;
 let seekHistory = [];
 
@@ -3467,6 +3472,77 @@ async function askAI() {
     if (isCodePage) isStreamingMode = savedStreamMode;
 }
 
+async function askCodeAI() {
+    stopAllSTT();
+    if (isAICooldownActive) {
+        showAICooldownOverlay();
+        return;
+    }
+    const inputEl = document.getElementById('codeChatInput');
+    const editorEl = document.getElementById('codeEditor');
+    const query = inputEl.value.trim();
+    if (!query && pendingFiles.length === 0) return;
+
+    let activeFile = projectFiles.find(f => f.id === activeFileId);
+    
+    if (!activeFile && editorEl.value.trim()) {
+        const id = Date.now() + Math.random();
+        activeFile = { id, name: 'notebook.txt', path: 'notebook.txt', content: editorEl.value };
+        projectFiles.push(activeFile);
+        activeFileId = id;
+        renderFileTree();
+        selectCodeFile(id);
+        showToast("Editor content indexed as notebook.", "info");
+    }
+
+    if (!activeFile && pendingFiles.length === 0) {
+        showToast("Upload a file or enter code in the editor to provide context.", "warning");
+        return;
+    }
+
+    const userMsg = query + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
+    appendAIMessage('user', userMsg, 'codeChatBox');
+    inputEl.value = '';
+    autoResize(inputEl);
+    [document.getElementById('aiAttachmentPreview'), document.getElementById('miniAttachmentPreview'), document.getElementById('codeAttachmentPreview'), document.getElementById('solveAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
+
+    const model = document.getElementById('codeModelSelect').value;
+    const projectContext = projectFiles.map(f => `File: ${f.path}\nContent:\n${f.content}`).join('\n\n---\n\n');
+    let activeFilePath = activeFile ? activeFile.path : 'None';
+    let activeFileContent = activeFile ? activeFile.content : 'None';
+
+    const systemPrompt = `You are an expert AI code editor. 
+    CURRENT_PROJECT_CONTEXT:
+    ${projectContext}
+
+    ACTIVE_FILE: ${activeFilePath}
+    ACTIVE_FILE_CONTENT: ${activeFileContent}
+
+    USER_REQUEST: ${query}
+
+    INSTRUCTIONS:
+    1. You MUST directly edit the active file if the user requests changes.
+    2. Return your response in this exact format:
+       COMMENTARY: [Brief explanation of changes]
+       CODE_START
+       [Full new content of ${activeFilePath}]
+       CODE_END
+    3. If no code change is requested, just answer the question in plain text.`;
+
+    const parts = [{ text: systemPrompt }];
+    pendingFiles.forEach(f => parts.push({ inline_data: { mime_type: f.mime_type, data: f.data } }));
+    
+    const history = [{ role: 'user', content: userMsg, parts }];
+    const attachmentsForApi = [...pendingFiles];
+    pendingFiles = [];
+
+    // Force non-streaming for Code AI
+    const originalStreamMode = isStreamingMode;
+    isStreamingMode = false;
+    await callGeminiAPI(query, 'codeChatBox', history, attachmentsForApi, model);
+    isStreamingMode = originalStreamMode;
+}
+
 async function askMiniAI() {
     stopAllSTT();
     if (isAICooldownActive) {
@@ -3715,26 +3791,39 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
             miniChatHistory.push({ role: 'ai', content: fullContent });
         }
         document.title = 'sOuLViSiON | Digital Sanctuary';
+        // Reset failures on success
+        consecutiveApiFailures = 0;
     } catch (err) {
         if (loadingInterval) clearInterval(loadingInterval);
         toggleSendButton(type, false);
+        currentAbortController = null; // Always nullify the controller on error
         
+        // Clear any pending files display as they won't be sent now
+        pendingFiles = []; // Ensure internal state is clean (it should already be if call started)
+        renderAttachmentChips(); // Clear attachments from UI
+
         if (err.name === 'AbortError') {
-            currentAbortController = null;
             if (statusEl) statusEl.classList.add('hidden');
             document.title = 'sOuLViSiON | Digital Sanctuary';
+            // Do not increment failure count for aborts
             return;
         }
         
         console.warn(`Key ${currentKeyIndex} error: ${err.message}.`);
-        if (aiConfig.keys.length > 1) {
+        
+        // Increment failure count for actual API errors
+        consecutiveApiFailures++;
+
+        if (aiConfig.keys.length > 1 && consecutiveApiFailures < 3) { // Retry only if failures less than threshold
             currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            showToast(`API key failed, switching to next key. Retrying... (${consecutiveApiFailures} failures)`, "warning");
+            // Recursive call for retry, this path does not need to hide statusEl explicitly,
+            // as it will be re-shown by the new callGeminiAPI invocation.
             return await callGeminiAPI(text, targetBoxId, history, attachments, model); // Pass model for retry
         }
         
-        // Error handling: Increment failure count
-        consecutiveApiFailures++;
-        if (consecutiveApiFailures >= 3 && !isAICooldownActive) { // Threshold for cooldown (e.g., 3 failures)
+        // If failures exceed threshold or only one key exists, activate cooldown
+        if (consecutiveApiFailures >= 3 || aiConfig.keys.length === 1) { 
             isAICooldownActive = true;
             showAICooldownOverlay();
             // Start a timer to automatically clear cooldown after some time (e.g., 5 minutes)
@@ -3744,11 +3833,10 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
                 hideAICooldownOverlay();
                 showToast("AI Cooldown lifted! Try again.", "info");
             }, 5 * 60 * 1000); // 5 minutes
-            showToast("AI is on cooldown. Please wait or support.", "warning");
-            document.title = 'sOuLViSiON | Digital Sanctuary';
-            return; // Don't retry more if cooldown is active
+            showToast("AI is on cooldown due to repeated failures. Please wait or support.", "warning");
         }
 
+        // Always hide the status element if we're not retrying
         if(statusEl) statusEl.classList.add('hidden');
         
         if (err.message.includes("quota") || err.message.includes("API key")) {
@@ -7179,6 +7267,34 @@ async function askSolveAI(customPrompt = null) {
     await callGeminiAPI(query, 'solveAIChat', history, attachmentsForApi, model);
 }
 
+// Global functions for AI cooldown
+function showAICooldownOverlay() {
+    const overlay = document.getElementById('aiCooldownOverlay');
+    if (overlay) {
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+    }
+}
+
+function hideAICooldownOverlay() {
+    const overlay = document.getElementById('aiCooldownOverlay');
+    if (overlay) overlay.classList.add('hidden');
+}
+
+function retryAICooldown() {
+    // Attempt to clear cooldown state and close overlay
+    isAICooldownActive = false;
+    consecutiveApiFailures = 0;
+    if (aiCooldownTimer) clearTimeout(aiCooldownTimer);
+    hideAICooldownOverlay();
+    showToast("Attempting to reconnect AI...", "info");
+}
+
+function goToSupportPage() {
+    hideAICooldownOverlay();
+    showPage('support');
+}
+
 // Keyboard shortcuts for Solver
 document.addEventListener('keydown', (e) => {
     if (document.getElementById('solve').classList.contains('active')) {
@@ -7191,6 +7307,7 @@ document.addEventListener('keydown', (e) => {
         }
     }
 });
+
 
 // --- sOuLCODE LOGIC ---
 const CODE_EXCLUSIONS = ['node_modules', '.git', '.vercel', '.next', 'dist', 'build', '.env', 'package-lock.json', 'yarn.lock', 'venv', '__pycache__', '.vscode'];
