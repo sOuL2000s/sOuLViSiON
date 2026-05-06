@@ -2907,84 +2907,194 @@ async function handleAIFile(e, isMini = false) {
 let recognition;
 let sttForceStop = false;
 let sttFinalTranscript = '';
+let sttCurrentLang = 'en-US'; // Default language
 
-function toggleSTT(isMini = false) {
-    const btnId = isMini ? 'miniSttBtn' : 'sttBtn';
-    const inputId = isMini ? 'miniChatInput' : 'chatInput';
+// Helper to format transcript for better readability
+function postProcessTranscript(transcript, isNote = false) {
+    // Capitalize first letter of sentence and add period if missing
+    let processed = transcript.trim();
+    if (processed.length > 0) {
+        processed = processed.charAt(0).toUpperCase() + processed.slice(1);
+        if (!/[.?!]$/.test(processed)) {
+            processed += '.';
+        }
+    }
+    
+    // Basic formatting for notes (e.g., if it looks like a list item)
+    if (isNote) {
+        if (processed.toLowerCase().startsWith('new item')) {
+            processed = '- [ ] ' + processed.substring('new item'.length).trim();
+        } else if (processed.toLowerCase().startsWith('bullet')) {
+            processed = '- ' + processed.substring('bullet'.length).trim();
+        }
+    }
+    
+    return processed;
+}
+
+// Function to handle voice commands
+function processVoiceCommand(command) {
+    const lowerCommand = command.toLowerCase().trim();
+
+    if (lowerCommand.includes('save note') || lowerCommand.includes('commit note')) {
+        showToast("Voice command: Save Note", "info");
+        addNote();
+        return true;
+    }
+    if (lowerCommand.includes('new chat') || lowerCommand.includes('start new conversation')) {
+        showToast("Voice command: New Chat", "info");
+        newConversation();
+        return true;
+    }
+    if (lowerCommand.includes('clear chat') || lowerCommand.includes('delete messages')) {
+        showToast("Voice command: Clear Chat", "info");
+        clearChat();
+        return true;
+    }
+    if (lowerCommand.includes('switch to ai') || lowerCommand.includes('go to ai')) {
+        showToast("Voice command: Switch to AI", "info");
+        showPage('ai');
+        return true;
+    }
+    if (lowerCommand.includes('switch to notes') || lowerCommand.includes('go to notes')) {
+        showToast("Voice command: Switch to Notes", "info");
+        showPage('notes');
+        return true;
+    }
+    if (lowerCommand.includes('switch to music') || lowerCommand.includes('go to music')) {
+        showToast("Voice command: Switch to Music", "info");
+        showPage('play');
+        return true;
+    }
+    if (lowerCommand.includes('go to dashboard') || lowerCommand.includes('show dashboard')) {
+        showToast("Voice command: Go to Dashboard", "info");
+        showPage('dashboard');
+        return true;
+    }
+    if (lowerCommand.includes('help')) {
+        showToast("Voice command: Displaying help for voice commands (WIP)", "info");
+        // Implement a modal or message for voice command help
+        return true;
+    }
+    
+    return false;
+}
+
+// Unified Speech-to-Text Toggle Function
+function toggleSpeechToText(inputId, btnId, isMiniChat = false, isNote = false) {
     const btn = document.getElementById(btnId);
     const input = document.getElementById(inputId);
 
     if (!('webkitSpeechRecognition' in window)) {
-        return alert("Speech recognition not supported in this browser.");
+        return showToast("Speech recognition not supported in this browser.", "error");
     }
 
-    if (recognition && recognition.active) {
+    if (recognition) { // Check if recognition object exists and might be active
         sttForceStop = true;
         recognition.stop();
+        recognition = null; // Explicitly nullify the object to prevent any lingering state issues
+        
+        // Ensure UI is reset for the button that was clicked to stop
+        const iconClass = isMiniChat ? 'text-xs' : ''; // Determine icon size based on context
+        btn.innerHTML = `<i class="fas fa-microphone ${iconClass}"></i>`;
+        btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
+        showToast("Microphone OFF", "warning");
         return;
     }
 
+    // If starting a new recognition session
     sttForceStop = false;
-    sttFinalTranscript = input.value;
+    sttFinalTranscript = input.value; // Initialize with current input value
     input.focus();
-    recognition = new webkitSpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+
+    recognition = new webkitSpeechRecognition(); // Always create a fresh instance
+    recognition.continuous = true; // Keep listening for continuous input
+    recognition.interimResults = true; // Get interim results for real-time display
+    recognition.lang = sttCurrentLang; // Use selected language
 
     recognition.onstart = () => {
-        btn.innerHTML = `<i class="fas fa-stop-circle text-red-500 animate-pulse ${isMini ? 'text-[10px]' : ''}"></i>`;
+        const iconClass = isMiniChat ? 'text-[10px]' : '';
+        btn.innerHTML = `<i class="fas fa-stop-circle text-red-500 animate-pulse ${iconClass}"></i>`;
         btn.classList.add('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
-        recognition.active = true;
-        showToast("Listening...", "info");
+        recognition.active = true; // Manually track active state
+        showToast(`Listening in ${sttCurrentLang}...`, "info");
     };
 
     recognition.onresult = (event) => {
         let interimTranscript = '';
-        let currentFinal = '';
+        let currentSegmentFinal = ''; // Final transcript for the *current* event segment
 
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-                currentFinal += transcript;
+                currentSegmentFinal += transcript + ' ';
             } else {
                 interimTranscript += transcript;
             }
         }
         
-        if (currentFinal) {
-            sttFinalTranscript = (sttFinalTranscript.trim() + " " + currentFinal.trim()).trim();
+        // Append current segment's final transcript to our overall final transcript
+        if (currentSegmentFinal.length > 0) {
+            sttFinalTranscript = (sttFinalTranscript.trim() + " " + currentSegmentFinal.trim()).trim();
+            
+            // Check for voice commands on final segments
+            const commandRecognized = processVoiceCommand(currentSegmentFinal);
+            if (commandRecognized) {
+                sttForceStop = true; // Stop STT if a command is recognized
+                if (recognition) recognition.stop();
+                sttFinalTranscript = sttFinalTranscript.replace(currentSegmentFinal, '').trim(); // Remove command from transcript
+            }
         }
 
-        // Real-time typing: Update input with final accumulated text + current interim
+        // Display current overall final transcript + current interim (if any)
         input.value = (sttFinalTranscript + " " + interimTranscript).trim();
         
+        // Auto-resize for flexible text areas
+        if (typeof autoResize === 'function') autoResize(input);
+        
+        // Scroll to bottom
         input.scrollTop = input.scrollHeight;
-        if (!isMini && input.id === 'chatInput') autoResize(input);
     };
 
     recognition.onerror = (event) => {
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             sttForceStop = true;
-            showToast("Microphone access denied or service unavailable.", "error");
+            showToast("Microphone access denied or service unavailable. Check browser permissions.", "error");
+        } else {
+            showToast(`STT Error: ${event.error}`, "warning");
         }
         console.warn("STT Error:", event.error);
+        if (recognition) {
+            recognition.active = false;
+            // Also reset button state if an error occurs and it's not handled by onend
+            const iconClass = isMiniChat ? 'text-xs' : '';
+            btn.innerHTML = `<i class="fas fa-microphone ${iconClass}"></i>`;
+            btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
+            recognition = null; // Ensure recognition object is cleared on error
+        }
     };
 
     recognition.onend = () => {
-        if (!sttForceStop) {
+        // This 'onend' handler will fire for both natural ends and explicit stops.
+        // The UI reset (button change, toast) is now primarily handled in the `toggleSpeechToText`
+        // stopping block for immediate feedback.
+        
+        // Only restart if it wasn't a forced stop AND a new `recognition` object was not already created/nullified
+        // by a manual stop action (recognition !== null).
+        if (!sttForceStop && recognition) { 
             try { 
                 recognition.start(); 
             } catch(e) { 
                 console.warn("STT restart failed:", e); 
-                setTimeout(() => { if(!sttForceStop) recognition.start(); }, 500);
+                showToast("Speech recognition stopped due to an error. Please restart manually.", "error");
+                recognition = null; // Clear recognition on restart failure
             }
         } else {
-            btn.innerHTML = `<i class="fas fa-microphone ${isMini ? 'text-xs' : ''}"></i>`;
-            btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
-            recognition.active = false;
-            showToast("Microphone OFF", "warning");
+            // If it was a forced stop, or if recognition was already nullified,
+            // ensure any residual 'active' state is cleared.
+            if (recognition) recognition.active = false;
         }
+        sttForceStop = false; // Reset for next cycle
     };
 
     recognition.start();
@@ -3607,7 +3717,7 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         document.title = 'sOuLViSiON | Digital Sanctuary';
     } catch (err) {
         if (loadingInterval) clearInterval(loadingInterval);
-        toggleSendButton(isMini, false);
+        toggleSendButton(type, false);
         
         if (err.name === 'AbortError') {
             currentAbortController = null;
@@ -3720,10 +3830,19 @@ function toggleAIHistory() {
 function toggleMiniChat() { document.getElementById('miniChat').classList.toggle('show'); }
 
 function stopAllSTT() {
-    if (recognition && recognition.active) {
+    if (recognition) { // Check if recognition object exists
         sttForceStop = true;
         recognition.stop();
+        recognition = null; // Explicitly nullify the object when stopping universally
     }
+    // Reset UI of all STT buttons that might be active
+    const sttBtns = document.querySelectorAll('[id$="SttBtn"]');
+    sttBtns.forEach(btn => {
+        // Infer icon size based on button ID for correct styling
+        const iconClass = btn.id.includes('mini') ? 'text-xs' : (btn.id.includes('solve') ? 'text-[10px]' : '');
+        btn.innerHTML = `<i class="fas fa-microphone ${iconClass}"></i>`;
+        btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
+    });
 }
 
 // --- sOuLSEEK LOGIC ---
@@ -6805,80 +6924,6 @@ Before providing the final answer, perform these internal steps:
 }
 
 
-
-function toggleSTTNote(inputId) {
-    const btnId = inputId === 'noteInput' ? 'noteInputSttBtn' : 'editNoteSttBtn';
-    const btn = document.getElementById(btnId);
-    const input = document.getElementById(inputId);
-
-    if (!('webkitSpeechRecognition' in window)) return alert("Speech recognition not supported.");
-
-    if (recognition && recognition.active) {
-        sttForceStop = true;
-        recognition.stop();
-        return;
-    }
-
-    sttForceStop = false;
-    sttFinalTranscript = input.value;
-    input.focus();
-    recognition = new webkitSpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
-
-    recognition.onstart = () => {
-        btn.innerHTML = `<i class="fas fa-stop-circle text-red-500 animate-pulse"></i>`;
-        recognition.active = true;
-        showToast("Listening to your soul...", "info");
-    };
-
-    recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let currentFinal = '';
-
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            const transcript = event.results[i][0].transcript;
-            if (event.results[i].isFinal) {
-                currentFinal += transcript;
-            } else {
-                interimTranscript += transcript;
-            }
-        }
-        
-        if (currentFinal) {
-            sttFinalTranscript = (sttFinalTranscript.trim() + " " + currentFinal.trim()).trim();
-        }
-
-        input.value = (sttFinalTranscript + " " + interimTranscript).trim();
-        updateEditorStats(input);
-        input.scrollTop = input.scrollHeight;
-    };
-
-    recognition.onerror = (event) => {
-        if (event.error === 'not-allowed') {
-            sttForceStop = true;
-            showToast("Microphone access denied.", "error");
-        }
-        console.warn("STT Note Error:", event.error);
-    };
-
-    recognition.onend = () => {
-        if (!sttForceStop) {
-            try { 
-                recognition.start(); 
-            } catch(e) {
-                setTimeout(() => { if(!sttForceStop) recognition.start(); }, 500);
-            }
-        } else {
-            btn.innerHTML = `<i class="fas fa-microphone"></i>`;
-            recognition.active = false;
-            showToast("Note taking paused.", "warning");
-        }
-    };
-
-    recognition.start();
-}
 
 // Persistent Background Audio Handler
 document.addEventListener('visibilitychange', () => {
