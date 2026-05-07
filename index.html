@@ -1440,61 +1440,105 @@
 
                     <!-- Unified Meditation Core (Center Column) -->
                     <div class="space-y-6 lg:col-span-2">
-                        <!-- Breathing Assistance -->
-                        <div class="glass p-6 border-t-4 border-teal-500">
-                            <div class="flex justify-between items-center mb-6">
-                                <div class="flex flex-col">
-                                    <h4 class="text-xs font-black text-teal-400 uppercase tracking-widest">Neural Breathing Core</h4>
-                                    <span id="breathTotalTime" class="text-[9px] font-mono text-gray-500 mt-1">Practice: 0m</span>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                    <label class="flex items-center gap-2 text-[9px] font-black text-gray-500 uppercase cursor-pointer">
-                                        <input type="checkbox" id="syncFocusTimer" checked class="accent-teal-500">
-                                        Sync Timer
-                                    </label>
-                                    <button onclick="toggleBreathingSound()" id="breathSoundBtn" class="text-gray-500 hover:text-teal-400 transition"><i class="fas fa-volume-mute"></i></button>
-                                    <select id="focusModelSelect" class="bg-gray-800/50 border border-white/10 p-1.5 rounded-lg text-[9px] font-bold text-purple-300 outline-none max-w-[100px] cursor-pointer hover:bg-gray-800 transition"></select>
-                                </div>
+                        <!-- Focus Mode Selector -->
+                        <div class="glass p-6 mb-6">
+                            <h3 class="text-xs font-black tracking-widest text-orange-400 uppercase mb-4 text-center">Select Mode</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <button onclick="setFocusMode('japa')" id="modeJapa" class="focus-mode-btn active">
+                                    <i class="fas fa-pray text-xl mb-2"></i> Japa Dhyana
+                                </button>
+                                <button onclick="setFocusMode('tapasya')" id="modeTapasya" class="focus-mode-btn">
+                                    <i class="fas fa-sun text-xl mb-2"></i> Tapasya/Saadhana
+                                </button>
+                                <button onclick="setFocusMode('ananta')" id="modeAnanta" class="focus-mode-btn">
+                                    <i class="fas fa-infinity text-xl mb-2"></i> Ananta Nishkam
+                                </button>
                             </div>
-                            
-                            <div class="flex flex-col items-center justify-center py-6">
-                                <div id="breathAssistCircle" class="w-40 h-40 rounded-full border-4 border-teal-500/20 flex items-center justify-center relative transition-all duration-[4000ms] ease-in-out">
-                                    <div class="absolute inset-0 bg-teal-500/10 rounded-full blur-xl scale-75"></div>
-                                    <span id="breathAssistText" class="text-xs font-black text-teal-400 uppercase tracking-widest text-center">Ready</span>
+                        </div>
+
+                        <!-- Japa Dhyana Mode -->
+                        <div id="japaMode" class="hidden">
+                            <div class="glass p-6 border-t-4 border-yellow-500">
+                                <h4 class="text-xs font-black text-yellow-400 uppercase tracking-widest mb-4">Japa Dhyana Mode</h4>
+                                <div class="flex flex-col items-center justify-center py-6">
+                                    <div id="japaCounterDisplay" class="text-7xl font-black font-mono tracking-tighter text-yellow-400 drop-shadow-[0_0_15px_rgba(252,211,77,0.3)] mb-8">0</div>
+                                    <button id="japaTapBtn" onclick="incrementJapa()" class="w-full bg-yellow-600 py-6 rounded-2xl font-black uppercase tracking-widest text-xl hover:bg-yellow-500 transition-all shadow-xl shadow-yellow-600/20 active:scale-95 relative overflow-hidden">
+                                        TAP TO CHANT
+                                        <div id="japaRipple" class="absolute bg-yellow-400/50 rounded-full scale-0 opacity-0 transition-all duration-500 ease-out pointer-events-none"></div>
+                                    </button>
+                                    <button onclick="resetJapa()" class="mt-4 bg-white/5 py-2 px-8 rounded-xl text-[10px] font-bold text-gray-400 hover:bg-white/10 transition">RESET COUNT</button>
                                 </div>
-                                <div id="breathPhaseProgress" class="w-full h-1 bg-white/5 rounded-full mt-12 overflow-hidden">
-                                    <div id="breathPhaseBar" class="h-full bg-teal-500 w-0 transition-all duration-[4000ms] linear"></div>
-                                </div>
-                                <div class="mt-10 flex gap-4 w-full">
-                                    <button id="breathStartBtn" onclick="toggleBreathingSession()" class="flex-grow bg-teal-600 py-4 rounded-xl font-bold hover:bg-teal-500 transition shadow-lg shadow-teal-600/20 uppercase text-[10px] tracking-widest">Start Box Breathing</button>
+                                <div class="mt-8 border-t border-white/5 pt-4">
+                                    <label class="block text-[10px] text-gray-500 font-black uppercase mb-2">Mantra Notepad</label>
+                                    <textarea id="japaMantraInput" class="w-full h-32 bg-black/20 rounded-xl p-4 text-sm resize-none outline-none border border-white/5 focus:border-yellow-500 transition custom-scrollbar" placeholder="Write your mantra here..."></textarea>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Time Management -->
-                        <div class="glass p-8 flex flex-col items-center border-t-4 border-red-500">
-                            <h3 class="text-xs font-black tracking-widest text-red-400 uppercase mb-6">Precision Focus Timer</h3>
-                            
-                            <div class="flex gap-4 mb-6 bg-black/20 p-1 rounded-xl border border-white/5">
-                                <button onclick="toggleFocusMode('timer')" id="btnFocusTimer" class="px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-red-600 text-white">Timer</button>
-                                <button onclick="toggleFocusMode('stopwatch')" id="btnFocusStopwatch" class="px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400">Stopwatch</button>
+                        <!-- Tapasya/Saadhana Mode -->
+                        <div id="tapasyaMode" class="hidden">
+                            <div class="glass p-6 border-t-4 border-red-500">
+                                <h4 class="text-xs font-black text-red-400 uppercase tracking-widest mb-4">Tapasya/Saadhana Mode</h4>
+                                <div class="mt-4 mb-6">
+                                    <label class="block text-[10px] text-gray-500 font-black uppercase mb-2">Intention Notepad</label>
+                                    <textarea id="tapasyaIntentionInput" class="w-full h-24 bg-black/20 rounded-xl p-4 text-sm resize-none outline-none border border-white/5 focus:border-red-500 transition custom-scrollbar" placeholder="Set your intention for this session..."></textarea>
+                                </div>
+                                <div class="flex flex-col items-center py-6 border-y border-white/5">
+                                    <div id="tapasyaTimerDisplay" class="text-7xl font-black font-mono tracking-tighter mb-8 tabular-nums text-red-400">25:00</div>
+                                    <div class="flex gap-4 mb-8">
+                                        <button id="tapasyaStartBtn" onclick="startTapasyaTimer()" class="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-play"></i></button>
+                                        <button id="tapasyaPauseBtn" onclick="pauseTapasyaTimer()" class="hidden w-12 h-12 rounded-full bg-orange-600 flex items-center justify-center text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-pause"></i></button>
+                                        <button onclick="resetTapasyaTimer()" class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl hover:bg-white/10 transition"><i class="fas fa-redo-alt"></i></button>
+                                    </div>
+                                    <div class="w-full space-y-4">
+                                        <input type="range" id="tapasyaTimerRange" min="1" max="120" value="25" class="w-full accent-red-600" oninput="updateTapasyaDuration(this.value)">
+                                        <div class="flex justify-between text-[10px] font-black text-gray-500 uppercase">
+                                            <span>1m</span>
+                                            <span>Set Duration</span>
+                                            <span>120m</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-8 border-t border-white/5 pt-4">
+                                    <h4 class="text-xs font-black text-teal-400 uppercase tracking-widest mb-4">Neural Breathing Core (Optional)</h4>
+                                    <div class="flex justify-between items-center mb-6">
+                                        <div class="flex items-center gap-3">
+                                            <button onclick="toggleBreathingSound()" id="breathSoundBtn" class="text-gray-500 hover:text-teal-400 transition"><i class="fas fa-volume-mute"></i></button>
+                                            <span id="breathTotalTime" class="text-[9px] font-mono text-gray-500 mt-1">Practice: 0m</span>
+                                        </div>
+                                        <select id="focusModelSelect" class="bg-gray-800/50 border border-white/10 p-1.5 rounded-lg text-[9px] font-bold text-purple-300 outline-none max-w-[100px] cursor-pointer hover:bg-gray-800 transition"></select>
+                                    </div>
+                                    <div class="flex flex-col items-center justify-center py-6">
+                                        <div id="breathAssistCircle" class="w-40 h-40 rounded-full border-4 border-teal-500/20 flex items-center justify-center relative transition-all duration-[4000ms] ease-in-out">
+                                            <div class="absolute inset-0 bg-teal-500/10 rounded-full blur-xl scale-75"></div>
+                                            <span id="breathAssistText" class="text-xs font-black text-teal-400 uppercase tracking-widest text-center">Ready</span>
+                                        </div>
+                                        <div id="breathPhaseProgress" class="w-full h-1 bg-white/5 rounded-full mt-12 overflow-hidden">
+                                            <div id="breathPhaseBar" class="h-full bg-teal-500 w-0 transition-all duration-[4000ms] linear"></div>
+                                        </div>
+                                        <div class="mt-10 flex gap-4 w-full">
+                                            <button id="breathStartBtn" onclick="toggleBreathingSession()" class="flex-grow bg-teal-600 py-4 rounded-xl font-bold hover:bg-teal-500 transition shadow-lg shadow-teal-600/20 uppercase text-[10px] tracking-widest">Start Box Breathing</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+                        </div>
 
-                            <div id="focusTimerDisplay" class="text-7xl font-black font-mono tracking-tighter mb-8 tabular-nums">25:00</div>
-                            <div id="focusStopwatchDisplay" class="hidden text-7xl font-black font-mono tracking-tighter mb-8 tabular-nums">00:00:00</div>
-
-                            <div class="flex gap-4">
-                                <button id="focusStartBtn" onclick="startFocusAction()" class="w-12 h-12 rounded-full bg-red-600 flex items-center justify-center text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-play"></i></button>
-                                <button id="focusPauseBtn" onclick="pauseFocusAction()" class="hidden w-12 h-12 rounded-full bg-orange-600 flex items-center justify-center text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-pause"></i></button>
-                                <button onclick="resetFocusAction()" class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl hover:bg-white/10 transition"><i class="fas fa-redo-alt"></i></button>
-                            </div>
-
-                            <div id="timerConfig" class="mt-8 w-full space-y-4">
-                                <input type="range" id="focusTimerRange" min="1" max="120" value="25" class="w-full accent-red-600" oninput="updateTimerDuration(this.value)">
-                                <div class="flex justify-between text-[10px] font-black text-gray-500 uppercase">
-                                    <span>1m</span>
-                                    <span>Set Duration</span>
-                                    <span>120m</span>
+                        <!-- Ananta Nishkam Dhyana Mode -->
+                        <div id="anantaMode" class="hidden">
+                            <div class="glass p-6 border-t-4 border-purple-500">
+                                <h4 class="text-xs font-black text-purple-400 uppercase tracking-widest mb-4">Ananta Nishkam Dhyana Mode</h4>
+                                <div class="mt-4 mb-6">
+                                    <label class="block text-[10px] text-gray-500 font-black uppercase mb-2">Intention Notepad</label>
+                                    <textarea id="anantaIntentionInput" class="w-full h-24 bg-black/20 rounded-xl p-4 text-sm resize-none outline-none border border-white/5 focus:border-purple-500 transition custom-scrollbar" placeholder="Set your intention for this session..."></textarea>
+                                </div>
+                                <div class="flex flex-col items-center py-6 border-y border-white/5">
+                                    <div id="anantaStopwatchDisplay" class="text-7xl font-black font-mono tracking-tighter mb-8 tabular-nums text-purple-400">00:00:00</div>
+                                    <div class="flex gap-4">
+                                        <button id="anantaStartBtn" onclick="startAnantaStopwatch()" class="w-12 h-12 rounded-full bg-purple-600 flex items-center justify-center text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-play"></i></button>
+                                        <button id="anantaPauseBtn" onclick="pauseAnantaStopwatch()" class="hidden w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-pause"></i></button>
+                                        <button onclick="resetAnantaStopwatch()" class="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-xl hover:bg-white/10 transition"><i class="fas fa-redo-alt"></i></button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2668,60 +2712,157 @@
         </div>
     </div>
 
-    <!-- Time & Calendar Modal -->
-    <div id="timeModal" class="fixed inset-0 bg-black/90 z-[600] hidden items-center justify-center p-4 backdrop-blur-xl animate-fadeIn">
-        <div class="glass w-full max-w-4xl p-6 md:p-8 flex flex-col lg:flex-row gap-8 relative border-t-4 border-cyan-500 max-h-[95vh] overflow-y-auto custom-scrollbar">
-            <button onclick="closeTimeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-white transition text-2xl z-10">&times;</button>
+    <!-- Time & Calendar Modal (Advanced) -->
+    <div id="timeModal" class="fixed inset-0 bg-black/90 z-[600] hidden items-center justify-center p-2 xs:p-4 backdrop-blur-xl animate-fadeIn">
+        <div class="glass w-full max-w-full sm:max-w-xl md:max-w-4xl xl:max-w-6xl p-4 sm:p-6 md:p-8 flex flex-col relative border-t-4 border-cyan-500 max-h-[98vh] overflow-y-auto custom-scrollbar">
+            <button onclick="closeTimeModal()" class="absolute top-2 right-2 sm:top-4 sm:right-4 text-gray-500 hover:text-white transition text-xl sm:text-2xl z-10">&times;</button>
             
-            <!-- Left Column: Clocks -->
-            <div class="flex-grow flex flex-col items-center justify-center border-b lg:border-b-0 lg:border-r border-white/10 pb-8 lg:pb-0 lg:pr-8">
-                <div class="flex flex-col sm:flex-row gap-4 mb-8">
-                    <div class="flex gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
-                        <button onclick="setClockType('digital')" id="btnClockDigital" class="px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-cyan-600 text-white transition-all shadow-lg shadow-cyan-600/20">Digital</button>
-                        <button onclick="setClockType('analog')" id="btnClockAnalog" class="px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400 hover:text-white transition-all">Analog</button>
+            <div class="flex flex-col xl:flex-row gap-4 sm:gap-6">
+                <!-- Left Section: Tabs for Clocks, Stopwatch, Timer, Alarm, World Clock -->
+                <div class="flex flex-col gap-4 sm:gap-6 flex-grow xl:border-r xl:border-white/10 xl:pr-6 pb-4 sm:pb-6 xl:pb-0 border-b xl:border-b-0">
+                    <!-- Tab Navigation -->
+                    <div class="flex flex-wrap justify-center gap-1 sm:gap-2 mb-4 sm:mb-6">
+                        <button onclick="setActiveTimeModalTab('clocks')" id="tabClocks" class="modal-tab-btn active text-[9px] sm:text-xs"><i class="fas fa-clock mr-1 sm:mr-2"></i>Clocks</button>
+                        <button onclick="setActiveTimeModalTab('stopwatch')" id="tabStopwatch" class="modal-tab-btn text-[9px] sm:text-xs"><i class="fas fa-stopwatch mr-1 sm:mr-2"></i>Stopwatch</button>
+                        <button onclick="setActiveTimeModalTab('timer')" id="tabTimer" class="modal-tab-btn text-[9px] sm:text-xs"><i class="fas fa-hourglass-start mr-1 sm:mr-2"></i>Timer</button>
+                        <button onclick="setActiveTimeModalTab('alarm')" id="tabAlarm" class="modal-tab-btn text-[9px] sm:text-xs"><i class="fas fa-bell mr-1 sm:mr-2"></i>Alarms</button>
+                        <button onclick="setActiveTimeModalTab('world')" id="tabWorld" class="modal-tab-btn text-[9px] sm:text-xs"><i class="fas fa-globe-americas mr-1 sm:mr-2"></i>World Clock</button>
                     </div>
-                    <div id="timeFormatToggle" class="flex gap-2 bg-white/5 p-1 rounded-xl border border-white/10">
-                        <button onclick="setTimeFormat('12h')" id="btnFormat12h" class="px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-cyan-600 text-white transition-all shadow-lg shadow-cyan-600/20">12H</button>
-                        <button onclick="setTimeFormat('24h')" id="btnFormat24h" class="px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400 hover:text-white transition-all">24H</button>
+
+                    <!-- Clocks Tab Content -->
+                    <div id="modalTabContent-clocks" class="modal-tab-content">
+                        <div class="flex flex-col sm:flex-row gap-2 sm:gap-4 mb-4 sm:mb-8 justify-center">
+                            <div class="flex gap-1 sm:gap-2 bg-white/5 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-white/10">
+                                <button onclick="setClockType('digital')" id="btnClockDigital" class="px-3 py-1 sm:px-4 sm:py-2 rounded-md sm:rounded-lg text-[9px] sm:text-[10px] font-black uppercase bg-cyan-600 text-white transition-all shadow-lg shadow-cyan-600/20">Digital</button>
+                                <button onclick="setClockType('analog')" id="btnClockAnalog" class="px-3 py-1 sm:px-4 sm:py-2 rounded-md sm:rounded-lg text-[9px] sm:text-[10px] font-black uppercase text-gray-400 hover:text-white transition-all">Analog</button>
+                            </div>
+                            <div id="timeFormatToggle" class="flex gap-1 sm:gap-2 bg-white/5 p-0.5 sm:p-1 rounded-lg sm:rounded-xl border border-white/10">
+                                <button onclick="setTimeFormat('12h')" id="btnFormat12h" class="px-3 py-1 sm:px-4 sm:py-2 rounded-md sm:rounded-lg text-[9px] sm:text-[10px] font-black uppercase bg-cyan-600 text-white transition-all shadow-lg shadow-cyan-600/20">12H</button>
+                                <button onclick="setTimeFormat('24h')" id="btnFormat24h" class="px-3 py-1 sm:px-4 sm:py-2 rounded-md sm:rounded-lg text-[9px] sm:text-[10px] font-black uppercase text-gray-400 hover:text-white transition-all">24H</button>
+                            </div>
+                        </div>
+
+                        <!-- Digital Clock Display -->
+                        <div id="displayDigital" class="flex flex-col items-center text-center">
+                            <div id="modalDigitalTime" class="text-4xl sm:text-5xl md:text-8xl font-black font-mono tracking-tighter text-white drop-shadow-[0_0_20px_rgba(6,182,212,0.5)]">00:00:00</div>
+                            <div id="modalDigitalDate" class="text-xs sm:text-sm md:text-lg font-bold text-cyan-400 uppercase tracking-[0.3em] mt-1 sm:mt-2">Monday, January 01</div>
+                        </div>
+
+                        <!-- Analog Clock Display -->
+                        <div id="displayAnalog" class="hidden relative w-48 h-48 sm:w-64 sm:h-64 md:w-80 md:h-80 rounded-full border-4 border-white/10 bg-black/40 shadow-2xl flex-shrink-0 mx-auto">
+                            <div class="analog-center"></div>
+                            <div id="analogHour" class="analog-hand hour"></div>
+                            <div id="analogMin" class="analog-hand min"></div>
+                            <div id="analogSec" class="analog-hand sec"></div>
+                            
+                            <div class="clock-number n12">12</div><div class="clock-number n1">1</div><div class="clock-number n2">2</div>
+                            <div class="clock-number n3">3</div><div class="clock-number n4">4</div><div class="clock-number n5">5</div>
+                            <div class="clock-number n6">6</div><div class="clock-number n7">7</div><div class="clock-number n8">8</div>
+                            <div class="clock-number n9">9</div><div class="clock-number n10">10</div><div class="clock-number n11">11</div>
+                        </div>
+                    </div>
+
+                    <!-- Stopwatch Tab Content -->
+                    <div id="modalTabContent-stopwatch" class="modal-tab-content hidden text-center">
+                        <h3 class="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-gray-300">Precision Stopwatch</h3>
+                        <div id="modalStopwatchDisplay" class="text-5xl sm:text-7xl font-black font-mono tracking-tighter mb-6 sm:mb-8 tabular-nums text-purple-400">00:00:00</div>
+                        <div class="flex gap-2 sm:gap-4 justify-center">
+                            <button id="modalStopwatchStartBtn" onclick="startModalStopwatch()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-600 flex items-center justify-center text-lg sm:text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-play"></i></button>
+                            <button id="modalStopwatchPauseBtn" onclick="pauseModalStopwatch()" class="hidden w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-600 flex items-center justify-center text-lg sm:text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-pause"></i></button>
+                            <button onclick="resetModalStopwatch()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg sm:text-xl hover:bg-white/10 transition"><i class="fas fa-redo-alt"></i></button>
+                        </div>
+                    </div>
+
+                    <!-- Timer Tab Content -->
+                    <div id="modalTabContent-timer" class="modal-tab-content hidden text-center">
+                        <h3 class="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-gray-300">Countdown Timer</h3>
+                        <div id="modalTimerDisplay" class="text-5xl sm:text-7xl font-black font-mono tracking-tighter mb-6 sm:mb-8 tabular-nums text-red-400">25:00</div>
+                        <div class="flex gap-2 sm:gap-4 justify-center mb-6 sm:mb-8">
+                            <button id="modalTimerStartBtn" onclick="startModalTimer()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-600 flex items-center justify-center text-lg sm:text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-play"></i></button>
+                            <button id="modalTimerPauseBtn" onclick="pauseModalTimer()" class="hidden w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-orange-600 flex items-center justify-center text-lg sm:text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-pause"></i></button>
+                            <button onclick="resetModalTimer()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg sm:text-xl hover:bg-white/10 transition"><i class="fas fa-redo-alt"></i></button>
+                        </div>
+                        <div class="w-full space-y-2 sm:space-y-4 max-w-xs mx-auto">
+                            <input type="range" id="modalTimerRange" min="1" max="120" value="25" class="w-full accent-red-600" oninput="updateModalTimerDuration(this.value)">
+                            <div class="flex justify-between text-[8px] sm:text-[10px] font-black text-gray-500 uppercase">
+                                <span>1m</span>
+                                <span>Set Duration</span>
+                                <span>120m</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Alarms Tab Content -->
+                    <div id="modalTabContent-alarm" class="modal-tab-content hidden">
+                        <h3 class="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-gray-300 text-center">Your Alarms</h3>
+                        <div id="alarmsList" class="space-y-2 max-h-48 sm:max-h-64 overflow-y-auto custom-scrollbar pr-1 sm:pr-2 mb-4 sm:mb-6">
+                            <p class="text-[9px] sm:text-[10px] text-gray-500 italic text-center">No alarms set yet.</p>
+                        </div>
+                        <div class="bg-white/5 p-3 sm:p-4 rounded-xl border border-white/10">
+                            <h4 class="text-[9px] sm:text-[10px] font-black text-cyan-400 uppercase mb-2 sm:mb-3">Set New Alarm</h4>
+                            <div class="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+                                <input type="time" id="newAlarmTime" class="bg-gray-800 border border-white/10 rounded-lg p-1.5 sm:p-2 text-xs sm:text-sm text-white flex-grow">
+                                <button onclick="addAlarm()" class="bg-cyan-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20">ADD ALARM</button>
+                            </div>
+                            <input type="text" id="newAlarmLabel" placeholder="Label (e.g. 'Wake up')" class="w-full bg-gray-800 border border-white/10 rounded-lg p-1.5 sm:p-2 text-xs sm:text-sm text-white">
+                            <div class="flex flex-wrap gap-1 sm:gap-2 mt-2 sm:mt-3 text-xs">
+                                <label><input type="checkbox" class="modal-alarm-day accent-cyan-500" value="0"> Su</label>
+                                <label><input type="checkbox" class="modal-alarm-day accent-cyan-500" value="1"> Mo</label>
+                                <label><input type="checkbox" class="modal-alarm-day accent-cyan-500" value="2"> Tu</label>
+                                <label><input type="checkbox" class="modal-alarm-day accent-cyan-500" value="3"> We</label>
+                                <label><input type="checkbox" class="modal-alarm-day accent-cyan-500" value="4"> Th</label>
+                                <label><input type="checkbox" class="modal-alarm-day accent-cyan-500" value="5"> Fr</label>
+                                <label><input type="checkbox" class="modal-alarm-day accent-cyan-500" value="6"> Sa</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- World Clock Tab Content -->
+                    <div id="modalTabContent-world" class="modal-tab-content hidden">
+                        <h3 class="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-gray-300 text-center">Global Times</h3>
+                        <div id="worldClocksList" class="space-y-2 max-h-48 sm:max-h-64 overflow-y-auto custom-scrollbar pr-1 sm:pr-2 mb-4 sm:mb-6">
+                            <p class="text-[9px] sm:text-[10px] text-gray-500 italic text-center">No world clocks added yet.</p>
+                        </div>
+                        <div class="bg-white/5 p-3 sm:p-4 rounded-xl border border-white/10">
+                            <h4 class="text-[9px] sm:text-[10px] font-black text-cyan-400 uppercase mb-2 sm:mb-3">Add Timezone</h4>
+                            <div class="flex items-center gap-2 sm:gap-3">
+                                <select id="newWorldClockTimezone" class="bg-gray-800 border border-white/10 rounded-lg p-1.5 sm:p-2 text-xs sm:text-sm text-white flex-grow"></select>
+                                <button onclick="addWorldClock()" class="bg-cyan-600 px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20">ADD</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Digital Clock Display -->
-                <div id="displayDigital" class="flex flex-col items-center text-center">
-                    <div id="modalDigitalTime" class="text-5xl md:text-8xl font-black font-mono tracking-tighter text-white drop-shadow-[0_0_20px_rgba(6,182,212,0.5)]">00:00:00</div>
-                    <div id="modalDigitalDate" class="text-sm md:text-lg font-bold text-cyan-400 uppercase tracking-[0.3em] mt-2">Monday, January 01</div>
-                </div>
-
-                <!-- Analog Clock Display -->
-                <div id="displayAnalog" class="hidden relative w-64 h-64 md:w-80 md:h-80 rounded-full border-4 border-white/10 bg-black/40 shadow-2xl flex-shrink-0">
-                    <div class="analog-center"></div>
-                    <div id="analogHour" class="analog-hand hour"></div>
-                    <div id="analogMin" class="analog-hand min"></div>
-                    <div id="analogSec" class="analog-hand sec"></div>
+                <!-- Right Section: Calendar & Events -->
+                <div class="xl:w-80 shrink-0 border-l xl:border-b-0 xl:border-l-0 pt-4 sm:pt-6 xl:pt-0">
+                    <h3 class="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-gray-300 text-center">Calendar & Events</h3>
+                    <div class="flex justify-between items-center mb-4 sm:mb-6">
+                        <h3 id="calMonthYear" class="text-base sm:text-lg font-black text-white uppercase tracking-widest">January 2024</h3>
+                        <div class="flex gap-1 sm:gap-2">
+                            <button onclick="changeMonth(-1)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-cyan-600 transition"><i class="fas fa-chevron-left text-xs"></i></button>
+                            <button onclick="changeMonth(1)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-cyan-600 transition"><i class="fas fa-chevron-right text-xs"></i></button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-0.5 sm:gap-1 text-center text-[9px] sm:text-[10px] font-black text-gray-500 uppercase mb-1 sm:mb-2">
+                        <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                    </div>
+                    <div id="calendarGrid" class="grid grid-cols-7 gap-0.5 sm:gap-1"></div>
                     
-                    <div class="clock-number n12">12</div><div class="clock-number n1">1</div><div class="clock-number n2">2</div>
-                    <div class="clock-number n3">3</div><div class="clock-number n4">4</div><div class="clock-number n5">5</div>
-                    <div class="clock-number n6">6</div><div class="clock-number n7">7</div><div class="clock-number n8">8</div>
-                    <div class="clock-number n9">9</div><div class="clock-number n10">10</div><div class="clock-number n11">11</div>
-                </div>
-            </div>
-
-            <!-- Right Column: Calendar -->
-            <div class="lg:w-80 shrink-0">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 id="calMonthYear" class="text-lg font-black text-white uppercase tracking-widest">January 2024</h3>
-                    <div class="flex gap-2">
-                        <button onclick="changeMonth(-1)" class="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-cyan-600 transition"><i class="fas fa-chevron-left text-xs"></i></button>
-                        <button onclick="changeMonth(1)" class="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center hover:bg-cyan-600 transition"><i class="fas fa-chevron-right text-xs"></i></button>
+                    <div class="mt-4 sm:mt-8 border-t border-white/5 pt-3 sm:pt-4">
+                        <h4 class="text-[9px] sm:text-[10px] font-black text-cyan-400 uppercase mb-2 sm:mb-3">Add Event for <span id="selectedDateText">Today</span></h4>
+                        <input type="text" id="newEventTitle" placeholder="Event Title" class="w-full bg-gray-800 border border-white/10 rounded-lg p-1.5 sm:p-2 text-xs sm:text-sm text-white mb-1.5 sm:mb-2">
+                        <input type="time" id="newEventTime" class="w-full bg-gray-800 border border-white/10 rounded-lg p-1.5 sm:p-2 text-xs sm:text-sm text-white mb-1.5 sm:mb-2">
+                        <textarea id="newEventDescription" placeholder="Description (optional)" class="w-full h-12 sm:h-16 bg-gray-800 border border-white/10 rounded-lg p-1.5 sm:p-2 text-xs sm:text-sm text-white resize-none custom-scrollbar mb-1.5 sm:mb-2"></textarea>
+                        <button onclick="addCalendarEvent()" class="w-full bg-cyan-600 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-xs font-bold hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20">ADD EVENT</button>
+                        <div id="eventsForSelectedDate" class="mt-3 sm:mt-4 space-y-2">
+                            <p class="text-[9px] sm:text-[10px] text-gray-500 italic">No events for this date.</p>
+                        </div>
                     </div>
-                </div>
-                <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-black text-gray-500 uppercase mb-2">
-                    <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
-                </div>
-                <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
-                <div class="mt-8 p-4 bg-cyan-600/10 border border-cyan-500/20 rounded-xl">
-                    <p class="text-[9px] font-black text-cyan-400 uppercase tracking-widest mb-1">Timezone Detected</p>
-                    <p id="userTimezone" class="text-[10px] text-gray-400 font-mono truncate"></p>
+
+                    <div class="mt-4 sm:mt-8 p-3 sm:p-4 bg-cyan-600/10 border border-cyan-500/20 rounded-xl">
+                        <p class="text-[8px] sm:text-[9px] font-black text-cyan-400 uppercase tracking-widest mb-1">Timezone Detected</p>
+                        <p id="userTimezone" class="text-[9px] sm:text-[10px] text-gray-400 font-mono truncate"></p>
+                    </div>
                 </div>
             </div>
         </div>

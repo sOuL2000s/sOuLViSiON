@@ -383,7 +383,7 @@ export default async function handler(req, res) {
         }
 
         // Persistence for AI, Cricket, Fun, Random, Music, Reports, Seek, Solve
-        if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist', 'user_reports', 'quiz_score', 'soulseek_history', 'solve_history'].includes(query.route)) {
+        if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist', 'user_reports', 'quiz_score', 'soulseek_history', 'solve_history', 'calendar_events'].includes(query.route)) {
             const col = db.collection(query.route);
             const userId = query.userId;
 
@@ -690,6 +690,28 @@ export default async function handler(req, res) {
                                 doc.fillColor('#334155').font('Helvetica').fontSize(10).text(cleanStr(m.content)).moveDown(1);
                                 if (doc.y > 700) doc.addPage();
                             });
+                        } else if (type === 'calendar_event_report') {
+                            doc.fillColor('#06b6d4').fontSize(24).font('Helvetica-Bold').text(`CALENDAR EVENTS REPORT`, { align: 'center' }).moveDown(1);
+                            doc.fillColor('#475569').fontSize(10).font('Helvetica').text(`Generated on: ${new Date().toLocaleDateString()}`, { align: 'center' }).moveDown(2);
+                            
+                            const eventsByDate = data.reduce((acc, event) => {
+                                const date = new Date(event.date).toLocaleDateString();
+                                acc[date] = acc[date] || [];
+                                acc[date].push(event);
+                                return acc;
+                            }, {});
+
+                            for (const date in eventsByDate) {
+                                doc.addPage();
+                                doc.fillColor('#06b6d4').fontSize(16).font('Helvetica-Bold').text(date).moveDown(0.5);
+                                eventsByDate[date].sort((a,b) => new Date(a.date) - new Date(b.date)).forEach(event => {
+                                    doc.fillColor('#334155').fontSize(12).font('Helvetica-Bold').text(`${event.time} - ${cleanStr(event.title)}`);
+                                    if (event.description) {
+                                        doc.fillColor('#475569').fontSize(10).font('Helvetica').text(cleanStr(event.description)).moveDown(0.2);
+                                    }
+                                    doc.moveDown(0.5);
+                                });
+                            }
                         }
                         doc.end();
                     } catch (pdfErr) {

@@ -49,6 +49,20 @@ function showToast(message, type = 'success', duration = 3000) {
 let isStreamingMode = true;
 let currentAbortController = null;
 
+// --- Time Modal Global States ---
+let modalCurrentTab = 'clocks';
+let modalStopwatchInterval = null;
+let modalStopwatchTime = 0; // In seconds
+let modalTimerInterval = null;
+let modalTimerTimeRemaining = 25 * 60; // In seconds
+let modalTimerChime = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+let alarms = [];
+let worldClocks = []; // Stores timezone strings
+
+// --- Calendar Global States ---
+let selectedCalendarDate = new Date(); // Date object for calendar interaction
+let calendarEvents = []; // Stores events from DB
+
 function toggleSendButton(type, isStopping) {
     // type can be 'main', 'mini', 'code', 'solve'
     let btnId;
@@ -931,6 +945,11 @@ async function syncAllData() {
             syncTasks.push(loadConfig());
             syncTasks.push(loadAdminUsers());
         }
+
+        // Add loading of calendar events, alarms, world clocks here
+        syncTasks.push(loadCalendarEvents());
+        syncTasks.push(loadAlarms());
+        syncTasks.push(loadWorldClocks());
 
         await Promise.all(syncTasks);
     } finally {
@@ -5027,47 +5046,142 @@ function startReactionTest() {
 
 
 // --- sOuLFOCUS LOGIC ---
-let focusInterval = null;
-let focusMode = 'timer'; // timer or stopwatch
-let focusTimeRemaining = 25 * 60; // seconds
-let focusStopwatchTime = 0; // seconds
+let focusState = {
+    currentMode: 'japa', // 'japa', 'tapasya', 'ananta'
+    japa: {
+        count: 0,
+        mantra: "",
+        interval: null,
+        rippleTimeout: null
+    },
+    tapasya: {
+        timeRemaining: 30 * 60, // seconds
+        interval: null,
+        intention: "",
+        isBreathingActive: false
+    },
+    ananta: {
+        stopwatchTime: 0, // seconds
+        interval: null,
+        intention: ""
+    }
+};
+
 let focusChime = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+
 
 function initFocusPage() {
     document.getElementById('journalDate').innerText = new Date().toDateString().toUpperCase();
-    updateFocusDisplay();
+    setFocusMode(focusState.currentMode);
+    syncFocusData(); // Load persisted data for all modes
+    // Initial call to update breathing total if it's rendered by default
+    updateBreathingTotalTimeUI();
 }
 
-function toggleFocusMode(mode) {
-    focusMode = mode;
-    resetFocusAction();
-    const btnT = document.getElementById('btnFocusTimer');
-    const btnS = document.getElementById('btnFocusStopwatch');
-    const dispT = document.getElementById('focusTimerDisplay');
-    const dispS = document.getElementById('focusStopwatchDisplay');
-    const config = document.getElementById('timerConfig');
+function setFocusMode(mode) {
+    focusState.currentMode = mode;
+    ['japaMode', 'tapasyaMode', 'anantaMode'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById(`${mode}Mode`).classList.remove('hidden');
 
-    if (mode === 'timer') {
-        btnT.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-red-600 text-white";
-        btnS.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400";
-        dispT.classList.remove('hidden');
-        dispS.classList.add('hidden');
-        config.classList.remove('hidden');
-    } else {
-        btnS.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-red-600 text-white";
-        btnT.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400";
-        dispS.classList.remove('hidden');
-        dispT.classList.add('hidden');
-        config.classList.add('hidden');
+    ['modeJapa', 'modeTapasya', 'modeAnanta'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) {
+            btn.classList.remove('active');
+            btn.classList.replace('bg-cyan-600/20', 'bg-white/5');
+            btn.classList.replace('text-cyan-400', 'text-gray-400');
+            btn.classList.replace('border-cyan-500/30', 'border-white/10');
+            btn.classList.remove('shadow-lg', 'shadow-cyan-600/20');
+        }
+    });
+
+    const activeBtn = document.getElementById(`mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+        activeBtn.classList.replace('bg-white/5', 'bg-cyan-600/20');
+        activeBtn.classList.replace('text-gray-400', 'text-cyan-400');
+        activeBtn.classList.replace('border-white/10', 'border-cyan-500/30');
+        activeBtn.classList.add('shadow-lg', 'shadow-cyan-600/20');
     }
+
+    // Stop all intervals when switching modes to prevent background execution
+    stopJapa();
+    pauseTapasyaTimer();
+    pauseAnantaStopwatch();
+    if (breathingState.active) toggleBreathingSession(); // Stop breathing if active
+
+    // Reload content for the active mode
+    renderFocusModeUI();
+    loadFocusData(); // Load relevant data for the new mode
 }
 
-function updateTimerDuration(mins) {
-    focusTimeRemaining = mins * 60;
-    updateFocusDisplay();
+function renderFocusModeUI() {
+    // Japa Mode UI
+    document.getElementById('japaCounterDisplay').innerText = focusState.japa.count;
+    document.getElementById('japaMantraInput').value = focusState.japa.mantra;
+
+    // Tapasya Mode UI
+    document.getElementById('tapasyaIntentionInput').value = focusState.tapasya.intention;
+    updateTapasyaDisplay();
+    // Breathing assistant state is managed by its own functions but display needs update
+    if (breathingState.active && focusState.currentMode !== 'tapasya') toggleBreathingSession(); // Ensure breathing stops if mode changes from Tapasya
+    if (focusState.tapasya.isBreathingActive && !breathingState.active) toggleBreathingSession(); // Start breathing if was active in Tapasya
+    
+    // Ananta Mode UI
+    document.getElementById('anantaIntentionInput').value = focusState.ananta.intention;
+    updateAnantaDisplay();
 }
 
-function updateFocusDisplay() {
+// --- Japa Dhyana Mode Functions ---
+function incrementJapa() {
+    focusState.japa.count++;
+    document.getElementById('japaCounterDisplay').innerText = focusState.japa.count;
+    triggerJapaRipple();
+    if (window.navigator.vibrate) window.navigator.vibrate(5);
+    saveFocusData();
+}
+
+function resetJapa() {
+    if (!confirm("Reset Japa count?")) return;
+    focusState.japa.count = 0;
+    document.getElementById('japaCounterDisplay').innerText = focusState.japa.count;
+    showToast("Japa count reset.", "warning");
+    saveFocusData();
+}
+
+function stopJapa() {
+    // No continuous interval for Japa, just a tap counter
+}
+
+function triggerJapaRipple() {
+    const btn = document.getElementById('japaTapBtn');
+    const ripple = document.getElementById('japaRipple');
+    const size = Math.max(btn.offsetWidth, btn.offsetHeight);
+    const x = event.offsetX === undefined ? size / 2 : event.offsetX;
+    const y = event.offsetY === undefined ? size / 2 : event.offsetY;
+
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${x - size / 2}px`;
+    ripple.style.top = `${y - size / 2}px`;
+    
+    ripple.classList.remove('scale-0', 'opacity-0');
+    ripple.classList.add('scale-100', 'opacity-50');
+
+    if (focusState.japa.rippleTimeout) clearTimeout(focusState.japa.rippleTimeout);
+    focusState.japa.rippleTimeout = setTimeout(() => {
+        ripple.classList.remove('scale-100', 'opacity-50');
+        ripple.classList.add('scale-0', 'opacity-0');
+    }, 500);
+}
+
+
+// --- Tapasya/Saadhana Mode Functions (Timer) ---
+function updateTapasyaDuration(mins) {
+    focusState.tapasya.timeRemaining = parseInt(mins) * 60;
+    updateTapasyaDisplay();
+    saveFocusData();
+}
+
+function updateTapasyaDisplay() {
     const format = (s) => {
         const hrs = Math.floor(s / 3600);
         const mins = Math.floor((s % 3600) / 60);
@@ -5075,74 +5189,325 @@ function updateFocusDisplay() {
         if (hrs > 0) return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
-
-    if (focusMode === 'timer') {
-        document.getElementById('focusTimerDisplay').innerText = format(focusTimeRemaining);
-    } else {
-        document.getElementById('focusStopwatchDisplay').innerText = format(focusStopwatchTime);
-    }
+    document.getElementById('tapasyaTimerDisplay').innerText = format(focusState.tapasya.timeRemaining);
 }
 
-function startFocusAction() {
-    if (focusInterval) return;
+function startTapasyaTimer() {
+    if (focusState.tapasya.interval) return;
     
-    document.getElementById('focusStartBtn').classList.add('hidden');
-    document.getElementById('focusPauseBtn').classList.remove('hidden');
+    document.getElementById('tapasyaStartBtn').classList.add('hidden');
+    document.getElementById('tapasyaPauseBtn').classList.remove('hidden');
 
-    focusInterval = setInterval(async () => {
-        if (focusMode === 'timer') {
-            if (focusTimeRemaining <= 0) {
-                clearInterval(focusInterval);
-                focusInterval = null;
-                focusChime.play();
-                
-                const mins = document.getElementById('focusTimerRange').value;
-                const logMsg = `Completed ${mins}m focus session.`;
-                const journalInput = document.getElementById('journalInput');
-                if (journalInput) journalInput.value = (journalInput.value ? journalInput.value + '\n' : '') + logMsg;
-                
-                if (currentUser) {
-                    await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            type: 'focus_session', 
-                            duration: mins * 60, 
-                            minutes: parseInt(mins), 
-                            timestamp: Date.now() 
-                        })
-                    });
-                    syncFocusData();
-                }
-
-                showToast("Focus session complete!", "success");
-                resetFocusAction();
-                return;
+    focusState.tapasya.interval = setInterval(async () => {
+        if (focusState.tapasya.timeRemaining <= 0) {
+            clearInterval(focusState.tapasya.interval);
+            focusState.tapasya.interval = null;
+            focusChime.play();
+            
+            const initialMins = parseInt(document.getElementById('tapasyaTimerRange').value);
+            const logMsg = `Completed ${initialMins}m Tapasya/Saadhana session with intention: "${focusState.tapasya.intention}".`;
+            const journalInput = document.getElementById('journalInput');
+            if (journalInput) journalInput.value = (journalInput.value ? journalInput.value + '\n' : '') + logMsg;
+            
+            if (currentUser) {
+                await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        type: 'tapasya_session', 
+                        duration: initialMins * 60, 
+                        minutes: initialMins, 
+                        intention: focusState.tapasya.intention,
+                        timestamp: Date.now() 
+                    })
+                });
+                syncFocusData();
             }
-            focusTimeRemaining--;
-        } else {
-            focusStopwatchTime++;
+
+            showToast("Tapasya session complete!", "success");
+            resetTapasyaTimer();
+            return;
         }
-        updateFocusDisplay();
+        focusState.tapasya.timeRemaining--;
+        updateTapasyaDisplay();
+        saveFocusData();
     }, 1000);
 }
 
-function pauseFocusAction() {
-    clearInterval(focusInterval);
-    focusInterval = null;
-    document.getElementById('focusStartBtn').classList.remove('hidden');
-    document.getElementById('focusPauseBtn').classList.add('hidden');
+function pauseTapasyaTimer() {
+    clearInterval(focusState.tapasya.interval);
+    focusState.tapasya.interval = null;
+    document.getElementById('tapasyaStartBtn').classList.remove('hidden');
+    document.getElementById('tapasyaPauseBtn').classList.add('hidden');
 }
 
-function resetFocusAction() {
-    pauseFocusAction();
-    if (focusMode === 'timer') {
-        const mins = document.getElementById('focusTimerRange').value;
-        focusTimeRemaining = mins * 60;
-    } else {
-        focusStopwatchTime = 0;
+function resetTapasyaTimer() {
+    pauseTapasyaTimer();
+    const initialMins = parseInt(document.getElementById('tapasyaTimerRange').value);
+    focusState.tapasya.timeRemaining = initialMins * 60;
+    updateTapasyaDisplay();
+    saveFocusData();
+}
+
+// --- Ananta Nishkam Dhyana Mode Functions (Stopwatch) ---
+function updateAnantaDisplay() {
+    const format = (s) => {
+        const hrs = Math.floor(s / 3600);
+        const mins = Math.floor((s % 3600) / 60);
+        const secs = s % 60;
+        return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+    document.getElementById('anantaStopwatchDisplay').innerText = format(focusState.ananta.stopwatchTime);
+}
+
+function startAnantaStopwatch() {
+    if (focusState.ananta.interval) return;
+
+    document.getElementById('anantaStartBtn').classList.add('hidden');
+    document.getElementById('anantaPauseBtn').classList.remove('hidden');
+
+    focusState.ananta.interval = setInterval(() => {
+        focusState.ananta.stopwatchTime++;
+        updateAnantaDisplay();
+        saveFocusData();
+    }, 1000);
+}
+
+function pauseAnantaStopwatch() {
+    clearInterval(focusState.ananta.interval);
+    focusState.ananta.interval = null;
+    document.getElementById('anantaStartBtn').classList.remove('hidden');
+    document.getElementById('anantaPauseBtn').classList.add('hidden');
+}
+
+function resetAnantaStopwatch() {
+    pauseAnantaStopwatch();
+    focusState.ananta.stopwatchTime = 0;
+    updateAnantaDisplay();
+    showToast("Ananta stopwatch reset.", "warning");
+    saveFocusData();
+}
+
+// --- General Focus Page Functions (modified for new modes) ---
+async function saveFocusData() {
+    if (!currentUser) return;
+    const focusData = {
+        currentMode: focusState.currentMode,
+        japa: {
+            count: focusState.japa.count,
+            mantra: document.getElementById('japaMantraInput').value
+        },
+        tapasya: {
+            timeRemaining: focusState.tapasya.timeRemaining,
+            intention: document.getElementById('tapasyaIntentionInput').value,
+            isBreathingActive: breathingState.active // Save state of breathing in Tapasya
+        },
+        ananta: {
+            stopwatchTime: focusState.ananta.stopwatchTime,
+            intention: document.getElementById('anantaIntentionInput').value
+        }
+    };
+
+    try {
+        await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'PUT', // Use PUT for upserting single focus config document
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: 'focus_state', ...focusData })
+        });
+    } catch (e) { console.warn("Failed to save focus data", e); }
+}
+
+async function loadFocusData() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        const storedFocusState = data.find(item => item.id === 'focus_state');
+
+        if (storedFocusState) {
+            focusState.currentMode = storedFocusState.currentMode || 'japa';
+            
+            // Japa
+            focusState.japa.count = storedFocusState.japa?.count || 0;
+            focusState.japa.mantra = storedFocusState.japa?.mantra || "";
+            document.getElementById('japaCounterDisplay').innerText = focusState.japa.count;
+            document.getElementById('japaMantraInput').value = focusState.japa.mantra;
+
+            // Tapasya
+            focusState.tapasya.timeRemaining = storedFocusState.tapasya?.timeRemaining || (parseInt(document.getElementById('tapasyaTimerRange').value) * 60) || (25 * 60);
+            focusState.tapasya.intention = storedFocusState.tapasya?.intention || "";
+            document.getElementById('tapasyaIntentionInput').value = focusState.tapasya.intention;
+            updateTapasyaDisplay();
+            // Re-apply range value if it was saved
+            const savedTapasyaMins = focusState.tapasya.timeRemaining / 60;
+            if (document.getElementById('tapasyaTimerRange')) document.getElementById('tapasyaTimerRange').value = savedTapasyaMins;
+            
+            // Ananta
+            focusState.ananta.stopwatchTime = storedFocusState.ananta?.stopwatchTime || 0;
+            focusState.ananta.intention = storedFocusState.ananta?.intention || "";
+            document.getElementById('anantaIntentionInput').value = focusState.ananta.intention;
+            updateAnantaDisplay();
+
+            setFocusMode(focusState.currentMode); // Re-render UI based on loaded mode
+            
+            // Re-activate breathing if it was active in Tapasya
+            breathingState.active = storedFocusState.tapasya?.isBreathingActive || false;
+            // The `toggleBreathingSession` handles starting/stopping on its own
+            // Only start if it's Tapasya mode and it was active previously
+            if (focusState.currentMode === 'tapasya' && breathingState.active) {
+                // Ensure it gets rendered/started correctly without re-toggling the button
+                // It's better to make `toggleBreathingSession` idempotent, and call it here.
+                // It will check `breathingState.active` and adjust UI accordingly.
+                const btn = document.getElementById('breathStartBtn');
+                if (btn && btn.innerText === 'Start Box Breathing') { // Only auto-start if button is in 'Start' state
+                    toggleBreathingSession();
+                }
+            }
+        }
+        updateBreathingTotalTimeUI();
+    } catch (e) { console.warn("Focus data load failed", e); }
+}
+
+// Modify toggleBreathingSession to interact with Tapasya mode (if syncFocusTimer was relevant)
+// Since syncFocusTimer is removed, this interaction is simplified.
+async function toggleBreathingSession() {
+    const circle = document.getElementById('breathAssistCircle');
+    const text = document.getElementById('breathAssistText');
+    const bar = document.getElementById('breathPhaseBar');
+    const btn = document.getElementById('breathStartBtn');
+
+    if (breathingState.active) {
+        // End Session
+        clearInterval(breathingState.interval);
+        breathingState.interval = null;
+        breathingState.active = false;
+        breathingState.phase = 0;
+        
+        // Save practice time and automate journal only if it was a meaningful session
+        if (breathingState.sessionSeconds > 5) {
+            const minutes = Math.round(breathingState.sessionSeconds / 60 * 10) / 10;
+            const logMsg = `Completed ${minutes}m of Box Breathing meditation.`;
+            
+            const journalInput = document.getElementById('journalInput');
+            if (journalInput) {
+                journalInput.value = (journalInput.value ? journalInput.value + '\n' : '') + logMsg;
+            }
+
+            if (currentUser) {
+                await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        type: 'breathing_practice', 
+                        duration: breathingState.sessionSeconds, 
+                        minutes: minutes,
+                        timestamp: Date.now() 
+                    })
+                });
+                syncFocusData(); // Update total breathing time in UI
+            }
+            showToast(logMsg, "info");
+        }
+
+        circle.style.transform = 'scale(1)';
+        circle.style.borderColor = 'rgba(20, 184, 166, 0.2)';
+        text.innerText = 'Ready';
+        bar.style.width = '0%';
+        btn.innerText = 'Start Box Breathing';
+        btn.classList.replace('bg-red-600', 'bg-teal-600');
+        breathingState.sessionSeconds = 0; // Reset session seconds
+        if(focusState.currentMode === 'tapasya') saveFocusData(); // Save breathing state for Tapasya
+        return;
     }
-    updateFocusDisplay();
+
+    // Start Session
+    breathingState.active = true;
+    breathingState.sessionSeconds = 0;
+    btn.innerText = 'End Session';
+    btn.classList.replace('bg-teal-600', 'bg-red-600');
+
+    const phases = [
+        { text: 'Inhale', duration: 4, scale: 1.5, color: '#14b8a6', freq: 440 },
+        { text: 'Hold', duration: 4, scale: 1.5, color: '#0d9488', freq: 554 },
+        { text: 'Exhale', duration: 4, scale: 1, color: '#0f766e', freq: 330 },
+        { text: 'Hold', duration: 4, scale: 1, color: '#134e4a', freq: 220 }
+    ];
+
+    const runPhase = () => {
+        const p = phases[breathingState.phase];
+        text.innerText = p.text;
+        circle.style.transform = `scale(${p.scale})`;
+        circle.style.borderColor = p.color;
+        
+        bar.style.transitionDuration = '0s';
+        bar.style.width = '0%';
+        setTimeout(() => {
+            bar.style.transitionDuration = `${p.duration * 1000}ms`;
+            bar.style.width = '100%';
+        }, 50);
+
+        playBreathingPulse(p.freq, p.duration / 2); // Play pulse for half duration
+        
+        breathingState.sessionSeconds += p.duration; // Increment by phase duration
+        breathingState.phase = (breathingState.phase + 1) % 4;
+    };
+
+    runPhase();
+    breathingState.interval = setInterval(runPhase, 4000); // Intervals are 4s
+    if(focusState.currentMode === 'tapasya') saveFocusData(); // Save breathing state for Tapasya
+}
+
+async function updateBreathingTotalTimeUI() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            const breathingLogs = data.filter(d => d.type === 'breathing_practice');
+            const totalSeconds = breathingLogs.reduce((acc, curr) => acc + (curr.duration || 0), 0);
+            const totalMinutes = Math.floor(totalSeconds / 60);
+            const displayTime = totalMinutes > 60 ? `${(totalMinutes/60).toFixed(1)}h` : `${totalMinutes}m`;
+            const breathStatEl = document.getElementById('breathTotalTime');
+            if (breathStatEl) breathStatEl.innerText = `Practice: ${displayTime}`;
+        }
+    } catch (e) { console.warn("Failed to fetch breathing practice stats for UI update", e); }
+}
+
+async function syncFocusData() {
+    if (!currentUser) return;
+    // Call loadFocusData to load the persisted state
+    await loadFocusData();
+
+    // Now proceed with other sync tasks as before
+    try {
+        const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            // Update Breathing Total, which is distinct from the active session time
+            updateBreathingTotalTimeUI(); // This now explicitly updates the UI
+            
+            const journals = data.filter(d => d.type === 'journal').sort((a,b) => b.id - a.id);
+            const hist = document.getElementById('journalHistory');
+            if (journals.length > 0) {
+                hist.innerHTML = journals.map(j => `
+                    <div class="p-2 bg-white/5 rounded-lg border border-white/5">
+                        <p class="text-[10px] font-bold text-purple-400 mb-1">${new Date(j.id).toLocaleDateString()}</p>
+                        <p class="text-[10px] text-gray-300 italic truncate">${j.content}</p>
+                    </div>
+                `).join('');
+            } else {
+                hist.innerHTML = '<p class="text-[10px] text-gray-500 italic">No entries yet.</p>';
+            }
+
+            // Metrics are still global, not tied to a specific mode
+            const latestHealth = data.filter(d => d.type === 'metric_health').sort((a,b) => b.timestamp - a.timestamp)[0];
+            const latestWealth = data.filter(d => d.type === 'metric_wealth').sort((a,b) => b.timestamp - a.timestamp)[0];
+            
+            if (latestHealth) document.getElementById('metricHealth').innerText = latestHealth.value;
+            if (latestWealth) document.getElementById('metricWealth').innerText = latestWealth.value;
+        }
+        getSpiritualAdvice(); // Auto-load advice on sync
+    } catch (e) { console.warn("Focus page general data sync failed", e); }
 }
 
 async function saveJournalEntry() {
@@ -6304,6 +6669,13 @@ async function loadVisitorMap() {
     const mapEl = document.getElementById('visitorMap');
     if (!mapEl) return;
 
+    // Check if map container has dimensions before initializing
+    // If not, retry after a short delay
+    if (mapEl.offsetWidth === 0 || mapEl.offsetHeight === 0) {
+        setTimeout(loadVisitorMap, 100);
+        return;
+    }
+
     if (!visitorMap) {
         visitorMap = L.map('visitorMap', {
             zoomControl: false,
@@ -6316,10 +6688,11 @@ async function loadVisitorMap() {
         }).addTo(visitorMap);
     }
 
-    // Fix for hidden containers in SPAs
-    setTimeout(() => {
-        if (visitorMap) visitorMap.invalidateSize();
-    }, 400);
+    // Ensure map is correctly sized when its container becomes visible
+    // This is crucial for Leaflet in SPAs where map container visibility changes
+    if (visitorMap) {
+        visitorMap.invalidateSize(true); // true to animate
+    }
 
     try {
         const res = await fetch(`/api/main?route=users&adminEmail=${encodeURIComponent(currentUser.email)}`);
@@ -6327,10 +6700,14 @@ async function loadVisitorMap() {
         
         // 1. Clear existing layers
         visitorMap.eachLayer((layer) => {
-            if (layer instanceof L.CircleMarker || layer === heatmapLayer) {
+            if (layer instanceof L.CircleMarker || (heatmapLayer && layer === heatmapLayer)) {
                 visitorMap.removeLayer(layer);
             }
         });
+        if (heatmapLayer) {
+            visitorMap.removeLayer(heatmapLayer);
+            heatmapLayer = null;
+        }
 
         const heatData = [];
         const markers = [];
@@ -6370,6 +6747,7 @@ async function loadVisitorMap() {
 
         // 2. Add Heatmap Layer for density visualization
         if (heatData.length > 0 && typeof L.heatLayer === 'function') {
+            // Reinitialize heatmap layer after ensuring map has dimensions
             heatmapLayer = L.heatLayer(heatData, {
                 radius: 25,
                 blur: 15,
@@ -6384,6 +6762,8 @@ async function loadVisitorMap() {
         // 4. Auto-zoom to audience
         if (markers.length > 1) {
             visitorMap.fitBounds(L.latLngBounds(markers), { padding: [40, 40] });
+        } else if (markers.length === 1) {
+            visitorMap.setView(markers[0], 5); // Zoom in on single marker
         }
     } catch (e) {
         console.error("Map Load Error:", e);
@@ -6825,6 +7205,537 @@ function startWelcomeTour() {
 
     renderTourStep();
 }
+
+// --- Time & Calendar Modal Functions (Side Quest) ---
+function setActiveTimeModalTab(tabId) {
+    modalCurrentTab = tabId;
+    document.querySelectorAll('.modal-tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+        btn.classList.replace('bg-cyan-600', 'bg-white/5');
+        btn.classList.replace('text-white', 'text-gray-400');
+        btn.classList.replace('shadow-lg', 'shadow-none');
+    });
+    document.getElementById(`tab${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`).classList.add('active');
+    document.getElementById(`tab${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`).classList.replace('bg-white/5', 'bg-cyan-600');
+    document.getElementById(`tab${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`).classList.replace('text-gray-400', 'text-white');
+    document.getElementById(`tab${tabId.charAt(0).toUpperCase() + tabId.slice(1)}`).classList.add('shadow-lg', 'shadow-cyan-600/20');
+
+    document.querySelectorAll('.modal-tab-content').forEach(content => content.classList.add('hidden'));
+    document.getElementById(`modalTabContent-${tabId}`).classList.remove('hidden');
+
+    // Special rendering/init for each tab
+    if (tabId === 'stopwatch') renderModalStopwatch();
+    if (tabId === 'timer') renderModalTimer();
+    if (tabId === 'alarm') renderAlarms();
+    if (tabId === 'world') renderWorldClocks();
+    if (tabId === 'clocks') {
+        setClockType(clockType); // Ensure proper clock UI based on current state
+    }
+}
+
+// --- Modal Stopwatch Functions ---
+function updateModalStopwatchDisplay() {
+    const format = (s) => {
+        const hrs = Math.floor(s / 3600);
+        const mins = Math.floor((s % 3600) / 60);
+        const secs = s % 60;
+        return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+    document.getElementById('modalStopwatchDisplay').innerText = format(modalStopwatchTime);
+}
+
+function startModalStopwatch() {
+    if (modalStopwatchInterval) return;
+
+    document.getElementById('modalStopwatchStartBtn').classList.add('hidden');
+    document.getElementById('modalStopwatchPauseBtn').classList.remove('hidden');
+
+    modalStopwatchInterval = setInterval(() => {
+        modalStopwatchTime++;
+        updateModalStopwatchDisplay();
+        localStorage.setItem('modalStopwatchTime', modalStopwatchTime);
+    }, 1000);
+}
+
+function pauseModalStopwatch() {
+    clearInterval(modalStopwatchInterval);
+    modalStopwatchInterval = null;
+    document.getElementById('modalStopwatchStartBtn').classList.remove('hidden');
+    document.getElementById('modalStopwatchPauseBtn').classList.add('hidden');
+}
+
+function resetModalStopwatch() {
+    pauseModalStopwatch();
+    modalStopwatchTime = 0;
+    updateModalStopwatchDisplay();
+    localStorage.removeItem('modalStopwatchTime');
+    showToast("Stopwatch reset.", "warning");
+}
+
+function renderModalStopwatch() {
+    const savedTime = localStorage.getItem('modalStopwatchTime');
+    if (savedTime !== null) {
+        modalStopwatchTime = parseInt(savedTime);
+    } else {
+        modalStopwatchTime = 0;
+    }
+    updateModalStopwatchDisplay();
+    // Ensure buttons are in correct state based on whether interval is active
+    if (modalStopwatchInterval) {
+        document.getElementById('modalStopwatchStartBtn').classList.add('hidden');
+        document.getElementById('modalStopwatchPauseBtn').classList.remove('hidden');
+    } else {
+        document.getElementById('modalStopwatchStartBtn').classList.remove('hidden');
+        document.getElementById('modalStopwatchPauseBtn').classList.add('hidden');
+    }
+}
+
+
+// --- Modal Timer Functions ---
+function updateModalTimerDuration(mins) {
+    modalTimerTimeRemaining = parseInt(mins) * 60;
+    updateModalTimerDisplay();
+    localStorage.setItem('modalTimerDuration', mins);
+}
+
+function updateModalTimerDisplay() {
+    const format = (s) => {
+        const mins = Math.floor(s / 60);
+        const secs = s % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+    document.getElementById('modalTimerDisplay').innerText = format(modalTimerTimeRemaining);
+}
+
+function startModalTimer() {
+    if (modalTimerInterval) return;
+    
+    document.getElementById('modalTimerStartBtn').classList.add('hidden');
+    document.getElementById('modalTimerPauseBtn').classList.remove('hidden');
+
+    modalTimerInterval = setInterval(async () => {
+        if (modalTimerTimeRemaining <= 0) {
+            clearInterval(modalTimerInterval);
+            modalTimerInterval = null;
+            modalTimerChime.play();
+            if (window.navigator.vibrate) window.navigator.vibrate([200, 100, 200]);
+            
+            showToast("Timer complete!", "success");
+            resetModalTimer();
+            return;
+        }
+        modalTimerTimeRemaining--;
+        updateModalTimerDisplay();
+        localStorage.setItem('modalTimerTimeRemaining', modalTimerTimeRemaining);
+    }, 1000);
+}
+
+function pauseModalTimer() {
+    clearInterval(modalTimerInterval);
+    modalTimerInterval = null;
+    document.getElementById('modalTimerStartBtn').classList.remove('hidden');
+    document.getElementById('modalTimerPauseBtn').classList.add('hidden');
+}
+
+function resetModalTimer() {
+    pauseModalTimer();
+    const initialMins = parseInt(localStorage.getItem('modalTimerDuration') || '25');
+    modalTimerTimeRemaining = initialMins * 60;
+    document.getElementById('modalTimerRange').value = initialMins;
+    updateModalTimerDisplay();
+    localStorage.removeItem('modalTimerTimeRemaining');
+    showToast("Timer reset.", "warning");
+}
+
+function renderModalTimer() {
+    const savedDuration = localStorage.getItem('modalTimerDuration');
+    const savedTimeRemaining = localStorage.getItem('modalTimerTimeRemaining');
+
+    if (savedDuration !== null) {
+        document.getElementById('modalTimerRange').value = parseInt(savedDuration);
+    } else {
+        document.getElementById('modalTimerRange').value = 25; // Default
+    }
+
+    if (savedTimeRemaining !== null && parseInt(savedTimeRemaining) > 0) {
+        modalTimerTimeRemaining = parseInt(savedTimeRemaining);
+    } else {
+        modalTimerTimeRemaining = parseInt(document.getElementById('modalTimerRange').value) * 60;
+    }
+    updateModalTimerDisplay();
+
+    // Set button states
+    if (modalTimerInterval) {
+        document.getElementById('modalTimerStartBtn').classList.add('hidden');
+        document.getElementById('modalTimerPauseBtn').classList.remove('hidden');
+    } else {
+        document.getElementById('modalTimerStartBtn').classList.remove('hidden');
+        document.getElementById('modalTimerPauseBtn').classList.add('hidden');
+    }
+}
+
+// --- Alarm Clock Functions ---
+function loadAlarms() {
+    const savedAlarms = localStorage.getItem('alarms');
+    if (savedAlarms) {
+        alarms = JSON.parse(savedAlarms);
+        alarms.forEach(alarm => alarm.days = new Set(alarm.days)); // Re-hydrate Set
+    } else {
+        alarms = [];
+    }
+    renderAlarms();
+    checkAlarms(); // Start checking alarms
+}
+
+function addAlarm() {
+    const timeInput = document.getElementById('newAlarmTime');
+    const labelInput = document.getElementById('newAlarmLabel');
+    const dayCheckboxes = document.querySelectorAll('.modal-alarm-day:checked');
+
+    const time = timeInput.value;
+    const label = labelInput.value.trim() || 'Alarm';
+    const days = new Set(Array.from(dayCheckboxes).map(cb => parseInt(cb.value)));
+
+    if (!time) return showToast("Please set a time for the alarm.", "error");
+
+    const newAlarm = {
+        id: Date.now(),
+        time, // "HH:MM"
+        label,
+        days, // Set of 0-6 (Sunday-Saturday)
+        enabled: true,
+        lastTriggered: null // To prevent immediate re-triggering if already past for the day
+    };
+    
+    alarms.push(newAlarm);
+    localStorage.setItem('alarms', JSON.stringify(alarms, (key, value) => {
+        if (value instanceof Set) {
+            return Array.from(value); // Convert Set to Array for JSON serialization
+        }
+        return value;
+    }));
+    renderAlarms();
+    timeInput.value = '';
+    labelInput.value = '';
+    dayCheckboxes.forEach(cb => cb.checked = false);
+    showToast(`Alarm "${label}" set for ${time}.`, "success");
+}
+
+function toggleAlarm(id) {
+    const alarm = alarms.find(a => a.id === id);
+    if (alarm) {
+        alarm.enabled = !alarm.enabled;
+        localStorage.setItem('alarms', JSON.stringify(alarms, (key, value) => {
+            if (value instanceof Set) {
+                return Array.from(value);
+            }
+            return value;
+        }));
+        renderAlarms();
+        showToast(`Alarm "${alarm.label}" ${alarm.enabled ? 'enabled' : 'disabled'}.`, "info");
+    }
+}
+
+function deleteAlarm(id) {
+    if (!confirm("Delete this alarm?")) return;
+    alarms = alarms.filter(a => a.id !== id);
+    localStorage.setItem('alarms', JSON.stringify(alarms, (key, value) => {
+        if (value instanceof Set) {
+            return Array.from(value);
+        }
+        return value;
+    }));
+    renderAlarms();
+    showToast("Alarm deleted.", "warning");
+}
+
+function renderAlarms() {
+    const list = document.getElementById('alarmsList');
+    if (!alarms.length) {
+        list.innerHTML = '<p class="text-[10px] text-gray-500 italic text-center">No alarms set yet.</p>';
+        return;
+    }
+
+    list.innerHTML = alarms.map(a => {
+        const daysText = a.days.size === 0 ? 'Every Day' : Array.from(a.days).sort().map(d => ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][d]).join(', ');
+        return `
+            <div class="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 group hover:border-cyan-500/30 transition">
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" class="sr-only peer" ${a.enabled ? 'checked' : ''} onclick="toggleAlarm(${a.id})">
+                    <div class="w-10 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-cyan-600"></div>
+                </label>
+                <div class="flex-grow">
+                    <p class="text-lg font-bold ${a.enabled ? 'text-white' : 'text-gray-500 line-through'}">${a.time} - ${a.label}</p>
+                    <p class="text-[10px] text-gray-400">${daysText}</p>
+                </div>
+                <button onclick="deleteAlarm(${a.id})" class="text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-trash-alt"></i></button>
+            </div>
+        `;
+    }).join('');
+}
+
+let alarmCheckInterval = null;
+function checkAlarms() {
+    if (alarmCheckInterval) clearInterval(alarmCheckInterval);
+    
+    alarmCheckInterval = setInterval(() => {
+        const now = new Date();
+        const currentDay = now.getDay(); // 0 (Sunday) to 6 (Saturday)
+        const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
+
+        alarms.forEach(alarm => {
+            if (alarm.enabled && alarm.time === currentTime) {
+                // Check if it's the right day or if it's an "Every Day" alarm
+                const isCorrectDay = alarm.days.size === 0 || alarm.days.has(currentDay);
+                
+                // Prevent multiple triggers within the same minute on the same day
+                const lastTriggeredDate = alarm.lastTriggered ? new Date(alarm.lastTriggered).toDateString() : null;
+                const nowTriggeredDate = now.toDateString();
+
+                if (isCorrectDay && lastTriggeredDate !== nowTriggeredDate) {
+                    // Trigger alarm
+                    modalTimerChime.play(); // Reuse timer chime
+                    if (window.navigator.vibrate) window.navigator.vibrate([200, 100, 200, 100, 500]);
+                    alert(`Alarm: ${alarm.label} at ${alarm.time}`);
+                    
+                    alarm.lastTriggered = now.toISOString(); // Update last triggered time
+                    localStorage.setItem('alarms', JSON.stringify(alarms, (key, value) => {
+                        if (value instanceof Set) {
+                            return Array.from(value);
+                        }
+                        return value;
+                    }));
+                    renderAlarms(); // Re-render to update lastTriggered (if displayed)
+                }
+            }
+        });
+    }, 1000); // Check every second
+}
+
+
+// --- World Clock Functions ---
+// List of common timezones for the dropdown
+const commonTimezones = [
+    { value: 'America/New_York', name: 'New York (EST)' },
+    { value: 'America/Los_Angeles', name: 'Los Angeles (PST)' },
+    { value: 'Europe/London', name: 'London (GMT)' },
+    { value: 'Europe/Paris', name: 'Paris (CET)' },
+    { value: 'Asia/Dubai', name: 'Dubai (GST)' },
+    { value: 'Asia/Kolkata', name: 'Kolkata (IST)' },
+    { value: 'Asia/Shanghai', name: 'Shanghai (CST)' },
+    { value: 'Asia/Tokyo', name: 'Tokyo (JST)' },
+    { value: 'Australia/Sydney', name: 'Sydney (AEST)' },
+    { value: 'Pacific/Auckland', name: 'Auckland (NZST)' },
+    { value: 'Africa/Johannesburg', name: 'Johannesburg (SAST)' },
+    { value: 'America/Sao_Paulo', name: 'Sao Paulo (BRT)' },
+    { value: 'America/Toronto', name: 'Toronto (EST)' },
+    { value: 'Europe/Berlin', name: 'Berlin (CET)' },
+    { value: 'Europe/Moscow', name: 'Moscow (MSK)' },
+    { value: 'Asia/Singapore', name: 'Singapore (SGT)' },
+    { value: 'Asia/Hong_Kong', name: 'Hong Kong (HKT)' },
+    { value: 'Europe/Madrid', name: 'Madrid (CET)' },
+    { value: 'Asia/Seoul', name: 'Seoul (KST)' }
+];
+
+function populateTimezoneDropdown() {
+    const select = document.getElementById('newWorldClockTimezone');
+    if (!select) return;
+
+    select.innerHTML = commonTimezones.map(tz => `<option value="${tz.value}">${tz.name}</option>`).join('');
+}
+
+function loadWorldClocks() {
+    const savedWorldClocks = localStorage.getItem('worldClocks');
+    if (savedWorldClocks) {
+        worldClocks = JSON.parse(savedWorldClocks);
+    } else {
+        worldClocks = [];
+    }
+    renderWorldClocks();
+}
+
+function addWorldClock() {
+    const select = document.getElementById('newWorldClockTimezone');
+    const newTz = select.value;
+    if (newTz && !worldClocks.includes(newTz)) {
+        worldClocks.push(newTz);
+        localStorage.setItem('worldClocks', JSON.stringify(worldClocks));
+        renderWorldClocks();
+        showToast(`${commonTimezones.find(t => t.value === newTz)?.name || newTz} added.`, "success");
+    } else {
+        showToast("Timezone already added or invalid.", "warning");
+    }
+}
+
+function deleteWorldClock(timezone) {
+    if (!confirm(`Remove ${commonTimezones.find(t => t.value === timezone)?.name || timezone}?`)) return;
+    worldClocks = worldClocks.filter(tz => tz !== timezone);
+    localStorage.setItem('worldClocks', JSON.stringify(worldClocks));
+    renderWorldClocks();
+    showToast("Timezone removed.", "warning");
+}
+
+function renderWorldClocks() {
+    const list = document.getElementById('worldClocksList');
+    if (!list) return;
+
+    if (!worldClocks.length) {
+        list.innerHTML = '<p class="text-[10px] text-gray-500 italic text-center">No world clocks added yet.</p>';
+        return;
+    }
+
+    list.innerHTML = worldClocks.map(tz => {
+        const now = new Date();
+        const time = now.toLocaleTimeString('en-US', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' });
+        const date = now.toLocaleDateString('en-US', { timeZone: tz, month: 'short', day: 'numeric' });
+        const tzName = commonTimezones.find(t => t.value === tz)?.name || tz;
+        return `
+            <div class="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/10 group hover:border-cyan-500/30 transition">
+                <div class="flex-grow">
+                    <p class="text-lg font-bold text-white">${time} <span class="text-sm text-gray-400">(${date})</span></p>
+                    <p class="text-[10px] text-gray-400">${tzName}</p>
+                </div>
+                <button onclick="deleteWorldClock('${tz}')" class="text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-trash-alt"></i></button>
+            </div>
+        `;
+    }).join('');
+}
+
+
+// --- Calendar Events Functions ---
+function selectCalendarDate(dateString) {
+    // Parse the YYYY-MM-DD string as a local date to avoid timezone issues.
+    // Date constructor with (year, monthIndex, day) creates a local date.
+    const [year, month, day] = dateString.split('-').map(Number);
+    selectedCalendarDate = new Date(year, month - 1, day); // month - 1 because months are 0-indexed in Date
+    
+    const dateTextEl = document.getElementById('selectedDateText');
+    if (dateTextEl) dateTextEl.innerText = selectedCalendarDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    renderEventsForSelectedDate();
+}
+
+async function addCalendarEvent() {
+    if (!currentUser) return showToast("Login to add calendar events.", "error");
+
+    const title = document.getElementById('newEventTitle').value.trim();
+    const time = document.getElementById('newEventTime').value;
+    const description = document.getElementById('newEventDescription').value.trim();
+
+    if (!title || !time) return showToast("Title and Time are required for the event.", "error");
+
+    const eventDate = new Date(selectedCalendarDate);
+    const [hours, minutes] = time.split(':').map(Number);
+    eventDate.setHours(hours, minutes, 0, 0);
+
+    const newEvent = {
+        id: Date.now(),
+        date: eventDate.toISOString(),
+        title,
+        time,
+        description,
+        userId: currentUser.email
+    };
+
+    setLoading(true, "Saving Event");
+    try {
+        await fetch(`/api/main?route=calendar_events&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newEvent)
+        });
+        showToast("Event added to calendar.", "success");
+        document.getElementById('newEventTitle').value = '';
+        document.getElementById('newEventTime').value = '';
+        document.getElementById('newEventDescription').value = '';
+        await loadCalendarEvents(); // Reload all events to update calendar UI
+        renderEventsForSelectedDate(); // Re-render events for the current day
+    } catch (e) {
+        showToast("Failed to add event.", "error");
+    } finally {
+        setLoading(false);
+    }
+}
+
+async function loadCalendarEvents() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=calendar_events&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        calendarEvents = Array.isArray(data) ? data : []; // Ensure calendarEvents is always an array
+        renderCalendar(); // Re-render calendar to show event dots
+    } catch (e) { console.warn("Failed to load calendar events", e); }
+}
+
+async function deleteCalendarEvent(id) {
+    if (!confirm("Delete this event?")) return;
+    if (!currentUser) return;
+
+    setLoading(true, "Deleting Event");
+    try {
+        await fetch(`/api/main?route=calendar_events&userId=${encodeURIComponent(currentUser.email)}&id=${id}`, {
+            method: 'DELETE'
+        });
+        showToast("Event deleted.", "warning");
+        await loadCalendarEvents();
+        renderEventsForSelectedDate();
+    } catch (e) {
+        showToast("Failed to delete event.", "error");
+    } finally {
+        setLoading(false);
+    }
+}
+
+function renderEventsForSelectedDate() {
+    const eventsListEl = document.getElementById('eventsForSelectedDate');
+    const events = calendarEvents.filter(event => {
+        const eventDate = new Date(event.date);
+        return eventDate.toDateString() === selectedCalendarDate.toDateString();
+    }).sort((a,b) => new Date(a.date) - new Date(b.date)); // Sort by time
+
+    if (!events.length) {
+        eventsListEl.innerHTML = '<p class="text-[10px] text-gray-500 italic">No events for this date.</p>';
+        return;
+    }
+
+    eventsListEl.innerHTML = events.map(event => `
+        <div class="bg-white/5 p-2 rounded-lg border border-white/10 flex justify-between items-center group">
+            <div>
+                <p class="text-xs font-bold text-white">${event.title}</p>
+                <p class="text-[10px] text-gray-400">${event.time} ${event.description ? ` - ${event.description}` : ''}</p>
+            </div>
+            <button onclick="deleteCalendarEvent(${event.id})" class="text-red-400 hover:text-red-300 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-trash-alt text-xs"></i></button>
+        </div>
+    `).join('');
+}
+
+let reminderCheckInterval = null;
+function checkReminders() {
+    if (reminderCheckInterval) clearInterval(reminderCheckInterval);
+
+    reminderCheckInterval = setInterval(() => {
+        const now = new Date();
+        calendarEvents.forEach(event => {
+            const eventDateTime = new Date(event.date);
+            // Check if event is today and within the current minute
+            if (eventDateTime.toDateString() === now.toDateString() && 
+                eventDateTime.getHours() === now.getHours() && 
+                eventDateTime.getMinutes() === now.getMinutes()) {
+                
+                // Prevent multiple triggers
+                if (!event.triggeredToday) {
+                    modalTimerChime.play();
+                    if (window.navigator.vibrate) window.navigator.vibrate([200, 100, 200, 100, 500]);
+                    alert(`Reminder: ${event.title} at ${event.time}`);
+                    event.triggeredToday = true; // Mark as triggered for the day
+                    // Small local storage update to persist triggeredToday status (optional, more robust if stored in DB for real persistence)
+                }
+            } else {
+                event.triggeredToday = false; // Reset for next day
+            }
+        });
+    }, 1000 * 30); // Check every 30 seconds
+}
+
 
 function renderTourStep() {
     const step = activeTourSteps[currentTourStep];
@@ -8070,21 +8981,25 @@ function startTimeUpdates() {
         // Update Modal if visible
         const modal = document.getElementById('timeModal');
         if (modal && !modal.classList.contains('hidden')) {
-            if (clockType === 'digital') {
-                document.getElementById('modalDigitalTime').innerText = now.toLocaleTimeString([], { hour12: is12h });
-                document.getElementById('modalDigitalDate').innerText = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: '2-digit' });
-            } else {
-                const hour = now.getHours();
-                const min = now.getMinutes();
-                const sec = now.getSeconds();
+            if (modalCurrentTab === 'clocks') {
+                if (clockType === 'digital') {
+                    document.getElementById('modalDigitalTime').innerText = now.toLocaleTimeString([], { hour12: is12h });
+                    document.getElementById('modalDigitalDate').innerText = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: '2-digit' });
+                } else {
+                    const hour = now.getHours();
+                    const min = now.getMinutes();
+                    const sec = now.getSeconds();
 
-                const hrDeg = (hour % 12) * 30 + min * 0.5;
-                const minDeg = min * 6 + sec * 0.1;
-                const secDeg = sec * 6;
+                    const hrDeg = (hour % 12) * 30 + min * 0.5;
+                    const minDeg = min * 6 + sec * 0.1;
+                    const secDeg = sec * 6;
 
-                document.getElementById('analogHour').style.transform = `translateX(-50%) rotate(${hrDeg}deg)`;
-                document.getElementById('analogMin').style.transform = `translateX(-50%) rotate(${minDeg}deg)`;
-                document.getElementById('analogSec').style.transform = `translateX(-50%) rotate(${secDeg}deg)`;
+                    document.getElementById('analogHour').style.transform = `translateX(-50%) rotate(${hrDeg}deg)`;
+                    document.getElementById('analogMin').style.transform = `translateX(-50%) rotate(${minDeg}deg)`;
+                    document.getElementById('analogSec').style.transform = `translateX(-50%) rotate(${secDeg}deg)`;
+                }
+            } else if (modalCurrentTab === 'world') {
+                renderWorldClocks(); // Re-render world clocks every second for real-time
             }
         }
     };
@@ -8097,9 +9012,19 @@ function openTimeModal() {
     document.getElementById('timeModal').classList.remove('hidden');
     document.getElementById('timeModal').classList.add('flex');
     document.getElementById('userTimezone').innerText = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    // Set default selected date for event creation to today
+    selectCalendarDate(new Date().toISOString().split('T')[0]);
+    
     renderCalendar();
-    setTimeFormat(timeFormat);
-    setClockType(clockType);
+    populateTimezoneDropdown(); // Populate dropdown for world clocks
+
+    // Initialize all modal states
+    setActiveTimeModalTab(modalCurrentTab); // Restore last active tab
+    loadAlarms(); // Load and start checking alarms
+    loadWorldClocks(); // Load world clocks
+    loadCalendarEvents(); // Load calendar events
+
     document.body.style.overflow = 'hidden';
 }
 
@@ -8107,6 +9032,12 @@ function closeTimeModal() {
     document.getElementById('timeModal').classList.add('hidden');
     document.getElementById('timeModal').classList.remove('flex');
     document.body.style.overflow = '';
+    
+    // Stop all modal timers/stopwatches when closing
+    pauseModalStopwatch();
+    pauseModalTimer();
+    // Stop alarm checks if they aren't critical background tasks or were set up to stop.
+    // For now, let's assume alarm checks run in background always until app is closed.
 }
 
 function setClockType(type) {
@@ -8145,6 +9076,8 @@ function setTimeFormat(format) {
         if (btn24) btn24.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase bg-cyan-600 text-white transition-all shadow-lg shadow-cyan-600/20";
         if (btn12) btn12.className = "px-4 py-2 rounded-lg text-[10px] font-black uppercase text-gray-400 hover:text-white transition-all";
     }
+    // Re-render world clocks to apply new format
+    if (modalCurrentTab === 'world') renderWorldClocks();
 }
 
 function changeMonth(delta) {
@@ -8175,8 +9108,16 @@ function renderCalendar() {
     // Current Month
     const today = new Date();
     for (let i = 1; i <= daysInMonth; i++) {
+        const dateString = new Date(year, month, i).toISOString().split('T')[0]; // YYYY-MM-DD
         const isToday = today.getDate() === i && today.getMonth() === month && today.getFullYear() === year;
-        html += `<div class="cal-day active-month ${isToday ? 'today' : ''}">${i}</div>`;
+        const isSelected = selectedCalendarDate.toDateString() === new Date(year, month, i).toDateString();
+        
+        const hasEvent = calendarEvents.some(event => {
+            const eventDate = new Date(event.date);
+            return eventDate.getFullYear() === year && eventDate.getMonth() === month && eventDate.getDate() === i;
+        });
+        
+        html += `<div class="cal-day active-month ${isToday ? 'today' : ''} ${isSelected ? 'selected-date' : ''} ${hasEvent ? 'has-event' : ''}" onclick="selectCalendarDate('${dateString}')">${i}</div>`;
     }
     
     // Next Month Padding
