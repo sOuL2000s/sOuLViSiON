@@ -3062,16 +3062,28 @@ function toggleSpeechToText(inputId, btnId, isMiniChat = false, isNote = false) 
     };
 
     recognition.onerror = (event) => {
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        if (event.error === 'not-allowed' || event.error === 'permission-denied') {
             sttForceStop = true;
-            showToast("Microphone access denied or service unavailable. Check browser permissions.", "error");
-        } else {
-            showToast(`STT Error: ${event.error}`, "warning");
+            showToast("Microphone access denied. Please check your browser's site permissions for the microphone.", "error");
+        } else if (event.error === 'network') {
+            showToast("Network error detected. This could be due to an unstable internet connection, firewall, or VPN interference. Please check your connection and try again.", "error");
+        } else if (event.error === 'no-speech') {
+            // This error typically occurs when the API is listening but detects no discernible speech for a period.
+            showToast("No speech detected. Please speak clearly into the microphone. If the issue persists, ensure your microphone is working.", "info");
+        } else if (event.error === 'audio-capture') {
+            showToast("Microphone not found or is busy. Ensure it's connected and not in use by another application.", "error");
+        } else if (event.error === 'service-not-allowed') {
+            showToast("Speech recognition service unavailable. This may happen if not on HTTPS, or due to a temporary service issue. Please ensure your connection is secure.", "error");
+        } else if (event.error === 'bad-grammar') {
+            // Less common for continuous recognition, more for single shot with grammar.
+            showToast("Speech recognition encountered a grammar error. Please speak clearly.", "warning");
+        }
+        else {
+            showToast(`STT Error: ${event.error}. Please try restarting your browser.`, "warning");
         }
         console.warn("STT Error:", event.error);
         if (recognition) {
             recognition.active = false;
-            // Also reset button state if an error occurs and it's not handled by onend
             const iconClass = isMiniChat ? 'text-xs' : '';
             btn.innerHTML = `<i class="fas fa-microphone ${iconClass}"></i>`;
             btn.classList.remove('bg-purple-600/20', 'border-purple-500/50', 'text-purple-400');
