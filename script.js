@@ -4158,13 +4158,19 @@ function startClicker() {
             showToast(`Session Ended. Score: ${cps} CPS`, "success");
             
             if (currentUser) {
-                showToast("Saving high score...", "info");
-                await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: 'clicker', score: cps })
-                });
-                syncFunLeaderboard();
+                try {
+                    const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'clicker', score: cps })
+                    });
+                    if (res.ok) {
+                        showToast(`High score synchronized: ${cps} CPS`, "success");
+                        syncFunLeaderboard();
+                    } else throw new Error();
+                } catch (e) {
+                    showToast("Failed to sync score to cloud.", "error");
+                }
             }
         }
     }, 1000);
@@ -4270,8 +4276,17 @@ function transmuteEmojis() {
             showToast(`Success! You created ${result}`, "success");
             if (!funState.alchemy.discoveries.has(result)) {
                 funState.alchemy.discoveries.add(result);
-                localStorage.setItem('soul_alchemy_discovery', JSON.stringify(Array.from(funState.alchemy.discoveries)));
+                const discoveriesArray = Array.from(funState.alchemy.discoveries);
+                localStorage.setItem('soul_alchemy_discovery', JSON.stringify(discoveriesArray));
                 renderAlchemyLog();
+                
+                if (currentUser) {
+                    fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: 'alchemy_discoveries', value: discoveriesArray })
+                    }).catch(e => console.warn("Alchemy cloud sync failed"));
+                }
             }
         }
         funState.alchemy.slots = [null, null];
@@ -4442,13 +4457,26 @@ async function syncFunLeaderboard() {
 }
 
 async function syncFunStats() {
-    if (!currentUser) return;
-    renderAlchemyLog();
+    if (!currentUser) {
+        renderAlchemyLog();
+        return;
+    }
     syncFunLeaderboard();
     try {
         const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
-        // We can use this data for local stats visualization if needed later
-    } catch(e) {}
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            const cloudAlchemy = data.find(d => d.id === 'alchemy_discoveries');
+            if (cloudAlchemy && Array.isArray(cloudAlchemy.value)) {
+                cloudAlchemy.value.forEach(item => funState.alchemy.discoveries.add(item));
+                localStorage.setItem('soul_alchemy_discovery', JSON.stringify(Array.from(funState.alchemy.discoveries)));
+            }
+        }
+        renderAlchemyLog();
+    } catch(e) {
+        console.warn("Fun stats sync failed");
+        renderAlchemyLog();
+    }
 }
 
 // --- sOuLQUIZ LOGIC ---
@@ -5167,12 +5195,19 @@ function startReactionTest() {
             s.active = false;
             
             if (currentUser) {
-                await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: 'reaction', score: diff })
-                });
-                syncFunLeaderboard();
+                try {
+                    const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ type: 'reaction', score: diff })
+                    });
+                    if (res.ok) {
+                        showToast(`Latency record synced: ${diff}ms`, "success");
+                        syncFunLeaderboard();
+                    } else throw new Error();
+                } catch (e) {
+                    showToast("Failed to sync reaction time.", "error");
+                }
             }
         };
     }, delay);
@@ -9067,54 +9102,76 @@ const initApp = async () => {
         setInterval(checkAnnouncement, 60000);
         
         if (initialPath === 'snake') syncSnakeLeaderboard();
-        if (initialPath === 'draw') initDrawPage();
+        if (initialPath === 'draw') {
+            initDrawPage();
+            setInterval(updateDrawAISuggestion, 15000);
+        }
         startTimeUpdates();
     });
 };
 
-// --- sOuLDRAW LOGIC ---
+// --- sOuLDRAW LOGIC v3.0 ---
 let drawState = {
     initialized: false,
     canvas: null, ctx: null,
+    bgCanvas: null, bgCtx: null,
     isDrawing: false,
     currentTool: 'brush',
     history: [],
     historyIndex: -1,
     startX: 0, startY: 0,
-    tempCanvas: null, tempCtx: null
+    features: { symmetry: false, grid: false, smoothing: true },
+    smoothingPoints: []
 };
 
 function initDrawPage() {
     drawState.canvas = document.getElementById('drawCanvas');
-    if (!drawState.canvas) return;
+    drawState.bgCanvas = document.getElementById('drawBgCanvas');
+    if (!drawState.canvas || !drawState.bgCanvas) return;
     
-    // Prevent re-initialization if already active
     if (drawState.initialized) return;
     drawState.initialized = true;
 
     drawState.ctx = drawState.canvas.getContext('2d', { willReadFrequently: true });
+    drawState.bgCtx = drawState.bgCanvas.getContext('2d');
     
+    // Add mobile toggle for tool menu
+    const toolBtn = document.getElementById('activeToolDisplay');
+    if (toolBtn) {
+        toolBtn.addEventListener('click', (e) => {
+            if (window.innerWidth < 1024) {
+                const menu = toolBtn.nextElementSibling;
+                const isHidden = menu.style.opacity === '0' || !menu.style.opacity || menu.style.opacity === '';
+                menu.style.opacity = isHidden ? '1' : '0';
+                menu.style.pointerEvents = isHidden ? 'auto' : 'none';
+                menu.style.transform = isHidden ? 'translateY(0)' : 'translateY(4px)';
+            }
+        });
+    }
+
     const resize = () => {
         const container = document.getElementById('drawContainer');
         if (!container) return;
-        
         const w = drawState.canvas.width;
         const h = drawState.canvas.height;
-        let temp = null;
         
-        // Only attempt to save content if dimensions are valid to prevent IndexSizeError
+        let tempMain = null;
+        let tempBg = null;
+        
         if (w > 0 && h > 0) {
-            try {
-                temp = drawState.ctx.getImageData(0, 0, w, h);
-            } catch(e) { console.warn("Failed to capture draw snapshot during resize"); }
+            try { 
+                tempMain = drawState.ctx.getImageData(0, 0, w, h); 
+                tempBg = drawState.bgCtx.getImageData(0, 0, w, h);
+            } catch(e) {}
         }
         
         drawState.canvas.width = container.offsetWidth;
         drawState.canvas.height = container.offsetHeight;
+        drawState.bgCanvas.width = container.offsetWidth;
+        drawState.bgCanvas.height = container.offsetHeight;
         
-        if (temp) {
-            drawState.ctx.putImageData(temp, 0, 0);
-        }
+        if (tempMain) drawState.ctx.putImageData(tempMain, 0, 0);
+        if (tempBg) drawState.bgCtx.putImageData(tempBg, 0, 0);
     };
 
     const resizer = new ResizeObserver(() => {
@@ -9123,60 +9180,99 @@ function initDrawPage() {
     resizer.observe(document.getElementById('drawContainer'));
     resize();
 
-    // Event Listeners
     const c = drawState.canvas;
     c.addEventListener('mousedown', startDrawing);
     c.addEventListener('mousemove', draw);
-    c.addEventListener('mouseup', stopDrawing);
-    c.addEventListener('mouseleave', stopDrawing);
+    window.addEventListener('mouseup', stopDrawing);
 
     c.addEventListener('touchstart', (e) => { 
-        if (e.target === c) {
-            e.preventDefault(); 
-            startDrawing(e.touches[0]); 
-        }
+        if (e.target === c) { e.preventDefault(); startDrawing(e.touches[0]); }
     }, {passive: false});
     
     c.addEventListener('touchmove', (e) => { 
-        if (e.target === c) {
-            e.preventDefault(); 
-            draw(e.touches[0]); 
-        }
+        if (e.target === c) { e.preventDefault(); draw(e.touches[0]); }
     }, {passive: false});
     
     c.addEventListener('touchend', stopDrawing);
 
-    // Initial Save Point
     saveDrawHistory();
 }
 
 function setDrawTool(tool) {
     drawState.currentTool = tool;
-    document.querySelectorAll('.draw-tool-btn').forEach(btn => btn.classList.remove('active'));
-    document.getElementById(`tool${tool.charAt(0).toUpperCase() + tool.slice(1)}`).classList.add('active');
+    
+    const toolData = {
+        brush: { name: 'Precision Brush', icon: 'fa-paint-brush' },
+        eraser: { name: 'Clean Eraser', icon: 'fa-eraser' },
+        fill: { name: 'Flood Fill', icon: 'fa-fill-drip' },
+        rect: { name: 'Rectangle', icon: 'fa-square' },
+        circle: { name: 'Circle', icon: 'fa-circle' },
+        line: { name: 'Line Tool', icon: 'fa-slash' },
+        arrow: { name: 'Arrow Pointer', icon: 'fa-long-arrow-alt-right' }
+    }[tool] || { name: 'Brush', icon: 'fa-paint-brush' };
+
+    document.getElementById('activeToolNameText').innerText = toolData.name;
+    document.getElementById('activeToolIcon').className = `fas ${toolData.icon}`;
+    
+    document.querySelectorAll('.draw-tool-item').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tool === tool);
+    });
+
+    if (window.innerWidth < 1024) {
+        const menu = document.getElementById('activeToolDisplay').nextElementSibling;
+        menu.style.opacity = '0';
+        menu.style.pointerEvents = 'none';
+    }
+}
+
+function toggleDrawFeature(feat) {
+    drawState.features[feat] = !drawState.features[feat];
+    const btn = document.getElementById(`btn${feat.charAt(0).toUpperCase() + feat.slice(1)}`);
+    const indicator = document.getElementById(`indicator${feat.charAt(0).toUpperCase() + feat.slice(1)}`);
+    
+    btn.classList.toggle('active-feat', drawState.features[feat]);
+    if (indicator) indicator.classList.toggle('bg-pink-500', drawState.features[feat]);
+    if (indicator) indicator.classList.toggle('bg-white/10', !drawState.features[feat]);
+
+    if (feat === 'grid') {
+        document.getElementById('drawContainer').classList.toggle('grid-active', drawState.features.grid);
+    }
+    
+    showToast(`${feat.charAt(0).toUpperCase() + feat.slice(1)} ${drawState.features[feat] ? 'Enabled' : 'Disabled'}`, "info");
 }
 
 function startDrawing(e) {
-    drawState.isDrawing = true;
     const rect = drawState.canvas.getBoundingClientRect();
-    drawState.startX = e.clientX - rect.left;
-    drawState.startY = e.clientY - rect.top;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (drawState.currentTool === 'fill') {
+        floodFill(Math.round(x), Math.round(y), document.getElementById('drawColor').value);
+        saveDrawHistory();
+        return;
+    }
+
+    drawState.isDrawing = true;
+    document.getElementById('drawActiveIndicator').style.opacity = '1';
+    
+    drawState.startX = x;
+    drawState.startY = y;
+    drawState.smoothingPoints = [{x, y}];
     
     drawState.ctx.beginPath();
-    drawState.ctx.moveTo(drawState.startX, drawState.startY);
-    
-    // Save state for shape previewing
+    drawState.ctx.moveTo(x, y);
     drawState.snap = drawState.ctx.getImageData(0, 0, drawState.canvas.width, drawState.canvas.height);
 }
 
 function draw(e) {
-    if (!drawState.isDrawing) return;
     const rect = drawState.canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
     document.getElementById('drawX').innerText = Math.round(x);
     document.getElementById('drawY').innerText = Math.round(y);
+
+    if (!drawState.isDrawing) return;
 
     const ctx = drawState.ctx;
     ctx.lineWidth = document.getElementById('brushSize').value;
@@ -9185,27 +9281,70 @@ function draw(e) {
     ctx.strokeStyle = document.getElementById('drawColor').value;
 
     if (drawState.currentTool === 'brush' || drawState.currentTool === 'eraser') {
-        if (drawState.currentTool === 'eraser') ctx.globalCompositeOperation = 'destination-out';
-        else ctx.globalCompositeOperation = 'source-over';
+        ctx.globalCompositeOperation = (drawState.currentTool === 'eraser') ? 'destination-out' : 'source-over';
         
-        ctx.lineTo(x, y);
-        ctx.stroke();
+        if (drawState.features.smoothing) {
+            drawState.smoothingPoints.push({x, y});
+            if (drawState.smoothingPoints.length > 3) {
+                const lastTwo = drawState.smoothingPoints.slice(-2);
+                const control = lastTwo[0];
+                const end = {
+                    x: (lastTwo[0].x + lastTwo[1].x) / 2,
+                    y: (lastTwo[0].y + lastTwo[1].y) / 2
+                };
+                ctx.quadraticCurveTo(control.x, control.y, end.x, end.y);
+                ctx.stroke();
+                
+                if (drawState.features.symmetry) {
+                    const midX = drawState.canvas.width / 2;
+                    const symControlX = midX + (midX - control.x);
+                    const symEndX = midX + (midX - end.x);
+                    ctx.beginPath();
+                    ctx.moveTo(midX + (midX - drawState.smoothingPoints[drawState.smoothingPoints.length-3].x), drawState.smoothingPoints[drawState.smoothingPoints.length-3].y);
+                    ctx.quadraticCurveTo(symControlX, control.y, symEndX, end.y);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(end.x, end.y);
+                }
+            }
+        } else {
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            if (drawState.features.symmetry) {
+                const symX = drawState.canvas.width - x;
+                const prevSymX = drawState.canvas.width - drawState.startX;
+                ctx.moveTo(prevSymX, drawState.startY);
+                ctx.lineTo(symX, y);
+                ctx.stroke();
+                ctx.moveTo(x, y);
+            }
+        }
     } else {
-        // Shapes need to restore snapshot first to clear preview
         ctx.globalCompositeOperation = 'source-over';
         ctx.putImageData(drawState.snap, 0, 0);
         ctx.beginPath();
         
-        if (drawState.currentTool === 'rect') {
-            ctx.strokeRect(drawState.startX, drawState.startY, x - drawState.startX, y - drawState.startY);
-        } else if (drawState.currentTool === 'line') {
-            ctx.moveTo(drawState.startX, drawState.startY);
-            ctx.lineTo(x, y);
-            ctx.stroke();
-        } else if (drawState.currentTool === 'circle') {
-            const r = Math.sqrt(Math.pow(x - drawState.startX, 2) + Math.pow(y - drawState.startY, 2));
-            ctx.arc(drawState.startX, drawState.startY, r, 0, 2 * Math.PI);
-            ctx.stroke();
+        const drawShape = (sx, sy, ex, ey) => {
+            if (drawState.currentTool === 'rect') ctx.strokeRect(sx, sy, ex - sx, ey - sy);
+            else if (drawState.currentTool === 'line') { ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke(); }
+            else if (drawState.currentTool === 'circle') {
+                const r = Math.sqrt(Math.pow(ex - sx, 2) + Math.pow(ey - sy, 2));
+                ctx.arc(sx, sy, r, 0, 2 * Math.PI); ctx.stroke();
+            } else if (drawState.currentTool === 'arrow') {
+                const headlen = 15;
+                const angle = Math.atan2(ey - sy, ex - sx);
+                ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
+                ctx.lineTo(ex - headlen * Math.cos(angle - Math.PI / 6), ey - headlen * Math.sin(angle - Math.PI / 6));
+                ctx.moveTo(ex, ey);
+                ctx.lineTo(ex - headlen * Math.cos(angle + Math.PI / 6), ey - headlen * Math.sin(angle + Math.PI / 6));
+                ctx.stroke();
+            }
+        };
+
+        drawShape(drawState.startX, drawState.startY, x, y);
+        if (drawState.features.symmetry) {
+            const midX = drawState.canvas.width / 2;
+            drawShape(midX + (midX - drawState.startX), drawState.startY, midX + (midX - x), y);
         }
     }
 }
@@ -9213,16 +9352,22 @@ function draw(e) {
 function stopDrawing() {
     if (!drawState.isDrawing) return;
     drawState.isDrawing = false;
+    document.getElementById('drawActiveIndicator').style.opacity = '0';
     drawState.ctx.globalCompositeOperation = 'source-over';
     saveDrawHistory();
 }
 
 function saveDrawHistory() {
+    if (!drawState.canvas) return;
     drawState.historyIndex++;
     if (drawState.historyIndex < drawState.history.length) {
-        drawState.history.splice(drawState.historyIndex);
+        drawState.history = drawState.history.slice(0, drawState.historyIndex);
     }
-    drawState.history.push(drawState.canvas.toDataURL());
+    drawState.history.push(drawState.canvas.toDataURL('image/png', 0.8)); // Compressed PNG for memory
+    if (drawState.history.length > 30) { // Limit history size
+        drawState.history.shift();
+        drawState.historyIndex--;
+    }
     updateDrawMemory();
 }
 
@@ -9230,6 +9375,7 @@ function undoDraw() {
     if (drawState.historyIndex > 0) {
         drawState.historyIndex--;
         loadDrawHistory(drawState.history[drawState.historyIndex]);
+        showToast("Reverted change.", "info");
     }
 }
 
@@ -9237,6 +9383,56 @@ function redoDraw() {
     if (drawState.historyIndex < drawState.history.length - 1) {
         drawState.historyIndex++;
         loadDrawHistory(drawState.history[drawState.historyIndex]);
+        showToast("Redone change.", "info");
+    }
+}
+
+function importReferenceImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = drawState.bgCanvas;
+            const ctx = drawState.bgCtx;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+            const x = (canvas.width / 2) - (img.width / 2) * scale;
+            const y = (canvas.height / 2) - (img.height / 2) * scale;
+            
+            ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+            document.getElementById('layerControls').classList.remove('hidden');
+            showToast("Reference image imported.", "success");
+        };
+        img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function toggleLayerVisibility(layer) {
+    if (layer === 'bg') {
+        const canvas = drawState.bgCanvas;
+        const btn = document.getElementById('btnLayerBgVis');
+        const isHidden = canvas.classList.toggle('hidden');
+        btn.innerHTML = isHidden ? '<i class="fas fa-eye-slash"></i>' : '<i class="fas fa-eye"></i>';
+        btn.classList.toggle('text-gray-500', isHidden);
+        btn.classList.toggle('text-cyan-400', !isHidden);
+    }
+}
+
+function removeReferenceImage() {
+    if (!confirm("Remove background reference image?")) return;
+    drawState.bgCtx.clearRect(0, 0, drawState.bgCanvas.width, drawState.bgCanvas.height);
+    document.getElementById('layerControls').classList.add('hidden');
+    showToast("Background purged.", "warning");
+}
+
+function setLayerOpacity(layer, val) {
+    if (layer === 'bg') {
+        drawState.bgCanvas.style.opacity = val;
     }
 }
 
@@ -9244,33 +9440,143 @@ function loadDrawHistory(dataUrl) {
     const img = new Image();
     img.src = dataUrl;
     img.onload = () => {
+        drawState.ctx.globalCompositeOperation = 'source-over';
         drawState.ctx.clearRect(0, 0, drawState.canvas.width, drawState.canvas.height);
         drawState.ctx.drawImage(img, 0, 0);
     };
 }
 
 function clearDrawCanvas() {
-    if (!confirm("Wipe canvas?")) return;
+    if (!confirm("Wipe all drawing data? Background reference will be preserved.")) return;
     drawState.ctx.clearRect(0, 0, drawState.canvas.width, drawState.canvas.height);
     saveDrawHistory();
 }
 
 function updateDrawMemory() {
-    const total = 50; // History limit
-    const percent = (drawState.history.length / total) * 100;
+    const limit = 30;
+    const percent = (drawState.history.length / limit) * 100;
     const bar = document.getElementById('drawMemBar');
     const text = document.getElementById('drawMem');
     if (bar) bar.style.width = percent + '%';
     if (text) text.innerText = Math.round(percent) + '%';
-    
-    if (drawState.history.length > total) drawState.history.shift();
 }
 
-function exportDrawing(format) {
+function updateDrawAISuggestion() {
+    const suggestions = [
+        "Try using the Circle tool with a low brush size for fine-line abstract patterns.",
+        "Symmetry mode is great for mandalas and character portraits.",
+        "Use the Flood Fill tool to quickly base-color your shapes.",
+        "Enable smoothing for cleaner, more professional calligraphy.",
+        "The Invert filter can reveal interesting hidden details in your sketches.",
+        "Try lower opacity brushes (use lighter colors) for a watercolor effect.",
+        "Mirror symmetry with the Fill tool creates amazing Rorschach inkblots.",
+        "Combine the Grid with the Rect tool for perfect pixel art."
+    ];
+    const el = document.getElementById('drawAISuggestion');
+    if (el) {
+        el.style.opacity = '0';
+        setTimeout(() => {
+            el.innerText = suggestions[Math.floor(Math.random() * suggestions.length)];
+            el.style.opacity = '1';
+        }, 500);
+    }
+}
+
+function floodFill(startX, startY, fillColor) {
+    const ctx = drawState.ctx;
+    const imageData = ctx.getImageData(0, 0, drawState.canvas.width, drawState.canvas.height);
+    const width = imageData.width;
+    const height = imageData.height;
+    const stack = [[startX, startY]];
+    
+    const targetColor = getPixel(imageData, startX, startY);
+    const replacementColor = hexToRgb(fillColor);
+    
+    if (colorsMatch(targetColor, replacementColor)) return;
+
+    while (stack.length > 0) {
+        const [x, y] = stack.pop();
+        let currentColor = getPixel(imageData, x, y);
+
+        if (colorsMatch(currentColor, targetColor)) {
+            setPixel(imageData, x, y, replacementColor);
+            if (x > 0) stack.push([x - 1, y]);
+            if (x < width - 1) stack.push([x + 1, y]);
+            if (y > 0) stack.push([x, y - 1]);
+            if (y < height - 1) stack.push([x, y + 1]);
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
+}
+
+function getPixel(imageData, x, y) {
+    const index = (y * imageData.width + x) * 4;
+    return [imageData.data[index], imageData.data[index+1], imageData.data[index+2], imageData.data[index+3]];
+}
+
+function setPixel(imageData, x, y, color) {
+    const index = (y * imageData.width + x) * 4;
+    imageData.data[index] = color[0];
+    imageData.data[index+1] = color[1];
+    imageData.data[index+2] = color[2];
+    imageData.data[index+3] = 255;
+}
+
+function colorsMatch(c1, c2) {
+    return c1[0] === c2[0] && c1[1] === c2[1] && c1[2] === c2[2];
+}
+
+function hexToRgb(hex) {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0,0,0];
+}
+
+function applyDrawFilter(filter) {
+    const ctx = drawState.ctx;
+    const canvas = drawState.canvas;
+    ctx.save();
+    if (filter === 'invert') ctx.filter = 'invert(100%)';
+    else if (filter === 'grayscale') ctx.filter = 'grayscale(100%)';
+    else if (filter === 'sepia') ctx.filter = 'sepia(100%)';
+    else if (filter === 'blur') ctx.filter = 'blur(4px)';
+    
+    const img = new Image();
+    img.src = canvas.toDataURL();
+    img.onload = () => {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0);
+        ctx.restore();
+        saveDrawHistory();
+        showToast(`Applied ${filter} filter.`, "success");
+    };
+}
+
+async function exportDrawing(format) {
     if (format === 'png') {
+        const includeBg = confirm("Include background reference in the export?");
+        
+        let exportUrl;
+        if (includeBg) {
+            const composite = document.createElement('canvas');
+            composite.width = drawState.canvas.width;
+            composite.height = drawState.canvas.height;
+            const cCtx = composite.getContext('2d');
+            
+            if (!drawState.bgCanvas.classList.contains('hidden')) {
+                cCtx.globalAlpha = parseFloat(drawState.bgCanvas.style.opacity) || 0.5;
+                cCtx.drawImage(drawState.bgCanvas, 0, 0);
+                cCtx.globalAlpha = 1.0;
+            }
+            
+            cCtx.drawImage(drawState.canvas, 0, 0);
+            exportUrl = composite.toDataURL('image/png');
+        } else {
+            exportUrl = drawState.canvas.toDataURL('image/png');
+        }
+
         const link = document.createElement('a');
         link.download = `sOuLDRAW_${Date.now()}.png`;
-        link.href = drawState.canvas.toDataURL('image/png');
+        link.href = exportUrl;
         link.click();
         showToast("Artwork exported to vault.", "success");
     } else {

@@ -517,11 +517,18 @@ body {
 
 /* --- Glassmorphism Effect --- */
 .glass {
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--glass-border);
-    border-radius: 1rem;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.5rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    transition: background 0.3s ease, border-color 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.glass:hover {
+    background: rgba(15, 23, 42, 0.55);
+    border-color: rgba(255, 255, 255, 0.15);
 }
 
 /* --- Page Transitions --- */
@@ -566,10 +573,31 @@ nav {
     border-bottom: 1px solid var(--glass-border);
 }
 
-nav button, aside button {
-    transition: all 0.3s ease;
+nav button, aside button, .draw-action-btn, .quiz-cat-btn, .focus-mode-btn {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     padding: 0.5rem 1rem;
     border-radius: 0.5rem;
+    position: relative;
+    overflow: hidden;
+}
+
+nav button:active, .draw-action-btn:active, .quiz-cat-btn:active {
+    transform: scale(0.95);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+}
+
+/* --- Global Utilities --- */
+html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    overscroll-behavior-y: none; /* Prevents pull-to-refresh interference */
 }
 
 nav button:hover {
@@ -1680,12 +1708,26 @@ textarea:focus, input:focus {
 }
 
 /* --- sOuLDRAW Styles --- */
-.draw-tool-btn {
-    @apply w-10 h-10 md:w-12 md:h-12 flex items-center justify-center rounded-lg text-gray-500 hover:text-pink-400 hover:bg-white/5 transition-all text-sm md:text-base;
+.draw-tool-item {
+    @apply w-full flex items-center px-4 py-2.5 rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:bg-white/5 transition-all text-left;
 }
-.draw-tool-btn.active {
-    @apply text-pink-500 bg-pink-500/10 shadow-inner !important;
+
+.draw-tool-item.active {
+    @apply bg-pink-600/20 text-pink-400 border border-pink-500/20 shadow-lg shadow-pink-900/10 !important;
 }
+
+.active-feat {
+    @apply text-white !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+    box-shadow: inset 0 0 10px rgba(255,255,255,0.05);
+}
+
+#drawContainer.grid-active #drawCanvas {
+    background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
 .draw-action-btn {
     @apply w-full flex items-center p-3 rounded-xl bg-white/5 border border-white/5 text-[10px] font-bold uppercase tracking-wider hover:bg-white/10 transition-all text-gray-300;
 }
@@ -1721,4 +1763,18 @@ textarea:focus, input:focus {
         linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
         linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
     background-size: 20px 20px;
+    image-rendering: pixelated;
+}
+
+#drawActiveIndicator {
+    animation: drawPulse 1s infinite alternate;
+}
+
+@keyframes drawPulse {
+    from { transform: scale(1); opacity: 0.8; }
+    to { transform: scale(1.05); opacity: 1; }
+}
+
+.draw-tool-btn i {
+    filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
 }

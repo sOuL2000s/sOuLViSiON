@@ -182,7 +182,7 @@
         </div>
     </nav>
 
-    <main class="p-4 md:p-6 max-w-7xl mx-auto mb-20 md:mb-0">
+    <main class="p-4 md:p-6 max-w-7xl mx-auto mb-20 md:mb-12">
         
         <!-- Login/Reg Page -->
         <section id="login" class="page">
@@ -1038,7 +1038,7 @@
                     <!-- Main Playground Grid -->
                     <div class="lg:col-span-9 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 order-1 lg:order-2 auto-rows-min">
                         <!-- Pulse Clicker -->
-                        <div class="glass p-6 group hover:border-cyan-500/50 transition-all flex flex-col justify-between relative overflow-hidden min-h-[18rem]">
+                        <div class="glass p-6 group hover:border-cyan-500/50 transition-all flex flex-col justify-between relative overflow-hidden min-h-[20rem]">
                             <div class="absolute -top-4 -right-4 opacity-5 group-hover:rotate-12 transition-transform">
                                 <i class="fas fa-mouse-pointer text-8xl"></i>
                             </div>
@@ -1147,14 +1147,15 @@
                             <div class="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity">
                                 <canvas id="funCanvas" class="w-full h-full"></canvas>
                             </div>
-                            <div class="relative z-10">
+                            <!-- Added pointer-events-none to ensure clicks pass through to the canvas -->
+                            <div class="relative z-10 pointer-events-none">
                                 <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Particle Void</h3>
                                 <p class="text-[10px] text-gray-500 mb-6 uppercase">Touch the canvas to create life</p>
                                 <div class="h-28 flex items-center justify-center">
                                     <p class="text-[8px] text-indigo-400 font-mono uppercase tracking-[0.3em] animate-pulse">Generative Matrix Active</p>
                                 </div>
                             </div>
-                            <button onclick="clearParticleVoid()" class="bg-indigo-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20 relative z-10">Reset Canvas</button>
+                            <button onclick="clearParticleVoid()" class="bg-indigo-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20 relative z-20 pointer-events-auto">Reset Canvas</button>
                         </div>
                     </div>
                 </div>
@@ -1642,66 +1643,186 @@
 
         <!-- sOuLDRAW Page -->
         <section id="draw" class="page">
-            <div class="max-w-7xl mx-auto py-4 md:py-8 h-[85vh] flex flex-col gap-6">
-                <div class="flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
-                    <div>
-                        <h2 class="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-600">sOuLDRAW</h2>
-                        <p class="text-gray-500 text-[9px] uppercase tracking-[0.4em] mt-1">Creative Expression Interface v2.0</p>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <div class="flex bg-white/5 p-1 rounded-xl border border-white/10">
-                            <button onclick="setDrawTool('brush')" id="toolBrush" class="draw-tool-btn active"><i class="fas fa-paint-brush"></i></button>
-                            <button onclick="setDrawTool('eraser')" id="toolEraser" class="draw-tool-btn"><i class="fas fa-eraser"></i></button>
-                            <button onclick="setDrawTool('rect')" id="toolRect" class="draw-tool-btn"><i class="fas fa-square"></i></button>
-                            <button onclick="setDrawTool('circle')" id="toolCircle" class="draw-tool-btn"><i class="fas fa-circle"></i></button>
-                            <button onclick="setDrawTool('line')" id="toolLine" class="draw-tool-btn"><i class="fas fa-slash"></i></button>
+            <!-- Improved layout constraints: Fixed height on desktop to prevent footer overlap, flexible on mobile -->
+            <div class="max-w-7xl mx-auto py-2 md:py-6 h-auto lg:h-[calc(100vh-160px)] flex flex-col gap-4 md:gap-6 mb-4 min-h-[600px]">
+                <!-- Modern Adaptive Header: sOuLDRAW Command Center -->
+                <div class="flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 bg-white/5 p-4 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-md relative z-[70]">
+                    <div class="text-center lg:text-left">
+                        <h2 class="text-3xl md:text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-600">sOuLDRAW</h2>
+                        <div class="flex items-center gap-2 justify-center lg:justify-start mt-1">
+                            <span class="text-[8px] md:text-[10px] text-gray-500 uppercase tracking-[0.4em]">Expression Interface v3.0</span>
+                            <div class="flex gap-1 h-2">
+                                <div id="indicatorSymmetry" class="w-1 h-1 rounded-full bg-white/10" title="Symmetry Active"></div>
+                                <div id="indicatorGrid" class="w-1 h-1 rounded-full bg-white/10" title="Grid Active"></div>
+                            </div>
                         </div>
-                        <div class="h-8 w-px bg-white/10 mx-2 hidden md:block"></div>
-                        <div class="flex items-center gap-3 bg-white/5 px-4 py-1.5 rounded-xl border border-white/10">
-                            <input type="color" id="drawColor" value="#ec4899" class="w-6 h-6 bg-transparent border-none cursor-pointer rounded-lg overflow-hidden">
-                            <input type="range" id="brushSize" min="1" max="50" value="5" class="w-24 h-1 bg-gray-700 rounded-lg accent-pink-500" title="Brush Size">
+                    </div>
+                    
+                    <div class="flex flex-wrap justify-center items-center gap-4">
+                        <!-- Advanced Tool Dropdown Menu -->
+                        <div class="relative group/tool-menu z-[80]">
+                            <button id="activeToolDisplay" class="bg-pink-600 px-6 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-3 shadow-lg shadow-pink-900/40 hover:bg-pink-500 transition-all border border-pink-400/30">
+                                <i id="activeToolIcon" class="fas fa-paint-brush"></i>
+                                <span id="activeToolNameText">Brush</span>
+                                <i class="fas fa-chevron-down text-[8px] opacity-50 group-hover/tool-menu:rotate-180 transition-transform"></i>
+                            </button>
+                            
+                            <!-- Dropdown Content: Added pt-3 as a hover bridge to ensure the menu persists when moving the cursor from trigger to options -->
+                            <div class="absolute top-full left-0 pt-3 w-64 z-[100] opacity-0 pointer-events-none group-hover/tool-menu:opacity-100 group-hover/tool-menu:pointer-events-auto transition-all translate-y-1 group-hover/tool-menu:translate-y-0">
+                                <div class="bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl p-3">
+                                    <div class="grid grid-cols-1 gap-1">
+                                        <p class="text-[8px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2 ml-2">Drawing Elements</p>
+                                        <button onclick="setDrawTool('brush')" class="draw-tool-item active" data-tool="brush"><i class="fas fa-paint-brush w-8"></i> Precision Brush <span class="ml-auto text-[8px] opacity-40">B</span></button>
+                                        <button onclick="setDrawTool('eraser')" class="draw-tool-item" data-tool="eraser"><i class="fas fa-eraser w-8"></i> Clean Eraser <span class="ml-auto text-[8px] opacity-40">E</span></button>
+                                        <button onclick="setDrawTool('fill')" class="draw-tool-item" data-tool="fill"><i class="fas fa-fill-drip w-8"></i> Flood Fill <span class="ml-auto text-[8px] opacity-40">F</span></button>
+                                        
+                                        <div class="h-px bg-white/5 my-2"></div>
+                                        <p class="text-[8px] font-black text-gray-500 uppercase tracking-[0.2em] mb-2 ml-2">Geometry</p>
+                                        <div class="grid grid-cols-2 gap-1">
+                                            <button onclick="setDrawTool('rect')" class="draw-tool-item text-[10px]" data-tool="rect"><i class="fas fa-square mr-2"></i> Rect</button>
+                                            <button onclick="setDrawTool('circle')" class="draw-tool-item text-[10px]" data-tool="circle"><i class="fas fa-circle mr-2"></i> Circle</button>
+                                            <button onclick="setDrawTool('line')" class="draw-tool-item text-[10px]" data-tool="line"><i class="fas fa-slash mr-2"></i> Line</button>
+                                            <button onclick="setDrawTool('arrow')" class="draw-tool-item text-[10px]" data-tool="arrow"><i class="fas fa-long-arrow-alt-right mr-2"></i> Arrow</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Precision Controls -->
+                        <div class="flex items-center gap-4 bg-black/40 px-4 py-2 rounded-2xl border border-white/10 shadow-inner">
+                            <div class="flex flex-col gap-1 items-center">
+                                <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest">Ink</span>
+                                <div class="relative">
+                                    <input type="color" id="drawColor" value="#ec4899" class="w-8 h-8 bg-transparent border-none cursor-pointer rounded-full overflow-hidden scale-110 hover:scale-125 transition-transform">
+                                    <div class="absolute -bottom-1 -right-1 w-3 h-3 rounded-full bg-white border border-black pointer-events-none"></div>
+                                </div>
+                            </div>
+                            <div class="w-px h-8 bg-white/5"></div>
+                            <div class="flex flex-col gap-1">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-[8px] font-black text-gray-500 uppercase tracking-widest">Weight</span>
+                                    <span id="brushSizeVal" class="text-[9px] font-mono text-pink-500">5px</span>
+                                </div>
+                                <input type="range" id="brushSize" min="1" max="100" value="5" class="w-24 md:w-32 h-1.5 bg-gray-800 rounded-lg accent-pink-500 cursor-pointer" oninput="document.getElementById('brushSizeVal').innerText = this.value + 'px'">
+                            </div>
+                        </div>
+
+                        <!-- Toggle Matrix Tools -->
+                        <div class="flex bg-black/40 p-1 rounded-2xl border border-white/10">
+                            <button onclick="toggleDrawFeature('symmetry')" id="btnSymmetry" class="w-10 h-10 flex items-center justify-center rounded-xl text-gray-500 hover:text-pink-400 transition-all" title="Mirror Symmetry"><i class="fas fa-arrows-alt-h"></i></button>
+                            <button onclick="toggleDrawFeature('grid')" id="btnGrid" class="w-10 h-10 flex items-center justify-center rounded-xl text-gray-500 hover:text-cyan-400 transition-all" title="Toggle Grid"><i class="fas fa-th"></i></button>
+                            <button onclick="toggleDrawFeature('smoothing')" id="btnSmoothing" class="w-10 h-10 flex items-center justify-center rounded-xl text-gray-500 hover:text-purple-400 transition-all active-feat" title="Stroke Smoothing"><i class="fas fa-wave-square"></i></button>
                         </div>
                     </div>
                 </div>
 
-                <div class="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
-                    <!-- Toolbox & Meta -->
-                    <div class="lg:col-span-2 flex flex-col gap-4 order-2 lg:order-1 overflow-y-auto custom-scrollbar pr-1">
-                        <div class="glass p-4 space-y-4">
-                            <h4 class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Canvas Controls</h4>
-                            <div class="grid grid-cols-1 gap-2">
-                                <button onclick="undoDraw()" class="draw-action-btn"><i class="fas fa-undo mr-2"></i> Undo</button>
-                                <button onclick="redoDraw()" class="draw-action-btn"><i class="fas fa-redo mr-2"></i> Redo</button>
-                                <button onclick="clearDrawCanvas()" class="draw-action-btn text-red-400 hover:bg-red-500/10"><i class="fas fa-trash-can mr-2"></i> Purge</button>
+                <div class="flex-grow flex flex-col lg:flex-row gap-4 md:gap-6 min-h-0">
+                    <!-- Main Canvas Area -->
+                    <div class="flex-grow flex flex-col gap-4 min-h-[350px] lg:min-h-0">
+                        <div id="drawContainer" class="flex-grow bg-[#000] rounded-3xl border-2 border-white/5 relative overflow-hidden group shadow-2xl ring-1 ring-white/10">
+                            <!-- Background/Reference Layer -->
+                            <canvas id="drawBgCanvas" class="absolute inset-0 w-full h-full pointer-events-none opacity-50"></canvas>
+                            <!-- Main Drawing Layer -->
+                            <canvas id="drawCanvas" class="absolute inset-0 w-full h-full cursor-crosshair touch-none z-10"></canvas>
+                            
+                            <!-- Coordinate & Info Overlay -->
+                            <div class="absolute bottom-6 left-6 flex flex-wrap gap-3 pointer-events-none z-30">
+                                <div class="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-[9px] font-mono text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2">
+                                    <span class="text-pink-500">X</span> <span id="drawX">0</span>
+                                    <span class="text-pink-500">Y</span> <span id="drawY">0</span>
+                                </div>
+                                <div id="drawActiveIndicator" class="bg-pink-600/20 backdrop-blur-md px-3 py-1.5 rounded-full border border-pink-500/30 text-[9px] font-black text-pink-400 uppercase tracking-widest opacity-0 transition-opacity">Engaged</div>
+                                <div id="zoomLevelDisplay" class="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-[9px] font-black text-gray-400 uppercase tracking-widest">Scale: 100%</div>
                             </div>
-                        </div>
-                        <div class="glass p-4 space-y-4">
-                            <h4 class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Export Vault</h4>
-                            <div class="grid grid-cols-1 gap-2">
-                                <button onclick="exportDrawing('png')" class="draw-action-btn bg-pink-600/20 text-pink-400 border-pink-500/30 hover:bg-pink-600 hover:text-white font-black"><i class="fas fa-image mr-2"></i> PNG IMAGE</button>
-                                <button onclick="exportDrawing('raw')" class="draw-action-btn"><i class="fas fa-code mr-2"></i> RAW DATA</button>
-                                <button onclick="importDrawing()" class="draw-action-btn"><i class="fas fa-file-import mr-2"></i> LOAD RAW</button>
-                            </div>
-                        </div>
-                        <div class="glass p-4 mt-auto">
-                            <div class="flex justify-between items-center mb-2">
-                                <span class="text-[8px] font-black text-gray-500 uppercase">Memory Usage</span>
-                                <span id="drawMem" class="text-[8px] font-mono text-pink-400">0%</span>
-                            </div>
-                            <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-                                <div id="drawMemBar" class="h-full bg-pink-500 w-0 transition-all duration-500"></div>
+
+                            <!-- Mobile Quick Actions Overlay -->
+                            <div class="lg:hidden absolute top-4 right-4 flex flex-col gap-2">
+                                <button onclick="undoDraw()" class="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center text-gray-300 active:bg-pink-600 transition"><i class="fas fa-undo-alt"></i></button>
+                                <button onclick="clearDrawCanvas()" class="w-10 h-10 rounded-full bg-red-600/20 backdrop-blur-md border border-red-500/30 flex items-center justify-center text-red-400 active:bg-red-600 transition"><i class="fas fa-trash-can"></i></button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Canvas Main -->
-                    <div class="lg:col-span-10 flex flex-col gap-4 order-1 lg:order-2 min-h-[400px]">
-                        <div id="drawContainer" class="flex-grow bg-white/5 rounded-3xl border-2 border-white/5 relative overflow-hidden group shadow-2xl">
-                            <canvas id="drawCanvas" class="absolute inset-0 w-full h-full cursor-crosshair touch-none"></canvas>
-                            <!-- Coordinate Display -->
-                            <div class="absolute bottom-4 left-4 text-[9px] font-mono text-gray-500 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                                X: <span id="drawX">0</span> Y: <span id="drawY">0</span>
+                    <!-- Sidebar: Advanced Controls & History -->
+                    <div class="w-full lg:w-72 flex flex-col gap-4 md:gap-6 shrink-0 h-auto lg:h-full overflow-y-auto lg:overflow-visible pr-1">
+                        <!-- Navigation / Action Panel -->
+                        <div class="glass p-5 space-y-5 border-t-4 border-pink-500 flex flex-col">
+                            <div>
+                                <h4 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                    <i class="fas fa-layer-group text-pink-500"></i> Layers & Canvas
+                                </h4>
+                                <div class="grid grid-cols-2 lg:grid-cols-1 gap-2">
+                                    <button onclick="undoDraw()" class="draw-action-btn justify-center lg:justify-start hover:border-pink-500/50"><i class="fas fa-undo-alt mr-2"></i> Undo</button>
+                                    <button onclick="redoDraw()" class="draw-action-btn justify-center lg:justify-start hover:border-pink-500/50"><i class="fas fa-redo-alt mr-2"></i> Redo</button>
+                                    
+                                    <div class="col-span-2 lg:col-span-1 space-y-2 mt-2">
+                                        <input type="file" id="drawImportImg" class="hidden" accept="image/*" onchange="importReferenceImage(event)">
+                                        <button onclick="document.getElementById('drawImportImg').click()" class="draw-action-btn w-full justify-center lg:justify-start hover:border-blue-500/50 text-blue-400"><i class="fas fa-image mr-2"></i> Import Reference</button>
+                                        
+                                        <div id="layerControls" class="hidden space-y-2 p-2 bg-black/20 rounded-xl border border-white/5">
+                                            <div class="flex justify-between items-center">
+                                                <span class="text-[8px] font-black text-gray-500 uppercase">Ref Layer</span>
+                                                <div class="flex gap-2">
+                                                    <button onclick="toggleLayerVisibility('bg')" id="btnLayerBgVis" class="text-[10px] text-cyan-400"><i class="fas fa-eye"></i></button>
+                                                    <button onclick="removeReferenceImage()" class="text-[10px] text-red-500"><i class="fas fa-trash"></i></button>
+                                                </div>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <i class="fas fa-adjust text-[8px] text-gray-600"></i>
+                                                <input type="range" min="0" max="1" step="0.1" value="0.5" class="flex-grow h-1 bg-gray-800 rounded-lg accent-cyan-500" oninput="setLayerOpacity('bg', this.value)">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <button onclick="clearDrawCanvas()" class="draw-action-btn justify-center lg:justify-start text-red-400 hover:bg-red-500/10 hover:border-red-500/30 lg:col-span-1 col-span-2"><i class="fas fa-fire-extinguisher mr-2"></i> Purge All</button>
+                                </div>
                             </div>
+
+                            <div class="pt-4 border-t border-white/5">
+                                <h4 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                    <i class="fas fa-cloud-arrow-down text-rose-500"></i> Export Engine
+                                </h4>
+                                <div class="grid grid-cols-1 gap-2">
+                                    <button onclick="exportDrawing('png')" class="draw-action-btn bg-gradient-to-r from-pink-600/20 to-rose-600/20 text-white border-pink-500/30 hover:from-pink-600 hover:to-rose-600 transition-all font-black py-3"><i class="fas fa-file-image mr-2"></i> EXPORT TO PNG</button>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <button onclick="exportDrawing('raw')" class="draw-action-btn text-[9px] py-2" title="Save raw vector data"><i class="fas fa-code mr-1.5"></i> RAW</button>
+                                        <button onclick="importDrawing()" class="draw-action-btn text-[9px] py-2" title="Load raw vector data"><i class="fas fa-file-import mr-1.5"></i> LOAD</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Footer Stats -->
+                            <div class="mt-auto pt-4 border-t border-white/5">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="text-[9px] font-black text-gray-600 uppercase tracking-tighter">Session Buffer</span>
+                                    <span id="drawMem" class="text-[9px] font-mono text-pink-500 font-bold">0%</span>
+                                </div>
+                                <div class="w-full h-1.5 bg-white/5 rounded-full overflow-hidden ring-1 ring-white/5">
+                                    <div id="drawMemBar" class="h-full bg-gradient-to-r from-pink-500 to-rose-600 w-0 transition-all duration-700 ease-out shadow-[0_0_8px_rgba(236,72,153,0.5)]"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Post-Processing -->
+                        <div class="glass p-5 border-l-4 border-purple-500">
+                             <h4 class="text-[10px] font-black text-purple-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                <i class="fas fa-wand-magic-sparkles"></i> Neural FX
+                            </h4>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button onclick="applyDrawFilter('invert')" class="draw-action-btn py-2 text-[9px]"><i class="fas fa-adjust mr-1.5"></i> Invert</button>
+                                <button onclick="applyDrawFilter('grayscale')" class="draw-action-btn py-2 text-[9px]"><i class="fas fa-mountain mr-1.5"></i> Mono</button>
+                                <button onclick="applyDrawFilter('blur')" class="draw-action-btn py-2 text-[9px]"><i class="fas fa-eye-slash mr-1.5"></i> Bloom</button>
+                                <button onclick="applyDrawFilter('sepia')" class="draw-action-btn py-2 text-[9px]"><i class="fas fa-scroll mr-1.5"></i> Legacy</button>
+                            </div>
+                        </div>
+
+                        <!-- Mini AI Assistant Insight -->
+                        <div class="glass p-5 border-l-4 border-cyan-500 hidden lg:block">
+                            <h4 class="text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <i class="fas fa-brain"></i> Synaptic Suggestion
+                            </h4>
+                            <p id="drawAISuggestion" class="text-[10px] text-gray-400 italic leading-relaxed transition-opacity duration-500">Try combining the Fill tool with Symmetry for perfectly balanced abstract inkblots.</p>
                         </div>
                     </div>
                 </div>
