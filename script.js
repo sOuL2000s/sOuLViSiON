@@ -662,7 +662,7 @@ function setNoteFilter(filter) {
 const pageCache = new Map();
 
 function showPage(pageId, pushState = true) {
-    const validPages = ['home', 'notes', 'code', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz', 'seek', 'solve', 'compare'];
+    const validPages = ['home', 'notes', 'code', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz', 'seek', 'solve', 'compare', 'draw'];
     if (!validPages.includes(pageId)) pageId = 'home';
 
     // Optimization: Don't re-render/re-toggle if already active
@@ -705,13 +705,23 @@ function showPage(pageId, pushState = true) {
         login: { title: 'sOuLViSiON | Authentication', desc: 'Securely sign in to your sanctuary.' },
         legal: { title: 'sOuLViSiON | Privacy & Terms', desc: 'Legal documentation and policies.' },
         manage: { title: 'sOuLMANAGE | Admin Control', desc: 'System management and health.' },
-        forgotPass: { title: 'sOuLViSiON | Reset Password', desc: 'Recover access to your account.' }
+        forgotPass: { title: 'sOuLViSiON | Reset Password', desc: 'Recover access to your account.' },
+        draw: { title: 'sOuLDRAW | Creative Expression', desc: 'Professional-grade sketching suite.' },
+        solve: { title: 'sOuLSOLVE | Omni-Calculator', desc: 'Synaptic logic and precision computation.' },
+        compare: { title: 'sOuLCOMPARE | Text Diff Engine', desc: 'Synchronized text analysis and diffing.' }
     };
 
     const meta = pageMeta[pageId] || pageMeta.home;
     document.title = meta.title;
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc) metaDesc.setAttribute('content', meta.desc);
+
+    // Cleanup Fun State if leaving
+    if (currentPage && currentPage.id === 'fun') {
+        if (funState.clicker.interval) clearInterval(funState.clicker.interval);
+        if (funState.reaction.timer) clearTimeout(funState.reaction.timer);
+        if (breathingState.active) toggleZenBreath(document.querySelector('#fun button[onclick*="toggleZenBreath"]'));
+    }
 
     // UI State Sync
     requestAnimationFrame(() => {
@@ -741,6 +751,10 @@ function showPage(pageId, pushState = true) {
             syncSnakeLeaderboard();
         } else {
             quitSnake();
+        }
+
+        if (pageId === 'draw') {
+            initDrawPage();
         }
 
         if (pageId === 'quiz') {
@@ -780,7 +794,11 @@ function showPage(pageId, pushState = true) {
         }
         
         if (pageId === 'support') loadFeedbacks();
-        if (pageId === 'fun') initParticleVoid();
+        if (pageId === 'fun') {
+            initParticleVoid();
+            syncFunLeaderboard();
+            renderAlchemyLog();
+        }
         
         // Close sidebar on navigation (mobile)
         const sidebar = document.getElementById('mobileSidebar');
@@ -4102,102 +4120,98 @@ function clearSeekChat() {
 }
 
 // --- sOuLFUN ENHANCEMENTS ---
-let clickCount = 0;
-let clickTime = 10;
-let clickActive = false;
-let clickLastTime = 0;
-
 function startClicker() {
+    const s = funState.clicker;
     const counter = document.getElementById('clickCounter');
     const combo = document.getElementById('clickCombo');
     const now = Date.now();
 
-    if (window.navigator.vibrate) window.navigator.vibrate(5);
+    if (window.navigator.vibrate) window.navigator.vibrate(10);
 
-    if (clickActive) {
-        clickCount++;
-        counter.innerText = clickCount;
-        
-        // Combo Logic
-        if (now - clickLastTime < 250) {
-            const multiplier = Math.min(Math.floor(clickCount / 10) + 1, 10);
-            combo.innerText = `x${multiplier}`;
+    if (s.active) {
+        s.count++;
+        counter.innerText = s.count;
+        if (now - s.lastTime < 250) {
             combo.style.opacity = '1';
-            combo.style.transform = 'translateY(-10px) scale(1.2)';
+            combo.innerText = `x${Math.min(Math.floor(s.count / 10) + 1, 10)}`;
         } else {
             combo.style.opacity = '0';
         }
-        clickLastTime = now;
+        s.lastTime = now;
         return;
     }
 
-    clickActive = true;
-    clickCount = 1;
-    clickTime = 10;
-    clickLastTime = now;
+    s.active = true;
+    s.count = 1;
+    s.timeLeft = 10;
+    s.lastTime = now;
     counter.innerText = "1";
     
-    const interval = setInterval(async () => {
-        clickTime--;
-        document.getElementById('clickTimer').innerText = clickTime + "s REMAINING";
-        if (clickTime <= 0) {
-            clearInterval(interval);
-            clickActive = false;
-            const cps = clickCount / 10;
+    s.interval = setInterval(async () => {
+        s.timeLeft--;
+        document.getElementById('clickTimer').innerText = `${s.timeLeft}s REMAINING`;
+        if (s.timeLeft <= 0) {
+            clearInterval(s.interval);
+            s.active = false;
+            const cps = s.count / 10;
             combo.style.opacity = '0';
-            showToast(`SESSIONS ENDED | CPS: ${cps}`, "info");
+            showToast(`Session Ended. Score: ${cps} CPS`, "success");
             
             if (currentUser) {
+                showToast("Saving high score...", "info");
                 await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ type: 'clicker', score: cps })
                 });
+                syncFunLeaderboard();
             }
         }
     }, 1000);
 }
 
-// Neural Flow Enhancement
 function toggleZenBreath(btn) {
     const circle = document.getElementById('breathCircle');
     const text = document.getElementById('breathText');
     const ring = document.getElementById('zenRing');
     
-    if (zenInterval) {
-        clearInterval(zenInterval);
-        zenInterval = null;
+    if (breathingState.active) {
+        clearInterval(breathingState.interval);
+        breathingState.interval = null;
+        breathingState.active = false;
+        
         circle.style.transform = 'scale(1)';
-        ring.style.opacity = '0';
+        if (ring) ring.style.opacity = '0';
         text.innerText = 'IDLE';
         btn.innerText = 'BEGIN CYCLE';
         btn.classList.replace('bg-red-600', 'bg-teal-600');
+        
+        if (breathingState.audioCtx) breathingState.audioCtx.suspend();
         return;
     }
 
+    breathingState.active = true;
     btn.innerText = 'END CYCLE';
     btn.classList.replace('bg-teal-600', 'bg-red-600');
-    ring.style.opacity = '1';
-    
-    let stage = 0;
-    const animate = () => {
-        if (stage === 0) { // Inhale
-            circle.style.transform = 'scale(1.8)';
-            circle.style.backgroundColor = 'rgba(20, 184, 166, 0.4)';
-            text.innerText = 'INHALE';
-            if (breathingState.soundEnabled) playBreathingPulse(440, 1);
-            stage = 1;
-        } else { // Exhale
-            circle.style.transform = 'scale(1)';
-            circle.style.backgroundColor = 'rgba(20, 184, 166, 0.1)';
-            text.innerText = 'EXHALE';
-            if (breathingState.soundEnabled) playBreathingPulse(330, 1);
-            stage = 0;
-        }
+    if (ring) ring.style.opacity = '1';
+
+    const phases = [
+        { text: 'INHALE', scale: 1.8, color: 'rgba(20, 184, 166, 0.4)', freq: 440 },
+        { text: 'EXHALE', scale: 1.0, color: 'rgba(20, 184, 166, 0.1)', freq: 330 }
+    ];
+
+    const run = () => {
+        const p = phases[breathingState.phase % 2];
+        text.innerText = p.text;
+        circle.style.transform = `scale(${p.scale})`;
+        circle.style.backgroundColor = p.color;
+        
+        if (breathingState.soundEnabled) playBreathingPulse(p.freq, 1.5);
+        breathingState.phase = (breathingState.phase + 1) % 2;
     };
-    
-    animate();
-    zenInterval = setInterval(animate, 4000);
+
+    run();
+    breathingState.interval = setInterval(run, 4000);
 }
 
 // Emoji Alchemy Implementation
@@ -4205,13 +4219,27 @@ const alchemyEmojis = ['🔥', '💧', '🌱', '💨', '⚡', '❄️', '🌑', 
 const alchemyRecipes = {
     '🔥💧': '☁️', '🔥🌱': '🍂', '💧🌱': '🌸', '💨⚡': '🌩️', '❄️🔥': '💧',
     '🌑✨': '🔮', '🌱🌱': '🌳', '🔥🔥': '🌋', '💧💧': '🌊', '💨💨': '🌪️',
-    '💎✨': '👑', '🍄🌑': '🧚', '⚡💧': '🔋', '❄️🌱': '🧊'
+    '💎✨': '👑', '🍄🌑': '🧚', '⚡💧': '🔋', '❄️🌱': '🧊', '✨💎': '💍',
+    '🍄💧': '🧪', '🔥🌑': '☄️', '💨🌱': '🌪️', '⚡✨': '🧬', '❄️💧': '🧊'
 };
-let alchemySlots = [null, null];
+
+function renderAlchemyLog() {
+    const list = document.getElementById('alchemyDiscoveryList');
+    if (!list) return;
+    if (funState.alchemy.discoveries.size === 0) {
+        list.innerHTML = '<p class="text-[9px] text-gray-600 italic w-full">No discoveries yet.</p>';
+        return;
+    }
+    list.innerHTML = Array.from(funState.alchemy.discoveries).map(e => `
+        <div class="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-lg hover:scale-110 transition cursor-help" title="Discovered Element">
+            ${e}
+        </div>
+    `).join('');
+}
 
 function pickAlchemyEmoji(slotNum) {
     const randomEmoji = alchemyEmojis[Math.floor(Math.random() * alchemyEmojis.length)];
-    alchemySlots[slotNum - 1] = randomEmoji;
+    funState.alchemy.slots[slotNum - 1] = randomEmoji;
     const slotEl = document.getElementById(`alchemySlot${slotNum}`);
     slotEl.innerText = randomEmoji;
     slotEl.classList.remove('emoji-pop');
@@ -4220,10 +4248,11 @@ function pickAlchemyEmoji(slotNum) {
 }
 
 function transmuteEmojis() {
-    if (!alchemySlots[0] || !alchemySlots[1]) return showToast("Pick two elements first!", "warning");
+    const slots = funState.alchemy.slots;
+    if (!slots[0] || !slots[1]) return showToast("Pick two elements first!", "warning");
     
-    const combo1 = alchemySlots[0] + alchemySlots[1];
-    const combo2 = alchemySlots[1] + alchemySlots[0];
+    const combo1 = slots[0] + slots[1];
+    const combo2 = slots[1] + slots[0];
     const result = alchemyRecipes[combo1] || alchemyRecipes[combo2] || '💥';
     
     const slot1 = document.getElementById('alchemySlot1');
@@ -4235,45 +4264,73 @@ function transmuteEmojis() {
     setTimeout(() => {
         slot1.innerText = result;
         slot2.innerText = result;
-        if (result === '💥') showToast("Transmutation Failed! Unstable bond.", "error");
-        else showToast(`Success! You created ${result}`, "success");
-        
-        alchemySlots = [null, null];
+        if (result === '💥') {
+            showToast("Transmutation Failed! Unstable bond.", "error");
+        } else {
+            showToast(`Success! You created ${result}`, "success");
+            if (!funState.alchemy.discoveries.has(result)) {
+                funState.alchemy.discoveries.add(result);
+                localStorage.setItem('soul_alchemy_discovery', JSON.stringify(Array.from(funState.alchemy.discoveries)));
+                renderAlchemyLog();
+            }
+        }
+        funState.alchemy.slots = [null, null];
     }, 600);
 }
 
 // Particle Void Implementation
-let particles = [];
-let funCanvas, funCtx;
-
 function initParticleVoid() {
-    funCanvas = document.getElementById('funCanvas');
-    if (!funCanvas) return;
-    funCtx = funCanvas.getContext('2d');
-    resizeFunCanvas();
-    window.addEventListener('resize', resizeFunCanvas);
+    funState.particles.canvas = document.getElementById('funCanvas');
+    if (!funState.particles.canvas) return;
+    funState.particles.ctx = funState.particles.canvas.getContext('2d');
     
-    funCanvas.addEventListener('mousedown', (e) => spawnParticles(e.offsetX, e.offsetY));
-    funCanvas.addEventListener('mousemove', (e) => { if(e.buttons) spawnParticles(e.offsetX, e.offsetY); });
+    const obs = new ResizeObserver(() => resizeFunCanvas());
+    obs.observe(funState.particles.canvas.parentElement);
     
-    funCanvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        const rect = funCanvas.getBoundingClientRect();
-        spawnParticles(e.touches[0].clientX - rect.left, e.touches[0].clientY - rect.top);
-    }, { passive: false });
+    const handleAction = (e) => {
+        const rect = funState.particles.canvas.getBoundingClientRect();
+        let x, y;
+        if (e.touches) {
+            x = e.touches[0].clientX - rect.left;
+            y = e.touches[0].clientY - rect.top;
+        } else {
+            x = e.offsetX;
+            y = e.offsetY;
+        }
+        spawnParticles(x, y);
+    };
 
-    animateParticles();
+    funState.particles.canvas.addEventListener('mousedown', handleAction);
+    funState.particles.canvas.addEventListener('mousemove', (e) => {
+        if (!e.buttons) return;
+        const now = Date.now();
+        if (now - funState.particles.lastSpawn < 16) return;
+        funState.particles.lastSpawn = now;
+        handleAction(e);
+    });
+    
+    funState.particles.canvas.addEventListener('touchstart', handleAction, { passive: true });
+    funState.particles.canvas.addEventListener('touchmove', (e) => {
+        const now = Date.now();
+        if (now - funState.particles.lastSpawn < 16) return;
+        funState.particles.lastSpawn = now;
+        handleAction(e);
+    }, { passive: true });
+
+    if (!funState.particles.isAnimating) animateParticles();
 }
 
 function resizeFunCanvas() {
-    if (!funCanvas) return;
-    funCanvas.width = funCanvas.parentElement.offsetWidth;
-    funCanvas.height = funCanvas.parentElement.offsetHeight;
+    const canvas = funState.particles.canvas;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    canvas.width = parent.offsetWidth;
+    canvas.height = parent.offsetHeight;
 }
 
 function spawnParticles(x, y) {
     for (let i = 0; i < 15; i++) {
-        particles.push({
+        funState.particles.array.push({
             x, y,
             vx: (Math.random() - 0.5) * 5,
             vy: (Math.random() - 0.5) * 5,
@@ -4285,29 +4342,109 @@ function spawnParticles(x, y) {
 }
 
 function animateParticles() {
-    if (!funCtx) return;
+    if (!funState.particles.ctx) return;
+    funState.particles.isAnimating = true;
     requestAnimationFrame(animateParticles);
-    funCtx.clearRect(0, 0, funCanvas.width, funCanvas.height);
     
-    particles = particles.filter(p => p.life > 0);
-    particles.forEach(p => {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.life -= 0.02;
-        funCtx.fillStyle = p.color;
-        funCtx.globalAlpha = p.life;
-        funCtx.beginPath();
-        funCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        funCtx.fill();
+    const ctx = funState.particles.ctx;
+    const canvas = funState.particles.canvas;
+    
+    // Smooth trail effect
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    funState.particles.array = funState.particles.array.filter(p => p.life > 0);
+    funState.particles.array.forEach(p => {
+        p.x += p.vx; 
+        p.y += p.vy; 
+        p.life -= 0.015;
+        
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.beginPath(); 
+        ctx.arc(p.x, p.y, (p.size * p.life) || 1, 0, Math.PI * 2); 
+        ctx.fill();
     });
+    ctx.globalAlpha = 1;
 }
 
 function clearParticleVoid() {
-    particles = [];
+    funState.particles.array = [];
+}
+
+// Missing Fun Functions
+function flipCoinFun() {
+    const coin = document.getElementById('funCoin');
+    if (!coin) return;
+    const result = Math.random() < 0.5 ? 'HEADS' : 'TAILS';
+    coin.classList.remove('flipping-heads', 'flipping-tails');
+    void coin.offsetWidth;
+    coin.classList.add(`flipping-${result.toLowerCase()}`);
+    if (window.navigator.vibrate) window.navigator.vibrate([10, 50, 10]);
+    showToast(`The coin lands on: ${result}`, "info");
+}
+
+async function generateSoulQuote() {
+    const quoteEl = document.getElementById('quoteText');
+    if (!quoteEl) return;
+    quoteEl.innerHTML = '<i class="fas fa-spinner fa-spin text-indigo-400"></i>';
+    
+    const fallbackQuotes = [
+        { c: "The only way to do great work is to love what you do.", a: "Steve Jobs" },
+        { c: "Innovation distinguishes between a leader and a follower.", a: "Steve Jobs" },
+        { c: "Stay hungry, stay foolish.", a: "Whole Earth Catalog" },
+        { c: "Silence is a source of great strength.", a: "Lao Tzu" },
+        { c: "The journey of a thousand miles begins with a single step.", a: "Lao Tzu" },
+        { c: "Quality is not an act, it is a habit.", a: "Aristotle" }
+    ];
+
+    try {
+        const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://zenquotes.io/api/random'), { priority: 'low' });
+        if (!res.ok) throw new Error();
+        const wrapper = await res.json();
+        const data = JSON.parse(wrapper.contents);
+        if (data && data[0]) {
+            quoteEl.innerText = `"${data[0].q}" — ${data[0].a}`;
+        } else {
+            throw new Error();
+        }
+    } catch (e) {
+        const q = fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
+        quoteEl.innerText = `"${q.c}" — ${q.a}`;
+    }
+}
+
+async function syncFunLeaderboard() {
+    const clickerList = document.getElementById('clickerLeaderboard');
+    const reactionList = document.getElementById('reactionLeaderboard');
+    if (!clickerList) return;
+
+    try {
+        const res = await fetch('/api/main?route=fun_stats');
+        const stats = await res.json();
+        
+        const renderList = (data, target, formatter) => {
+            if (data.length === 0) { target.innerHTML = '<p class="text-[9px] text-gray-600 italic">No legends yet.</p>'; return; }
+            target.innerHTML = data.slice(0, 5).map((s, i) => `
+                <div class="flex justify-between text-[10px]">
+                    <span class="text-gray-400 truncate max-w-[80px]">${s.userId.split('@')[0]}</span>
+                    <span class="font-black ${i === 0 ? 'text-white' : 'text-gray-500'}">${formatter(s.score)}</span>
+                </div>
+            `).join('');
+        };
+
+        const clickerData = stats.filter(s => s.type === 'clicker').sort((a,b) => b.score - a.score);
+        const reactionData = stats.filter(s => s.type === 'reaction').sort((a,b) => a.score - b.score);
+
+        renderList(clickerData, clickerList, (s) => s + " CPS");
+        renderList(reactionData, reactionList, (s) => s + "ms");
+    } catch (e) {}
 }
 
 async function syncFunStats() {
     if (!currentUser) return;
+    renderAlchemyLog();
+    syncFunLeaderboard();
     try {
         const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
         // We can use this data for local stats visualization if needed later
@@ -4807,12 +4944,20 @@ function shakeBall() {
     }, 500);
 }
 
-// --- NEW FUN FEATURES ---
+// --- sOuLFUN Page State & Logic ---
+let funState = {
+    clicker: { active: false, count: 0, timeLeft: 10, lastTime: 0, interval: null },
+    reaction: { timer: null, start: 0, active: false },
+    alchemy: { slots: [null, null], discoveries: new Set(JSON.parse(localStorage.getItem('soul_alchemy_discovery')) || []) },
+    particles: { array: [], canvas: null, ctx: null, lastSpawn: 0 }
+};
+
+// Breathing state unified
 let zenInterval = null;
 let breathingState = {
     active: false,
     interval: null,
-    phase: 0, // 0: Inhale, 1: Hold, 2: Exhale, 3: Hold
+    phase: 0, 
     sessionSeconds: 0,
     soundEnabled: false,
     audioCtx: null,
@@ -4984,36 +5129,33 @@ function toggleZenBreath(btn) {
     zenInterval = setInterval(animate, 4000);
 }
 
-let reactionTimer = null;
-let reactionStart = 0;
 function startReactionTest() {
     const area = document.getElementById('reactionArea');
     const pulse = document.getElementById('reactionPulse');
     const text = document.getElementById('reactionText');
     const result = document.getElementById('reactionResult');
     const btn = document.getElementById('reactionBtn');
+    const s = funState.reaction;
+
+    if (s.active) return;
+    s.active = true;
 
     btn.disabled = true;
     btn.classList.add('opacity-50');
     result.classList.add('hidden');
     pulse.style.backgroundColor = 'transparent';
     text.innerText = 'WAIT FOR SIGNAL...';
-    text.className = "relative z-10 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]";
     
     const delay = Math.random() * 4000 + 1500;
     
-    reactionTimer = setTimeout(() => {
+    s.timer = setTimeout(() => {
         pulse.style.backgroundColor = '#10b981';
         text.innerText = 'STRIKE!';
-        text.classList.add('text-white');
-        reactionStart = Date.now();
+        s.start = Date.now();
         
-        area.onclick = () => {
-            const diff = Date.now() - reactionStart;
-            let rank = "Human";
-            if (diff < 150) rank = "AI Core";
-            else if (diff < 220) rank = "Ninja";
-            else if (diff > 400) rank = "Sloth";
+        area.onclick = async () => {
+            const diff = Date.now() - s.start;
+            let rank = diff < 150 ? "AI Core" : (diff < 220 ? "Ninja" : "Human");
 
             text.innerText = `RANK: ${rank}`;
             result.innerText = `${diff}ms`;
@@ -5022,25 +5164,27 @@ function startReactionTest() {
             area.onclick = null;
             btn.disabled = false;
             btn.classList.remove('opacity-50');
+            s.active = false;
             
             if (currentUser) {
-                fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ type: 'reaction', score: diff, rank: rank })
+                    body: JSON.stringify({ type: 'reaction', score: diff })
                 });
+                syncFunLeaderboard();
             }
         };
     }, delay);
 
     area.onclick = () => {
-        clearTimeout(reactionTimer);
+        clearTimeout(s.timer);
         text.innerText = 'FALSE START';
-        text.classList.add('text-red-500');
         pulse.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
         area.onclick = null;
         btn.disabled = false;
         btn.classList.remove('opacity-50');
+        s.active = false;
     };
 }
 
@@ -5336,39 +5480,29 @@ async function loadFocusData() {
         if (storedFocusState) {
             focusState.currentMode = storedFocusState.currentMode || 'japa';
             
-            // Japa
             focusState.japa.count = storedFocusState.japa?.count || 0;
             focusState.japa.mantra = storedFocusState.japa?.mantra || "";
             document.getElementById('japaCounterDisplay').innerText = focusState.japa.count;
             document.getElementById('japaMantraInput').value = focusState.japa.mantra;
 
-            // Tapasya
             focusState.tapasya.timeRemaining = storedFocusState.tapasya?.timeRemaining || (parseInt(document.getElementById('tapasyaTimerRange').value) * 60) || (25 * 60);
             focusState.tapasya.intention = storedFocusState.tapasya?.intention || "";
             document.getElementById('tapasyaIntentionInput').value = focusState.tapasya.intention;
             updateTapasyaDisplay();
-            // Re-apply range value if it was saved
             const savedTapasyaMins = focusState.tapasya.timeRemaining / 60;
             if (document.getElementById('tapasyaTimerRange')) document.getElementById('tapasyaTimerRange').value = savedTapasyaMins;
             
-            // Ananta
             focusState.ananta.stopwatchTime = storedFocusState.ananta?.stopwatchTime || 0;
             focusState.ananta.intention = storedFocusState.ananta?.intention || "";
             document.getElementById('anantaIntentionInput').value = focusState.ananta.intention;
             updateAnantaDisplay();
 
-            setFocusMode(focusState.currentMode, false); // Re-render UI based on loaded mode
+            setFocusMode(focusState.currentMode, false); 
             
-            // Re-activate breathing if it was active in Tapasya
             breathingState.active = storedFocusState.tapasya?.isBreathingActive || false;
-            // The `toggleBreathingSession` handles starting/stopping on its own
-            // Only start if it's Tapasya mode and it was active previously
             if (focusState.currentMode === 'tapasya' && breathingState.active) {
-                // Ensure it gets rendered/started correctly without re-toggling the button
-                // It's better to make `toggleBreathingSession` idempotent, and call it here.
-                // It will check `breathingState.active` and adjust UI accordingly.
                 const btn = document.getElementById('breathStartBtn');
-                if (btn && btn.innerText === 'Start Box Breathing') { // Only auto-start if button is in 'Start' state
+                if (btn && btn.innerText === 'Start Box Breathing') { 
                     toggleBreathingSession();
                 }
             }
@@ -5377,8 +5511,6 @@ async function loadFocusData() {
     } catch (e) { console.warn("Focus data load failed", e); }
 }
 
-// Modify toggleBreathingSession to interact with Tapasya mode (if syncFocusTimer was relevant)
-// Since syncFocusTimer is removed, this interaction is simplified.
 async function toggleBreathingSession() {
     const circle = document.getElementById('breathAssistCircle');
     const text = document.getElementById('breathAssistText');
@@ -5727,42 +5859,7 @@ function closeReportModal() {
     document.getElementById('reportModal').classList.add('hidden');
 }
 
-async function syncFocusData() {
-    if (!currentUser) return;
-    try {
-        const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-            // Update Breathing Total
-            const breathingLogs = data.filter(d => d.type === 'breathing_practice');
-            const totalSeconds = breathingLogs.reduce((acc, curr) => acc + (curr.duration || 0), 0);
-            const totalMinutes = Math.floor(totalSeconds / 60);
-            const displayTime = totalMinutes > 60 ? `${(totalMinutes/60).toFixed(1)}h` : `${totalMinutes}m`;
-            const breathStatEl = document.getElementById('breathTotalTime');
-            if (breathStatEl) breathStatEl.innerText = `Practice: ${displayTime}`;
-
-            const journals = data.filter(d => d.type === 'journal').sort((a,b) => b.id - a.id);
-            const hist = document.getElementById('journalHistory');
-            if (journals.length > 0) {
-                hist.innerHTML = journals.map(j => `
-                    <div class="p-2 bg-white/5 rounded-lg border border-white/5">
-                        <p class="text-[10px] font-bold text-purple-400 mb-1">${new Date(j.id).toLocaleDateString()}</p>
-                        <p class="text-[10px] text-gray-300 italic truncate">${j.content}</p>
-                    </div>
-                `).join('');
-            } else {
-                hist.innerHTML = '<p class="text-[10px] text-gray-500 italic">No entries yet.</p>';
-            }
-
-            const latestHealth = data.filter(d => d.type === 'metric_health').sort((a,b) => b.timestamp - a.timestamp)[0];
-            const latestWealth = data.filter(d => d.type === 'metric_wealth').sort((a,b) => b.timestamp - a.timestamp)[0];
-            
-            if (latestHealth) document.getElementById('metricHealth').innerText = latestHealth.value;
-            if (latestWealth) document.getElementById('metricWealth').innerText = latestWealth.value;
-        }
-        getSpiritualAdvice(); // Auto-load advice on sync
-    } catch (e) { console.warn("Focus sync failed", e); }
-}
+// Duplicate syncFocusData removed. Integrated into primary loop.
 
 // --- CRICKET LOGIC ---
 let match = {
@@ -8970,9 +9067,245 @@ const initApp = async () => {
         setInterval(checkAnnouncement, 60000);
         
         if (initialPath === 'snake') syncSnakeLeaderboard();
+        if (initialPath === 'draw') initDrawPage();
         startTimeUpdates();
     });
 };
+
+// --- sOuLDRAW LOGIC ---
+let drawState = {
+    initialized: false,
+    canvas: null, ctx: null,
+    isDrawing: false,
+    currentTool: 'brush',
+    history: [],
+    historyIndex: -1,
+    startX: 0, startY: 0,
+    tempCanvas: null, tempCtx: null
+};
+
+function initDrawPage() {
+    drawState.canvas = document.getElementById('drawCanvas');
+    if (!drawState.canvas) return;
+    
+    // Prevent re-initialization if already active
+    if (drawState.initialized) return;
+    drawState.initialized = true;
+
+    drawState.ctx = drawState.canvas.getContext('2d', { willReadFrequently: true });
+    
+    const resize = () => {
+        const container = document.getElementById('drawContainer');
+        if (!container) return;
+        
+        const w = drawState.canvas.width;
+        const h = drawState.canvas.height;
+        let temp = null;
+        
+        // Only attempt to save content if dimensions are valid to prevent IndexSizeError
+        if (w > 0 && h > 0) {
+            try {
+                temp = drawState.ctx.getImageData(0, 0, w, h);
+            } catch(e) { console.warn("Failed to capture draw snapshot during resize"); }
+        }
+        
+        drawState.canvas.width = container.offsetWidth;
+        drawState.canvas.height = container.offsetHeight;
+        
+        if (temp) {
+            drawState.ctx.putImageData(temp, 0, 0);
+        }
+    };
+
+    const resizer = new ResizeObserver(() => {
+        if (document.getElementById('draw').classList.contains('active')) resize();
+    });
+    resizer.observe(document.getElementById('drawContainer'));
+    resize();
+
+    // Event Listeners
+    const c = drawState.canvas;
+    c.addEventListener('mousedown', startDrawing);
+    c.addEventListener('mousemove', draw);
+    c.addEventListener('mouseup', stopDrawing);
+    c.addEventListener('mouseleave', stopDrawing);
+
+    c.addEventListener('touchstart', (e) => { 
+        if (e.target === c) {
+            e.preventDefault(); 
+            startDrawing(e.touches[0]); 
+        }
+    }, {passive: false});
+    
+    c.addEventListener('touchmove', (e) => { 
+        if (e.target === c) {
+            e.preventDefault(); 
+            draw(e.touches[0]); 
+        }
+    }, {passive: false});
+    
+    c.addEventListener('touchend', stopDrawing);
+
+    // Initial Save Point
+    saveDrawHistory();
+}
+
+function setDrawTool(tool) {
+    drawState.currentTool = tool;
+    document.querySelectorAll('.draw-tool-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`tool${tool.charAt(0).toUpperCase() + tool.slice(1)}`).classList.add('active');
+}
+
+function startDrawing(e) {
+    drawState.isDrawing = true;
+    const rect = drawState.canvas.getBoundingClientRect();
+    drawState.startX = e.clientX - rect.left;
+    drawState.startY = e.clientY - rect.top;
+    
+    drawState.ctx.beginPath();
+    drawState.ctx.moveTo(drawState.startX, drawState.startY);
+    
+    // Save state for shape previewing
+    drawState.snap = drawState.ctx.getImageData(0, 0, drawState.canvas.width, drawState.canvas.height);
+}
+
+function draw(e) {
+    if (!drawState.isDrawing) return;
+    const rect = drawState.canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    document.getElementById('drawX').innerText = Math.round(x);
+    document.getElementById('drawY').innerText = Math.round(y);
+
+    const ctx = drawState.ctx;
+    ctx.lineWidth = document.getElementById('brushSize').value;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = document.getElementById('drawColor').value;
+
+    if (drawState.currentTool === 'brush' || drawState.currentTool === 'eraser') {
+        if (drawState.currentTool === 'eraser') ctx.globalCompositeOperation = 'destination-out';
+        else ctx.globalCompositeOperation = 'source-over';
+        
+        ctx.lineTo(x, y);
+        ctx.stroke();
+    } else {
+        // Shapes need to restore snapshot first to clear preview
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.putImageData(drawState.snap, 0, 0);
+        ctx.beginPath();
+        
+        if (drawState.currentTool === 'rect') {
+            ctx.strokeRect(drawState.startX, drawState.startY, x - drawState.startX, y - drawState.startY);
+        } else if (drawState.currentTool === 'line') {
+            ctx.moveTo(drawState.startX, drawState.startY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+        } else if (drawState.currentTool === 'circle') {
+            const r = Math.sqrt(Math.pow(x - drawState.startX, 2) + Math.pow(y - drawState.startY, 2));
+            ctx.arc(drawState.startX, drawState.startY, r, 0, 2 * Math.PI);
+            ctx.stroke();
+        }
+    }
+}
+
+function stopDrawing() {
+    if (!drawState.isDrawing) return;
+    drawState.isDrawing = false;
+    drawState.ctx.globalCompositeOperation = 'source-over';
+    saveDrawHistory();
+}
+
+function saveDrawHistory() {
+    drawState.historyIndex++;
+    if (drawState.historyIndex < drawState.history.length) {
+        drawState.history.splice(drawState.historyIndex);
+    }
+    drawState.history.push(drawState.canvas.toDataURL());
+    updateDrawMemory();
+}
+
+function undoDraw() {
+    if (drawState.historyIndex > 0) {
+        drawState.historyIndex--;
+        loadDrawHistory(drawState.history[drawState.historyIndex]);
+    }
+}
+
+function redoDraw() {
+    if (drawState.historyIndex < drawState.history.length - 1) {
+        drawState.historyIndex++;
+        loadDrawHistory(drawState.history[drawState.historyIndex]);
+    }
+}
+
+function loadDrawHistory(dataUrl) {
+    const img = new Image();
+    img.src = dataUrl;
+    img.onload = () => {
+        drawState.ctx.clearRect(0, 0, drawState.canvas.width, drawState.canvas.height);
+        drawState.ctx.drawImage(img, 0, 0);
+    };
+}
+
+function clearDrawCanvas() {
+    if (!confirm("Wipe canvas?")) return;
+    drawState.ctx.clearRect(0, 0, drawState.canvas.width, drawState.canvas.height);
+    saveDrawHistory();
+}
+
+function updateDrawMemory() {
+    const total = 50; // History limit
+    const percent = (drawState.history.length / total) * 100;
+    const bar = document.getElementById('drawMemBar');
+    const text = document.getElementById('drawMem');
+    if (bar) bar.style.width = percent + '%';
+    if (text) text.innerText = Math.round(percent) + '%';
+    
+    if (drawState.history.length > total) drawState.history.shift();
+}
+
+function exportDrawing(format) {
+    if (format === 'png') {
+        const link = document.createElement('a');
+        link.download = `sOuLDRAW_${Date.now()}.png`;
+        link.href = drawState.canvas.toDataURL('image/png');
+        link.click();
+        showToast("Artwork exported to vault.", "success");
+    } else {
+        const data = {
+            v: 2,
+            timestamp: Date.now(),
+            image: drawState.canvas.toDataURL(),
+            historyCount: drawState.history.length
+        };
+        const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+        const link = document.createElement('a');
+        link.download = `sOuLDRAW_RAW_${Date.now()}.json`;
+        link.href = URL.createObjectURL(blob);
+        link.click();
+    }
+}
+
+function importDrawing() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const data = JSON.parse(ev.target.result);
+                loadDrawHistory(data.image);
+                showToast("Vectorized data re-materialized.", "success");
+            } catch (err) { showToast("Corrupted data stream.", "error"); }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
 
 // Use DOMContentLoaded instead of window.onload for faster initial execution
 // --- TIME & CALENDAR ENGINE ---

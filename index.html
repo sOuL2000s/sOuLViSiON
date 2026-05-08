@@ -83,10 +83,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdnjs.cloudflare.com">
     <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <link rel="preconnect" href="https://checkout.razorpay.com">
-    <link rel="dns-prefetch" href="https://fonts.googleapis.com">
-    <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
-    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 </head>
 <body>
     <div class="noise-overlay"></div>
@@ -107,6 +103,7 @@
             <button onclick="showPage('random')" class="text-left hover:text-cyan-400"><i class="fas fa-random w-8"></i> sOuLRANDOM</button>
             <button onclick="showPage('cricket')" class="text-left hover:text-cyan-400"><i class="fas fa-baseball-bat-ball w-8"></i> sOuLCRICKET</button>
             <button onclick="showPage('snake')" class="text-left hover:text-cyan-400"><i class="fas fa-wave-square w-8"></i> sOuLSNAKE</button>
+            <button onclick="showPage('draw')" class="text-left hover:text-cyan-400"><i class="fas fa-palette w-8"></i> sOuLDRAW</button>
             <button onclick="showPage('focus')" class="text-left hover:text-cyan-400"><i class="fas fa-spa w-8"></i> sOuLFOCUS</button>
             <button onclick="showPage('seek')" class="text-left hover:text-cyan-400"><i class="fas fa-compass w-8"></i> sOuLSEEK</button>
             <button onclick="showPage('quiz')" class="text-left hover:text-cyan-400"><i class="fas fa-lightbulb w-8"></i> sOuLQUIZ</button>
@@ -155,6 +152,7 @@
             <button onclick="showPage('random')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Random</button>
             <button onclick="showPage('cricket')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Cricket</button>
             <button onclick="showPage('snake')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Snake</button>
+            <button onclick="showPage('draw')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Draw</button>
             <button onclick="showPage('fun')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Fun</button>
             <button onclick="showPage('compare')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Compare</button>
 
@@ -492,6 +490,16 @@
                     <h3 class="text-xl font-bold mb-2">sOuLCOMPARE</h3>
                     <p class="text-sm text-gray-400">Side-by-side text comparison and diff engine.</p>
                     <div class="mt-4 text-cyan-500 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+
+                <div class="glass p-8 group hover:border-pink-500/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('draw')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-palette text-6xl"></i>
+                    </div>
+                    <i class="fas fa-palette text-3xl mb-4 text-pink-500"></i>
+                    <h3 class="text-xl font-bold mb-2">sOuLDRAW</h3>
+                    <p class="text-sm text-gray-400">Professional-grade sketching suite with raw export capabilities.</p>
+                    <div class="mt-4 text-pink-500 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
                 </div>
 
                 <div class="glass p-8 group hover:border-gray-300/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('who')">
@@ -985,107 +993,169 @@
             </div>
         </section>
 
-        <!-- Fun Page -->
-        <section id="fun" class="page text-center">
+        <!-- Unified sOuLFUN Page -->
+        <section id="fun" class="page">
             <div class="max-w-6xl mx-auto py-10 px-4">
                 <div class="text-center mb-12">
                     <h2 class="text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-600">sOuLFUN</h2>
                     <p class="text-gray-500 text-xs mt-2 uppercase tracking-[0.3em]">Micro-Joys & Digital Zen</p>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Clicker Pro -->
-                    <div class="glass p-6 group hover:border-cyan-500/50 transition-all flex flex-col justify-between relative overflow-hidden">
-                        <div class="absolute -top-4 -right-4 opacity-5 group-hover:rotate-12 transition-transform">
-                            <i class="fas fa-mouse-pointer text-8xl"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Pulse Clicker</h3>
-                            <p class="text-[10px] text-gray-500 mb-6 uppercase">Test your neural-motor sync</p>
-                            <div class="relative py-4">
-                                <div id="clickCounter" class="text-6xl font-black text-white drop-shadow-[0_0_15px_rgba(6,182,212,0.5)]">0</div>
-                                <div id="clickCombo" class="absolute top-0 right-10 text-xs font-black text-cyan-400 opacity-0 transition-all">x1</div>
-                            </div>
-                            <div id="clickTimer" class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-6 bg-white/5 py-1 rounded-full border border-white/5">10s Remaining</div>
-                        </div>
-                        <button id="clickBtn" onclick="startClicker()" class="bg-cyan-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-cyan-500 transition-all shadow-lg shadow-cyan-600/20 active:scale-95 relative z-10">Engage</button>
-                    </div>
-
-                    <!-- Neural Flow (Breathing 2.0) -->
-                    <div class="glass p-6 group hover:border-teal-500/50 transition-all flex flex-col items-center relative overflow-hidden">
-                        <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Neural Flow</h3>
-                        <p class="text-[10px] text-gray-500 mb-8 uppercase">Bio-rhythmic synchronization</p>
-                        <div class="relative w-40 h-40 mb-8 flex items-center justify-center">
-                            <div class="absolute inset-0 border-2 border-teal-500/10 rounded-full"></div>
-                            <div id="zenRing" class="absolute inset-0 border-4 border-teal-500/40 rounded-full opacity-0 transition-all duration-[4000ms]"></div>
-                            <div id="breathCircle" class="w-16 h-16 bg-teal-500/20 rounded-full flex items-center justify-center transition-all duration-[4000ms] ease-in-out shadow-[0_0_30px_rgba(20,184,166,0.3)]">
-                                <span id="breathText" class="text-[9px] font-black text-teal-400 uppercase tracking-widest">Idle</span>
-                            </div>
-                            <!-- Visual particles via CSS animation could go here -->
-                        </div>
-                        <button onclick="toggleZenBreath(this)" class="w-full bg-teal-600 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-teal-500 transition-all shadow-lg shadow-teal-600/20">Begin Cycle</button>
-                    </div>
-
-                    <!-- Reaction Ninja -->
-                    <div class="glass p-6 group hover:border-amber-500/50 transition-all flex flex-col justify-between relative">
-                        <div>
-                            <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Reaction Ninja</h3>
-                            <p class="text-[10px] text-gray-500 mb-6 uppercase">Measure your latency (ms)</p>
-                            <div id="reactionArea" class="h-32 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center cursor-pointer mb-6 group-active:scale-[0.98] transition-all relative overflow-hidden">
-                                <div id="reactionPulse" class="absolute inset-0 bg-amber-500/0 transition-colors duration-100"></div>
-                                <span id="reactionText" class="relative z-10 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Ready?</span>
-                                <div id="reactionResult" class="relative z-10 text-2xl font-black text-white font-mono mt-2 hidden">0ms</div>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="startReactionTest()" id="reactionBtn" class="flex-grow bg-amber-600 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-amber-500 transition-all shadow-lg shadow-amber-600/20">Test</button>
-                        </div>
-                    </div>
-
-                    <!-- Mystic Sphere (8-Ball 2.0) -->
-                    <div class="glass p-6 group hover:border-purple-500/50 transition-all flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Mystic Sphere</h3>
-                            <p class="text-[10px] text-gray-500 mb-6 uppercase">Consult the digital void</p>
-                            <div class="relative w-32 h-32 mx-auto mb-6 flex items-center justify-center">
-                                <div class="absolute inset-0 bg-gradient-to-br from-gray-900 to-black rounded-full shadow-2xl border-4 border-white/5"></div>
-                                <div class="absolute inset-2 bg-purple-900/10 rounded-full blur-xl animate-pulse"></div>
-                                <div id="sphereCore" class="relative w-20 h-20 bg-black/40 rounded-full border border-purple-500/30 flex items-center justify-center overflow-hidden">
-                                    <div class="w-full h-full absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(168,85,247,0.1),transparent)]"></div>
-                                    <span class="text-[9px] font-black text-purple-300 text-center px-2 z-10 leading-tight transition-opacity duration-500" id="ballResponse">ASK ME</span>
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    <!-- Sidebar: Hall of Fame -->
+                    <div class="lg:col-span-3 space-y-6 order-2 lg:order-1">
+                        <div class="glass p-6">
+                            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                <i class="fas fa-trophy text-yellow-500"></i> Hall of Fame
+                            </h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <p class="text-[8px] font-black text-cyan-400 uppercase tracking-widest mb-2">Top CPS (Clicker)</p>
+                                    <div id="clickerLeaderboard" class="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                                        <p class="text-[9px] text-gray-600 italic">Connecting...</p>
+                                    </div>
+                                </div>
+                                <div class="pt-4 border-t border-white/5">
+                                    <p class="text-[8px] font-black text-amber-400 uppercase tracking-widest mb-2">Fastest Strike (Reaction)</p>
+                                    <div id="reactionLeaderboard" class="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
+                                        <p class="text-[9px] text-gray-600 italic">Connecting...</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <button onclick="shakeBall()" class="bg-purple-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-purple-700 transition-all shadow-lg shadow-purple-600/20">Consult</button>
-                    </div>
 
-                    <!-- Emoji Alchemy -->
-                    <div class="glass p-6 group hover:border-rose-500/50 transition-all flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Emoji Alchemy</h3>
-                            <p class="text-[10px] text-gray-500 mb-6 uppercase">Combine to discover new life</p>
-                            <div class="flex justify-center gap-4 mb-8 h-20 items-center">
-                                <div id="alchemySlot1" class="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl cursor-pointer hover:bg-white/10 transition" onclick="pickAlchemyEmoji(1)">❓</div>
-                                <div class="text-gray-600 font-black">+</div>
-                                <div id="alchemySlot2" class="w-14 h-14 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-2xl cursor-pointer hover:bg-white/10 transition" onclick="pickAlchemyEmoji(2)">❓</div>
+                        <!-- Alchemy Progress -->
+                        <div class="glass p-6">
+                            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                <i class="fas fa-flask text-rose-500"></i> Alchemy Log
+                            </h3>
+                            <div id="alchemyDiscoveryList" class="flex flex-wrap gap-1.5 max-h-40 overflow-y-auto custom-scrollbar">
+                                <p class="text-[9px] text-gray-600 italic w-full">No discoveries yet.</p>
                             </div>
                         </div>
-                        <button onclick="transmuteEmojis()" class="bg-rose-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg shadow-rose-600/20">Transmute</button>
                     </div>
 
-                    <!-- Particle Void (Generative Art) -->
-                    <div class="glass p-6 group hover:border-indigo-500/50 transition-all flex flex-col justify-between relative overflow-hidden">
-                        <div class="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity">
-                            <canvas id="funCanvas" class="w-full h-full"></canvas>
-                        </div>
-                        <div class="relative z-10">
-                            <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Particle Void</h3>
-                            <p class="text-[10px] text-gray-500 mb-6 uppercase">Touch the canvas to create life</p>
-                            <div class="h-28 flex items-center justify-center">
-                                <p class="text-[8px] text-indigo-400 font-mono uppercase tracking-[0.3em] animate-pulse">Generative Matrix Active</p>
+                    <!-- Main Playground Grid -->
+                    <div class="lg:col-span-9 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 order-1 lg:order-2 auto-rows-min">
+                        <!-- Pulse Clicker -->
+                        <div class="glass p-6 group hover:border-cyan-500/50 transition-all flex flex-col justify-between relative overflow-hidden min-h-[18rem]">
+                            <div class="absolute -top-4 -right-4 opacity-5 group-hover:rotate-12 transition-transform">
+                                <i class="fas fa-mouse-pointer text-8xl"></i>
                             </div>
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Pulse Clicker</h3>
+                                <p class="text-[10px] text-gray-500 mb-6 uppercase">Test your neural-motor sync</p>
+                                <div class="relative py-4 text-center">
+                                    <div id="clickCounter" class="text-6xl font-black text-white drop-shadow-[0_0_15px_rgba(6,182,212,0.5)]">0</div>
+                                    <div id="clickCombo" class="absolute top-0 right-1/4 text-xs font-black text-cyan-400 opacity-0 transition-all">x1</div>
+                                </div>
+                                <div id="clickTimer" class="text-[9px] font-black text-gray-500 uppercase tracking-widest mb-6 bg-white/5 py-1 rounded-full border border-white/5 text-center">10s Remaining</div>
+                            </div>
+                            <button id="clickBtn" onclick="startClicker()" class="bg-cyan-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-cyan-500 transition-all shadow-lg shadow-cyan-600/20 active:scale-95 relative z-10">Engage</button>
                         </div>
-                        <button onclick="clearParticleVoid()" class="bg-indigo-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20 relative z-10">Reset Canvas</button>
+
+                        <!-- Neural Flow (Breathing) -->
+                        <div class="glass p-6 group hover:border-teal-500/50 transition-all flex flex-col items-center justify-between relative overflow-hidden min-h-[18rem]">
+                            <div class="text-center">
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Neural Flow</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Bio-rhythmic synchronization</p>
+                            </div>
+                            <div class="relative w-32 h-32 flex items-center justify-center">
+                                <div class="absolute inset-0 border-2 border-teal-500/10 rounded-full scale-110"></div>
+                                <div id="zenRing" class="absolute inset-0 border-4 border-teal-500/40 rounded-full opacity-0 transition-all duration-[4000ms]"></div>
+                                <div id="breathCircle" class="w-14 h-14 bg-teal-500/20 rounded-full flex items-center justify-center transition-all duration-[4000ms] ease-in-out shadow-[0_0_30px_rgba(20,184,166,0.3)]">
+                                    <span id="breathText" class="text-[9px] font-black text-teal-400 uppercase tracking-widest">Idle</span>
+                                </div>
+                            </div>
+                            <button onclick="toggleZenBreath(this)" class="w-full bg-teal-600 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-teal-500 transition-all shadow-lg shadow-teal-600/20">Begin Cycle</button>
+                        </div>
+
+                        <!-- Reaction Ninja -->
+                        <div class="glass p-6 group hover:border-amber-500/50 transition-all flex flex-col justify-between relative min-h-[18rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Reaction Ninja</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Measure your latency (ms)</p>
+                                <div id="reactionArea" class="h-28 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center cursor-pointer mb-4 group-active:scale-[0.98] transition-all relative overflow-hidden">
+                                    <div id="reactionPulse" class="absolute inset-0 bg-amber-500/0 transition-colors duration-100"></div>
+                                    <span id="reactionText" class="relative z-10 text-[10px] font-black text-gray-500 uppercase tracking-[0.2em]">Ready?</span>
+                                    <div id="reactionResult" class="relative z-10 text-2xl font-black text-white font-mono mt-2 hidden">0ms</div>
+                                </div>
+                            </div>
+                            <button onclick="startReactionTest()" id="reactionBtn" class="bg-amber-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-amber-500 transition-all shadow-lg shadow-amber-600/20">Test</button>
+                        </div>
+
+                        <!-- Mystic Sphere -->
+                        <div class="glass p-6 group hover:border-purple-500/50 transition-all flex flex-col justify-between h-72">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Mystic Sphere</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Consult the digital void</p>
+                                <div class="relative w-32 h-32 mx-auto flex items-center justify-center">
+                                    <div class="absolute inset-0 bg-gradient-to-br from-gray-900 to-black rounded-full shadow-2xl border-4 border-white/5"></div>
+                                    <div class="absolute inset-2 bg-purple-900/10 rounded-full blur-xl animate-pulse"></div>
+                                    <div id="sphereCore" class="relative w-20 h-20 bg-black/40 rounded-full border border-purple-500/30 flex items-center justify-center overflow-hidden">
+                                        <div class="w-full h-full absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(168,85,247,0.1),transparent)]"></div>
+                                        <span class="text-[9px] font-black text-purple-300 text-center px-2 z-10 leading-tight transition-opacity duration-500" id="ballResponse">ASK ME</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="shakeBall()" class="bg-purple-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-purple-700 transition-all shadow-lg shadow-purple-600/20">Consult</button>
+                        </div>
+
+                        <!-- Aureum Flip (Coin) -->
+                        <div class="glass p-6 group hover:border-yellow-500/50 transition-all flex flex-col justify-between h-72">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Aureum Flip</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Laws of probability</p>
+                                <div class="flex justify-center mb-4">
+                                    <div id="funCoin" class="w-24 h-24 relative preserve-3d transition-transform duration-500">
+                                        <div class="absolute inset-0 bg-yellow-500 rounded-full border-4 border-yellow-600 flex items-center justify-center text-yellow-900 font-black text-[10px] shadow-lg backface-hidden uppercase tracking-widest">Heads</div>
+                                        <div class="absolute inset-0 bg-yellow-600 rounded-full border-4 border-yellow-500 flex items-center justify-center text-yellow-100 font-black text-[10px] shadow-lg backface-hidden rotate-y-180 uppercase tracking-widest">Tails</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="flipCoinFun()" class="bg-yellow-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-yellow-500 transition shadow-lg shadow-yellow-600/20">Flip Coin</button>
+                        </div>
+
+                        <!-- Eternal Echoes (Quotes) -->
+                        <div class="glass p-6 group hover:border-indigo-500/50 transition-all flex flex-col justify-between h-72">
+                            <div class="flex-grow">
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Eternal Echoes</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Collective consciousness</p>
+                                <div class="italic text-xs text-gray-300 leading-relaxed min-h-[100px] flex items-center justify-center text-center p-2" id="quoteText">
+                                    "The only way to do great work is to love what you do."
+                                </div>
+                            </div>
+                            <button onclick="generateSoulQuote()" class="bg-indigo-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20">Hear Echoes</button>
+                        </div>
+
+                        <!-- Emoji Alchemy -->
+                        <div class="glass p-6 group hover:border-rose-500/50 transition-all flex flex-col justify-between h-72 xl:col-span-2">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Emoji Alchemy</h3>
+                                <p class="text-[10px] text-gray-500 mb-6 uppercase">Combine elements to discover new life forms</p>
+                                <div class="flex justify-center gap-6 mb-8 h-20 items-center">
+                                    <div id="alchemySlot1" class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl cursor-pointer hover:bg-white/10 transition" onclick="pickAlchemyEmoji(1)">❓</div>
+                                    <div class="text-gray-600 font-black text-2xl">+</div>
+                                    <div id="alchemySlot2" class="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-3xl cursor-pointer hover:bg-white/10 transition" onclick="pickAlchemyEmoji(2)">❓</div>
+                                </div>
+                            </div>
+                            <button onclick="transmuteEmojis()" class="bg-rose-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-rose-500 transition-all shadow-lg shadow-rose-600/20">Transmute Elements</button>
+                        </div>
+
+                        <!-- Particle Void -->
+                        <div class="glass p-6 group hover:border-indigo-500/50 transition-all flex flex-col justify-between relative overflow-hidden h-72">
+                            <div class="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity">
+                                <canvas id="funCanvas" class="w-full h-full"></canvas>
+                            </div>
+                            <div class="relative z-10">
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Particle Void</h3>
+                                <p class="text-[10px] text-gray-500 mb-6 uppercase">Touch the canvas to create life</p>
+                                <div class="h-28 flex items-center justify-center">
+                                    <p class="text-[8px] text-indigo-400 font-mono uppercase tracking-[0.3em] animate-pulse">Generative Matrix Active</p>
+                                </div>
+                            </div>
+                            <button onclick="clearParticleVoid()" class="bg-indigo-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20 relative z-10">Reset Canvas</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1570,6 +1640,74 @@
             </div>
         </section>
 
+        <!-- sOuLDRAW Page -->
+        <section id="draw" class="page">
+            <div class="max-w-7xl mx-auto py-4 md:py-8 h-[85vh] flex flex-col gap-6">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
+                    <div>
+                        <h2 class="text-4xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-600">sOuLDRAW</h2>
+                        <p class="text-gray-500 text-[9px] uppercase tracking-[0.4em] mt-1">Creative Expression Interface v2.0</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div class="flex bg-white/5 p-1 rounded-xl border border-white/10">
+                            <button onclick="setDrawTool('brush')" id="toolBrush" class="draw-tool-btn active"><i class="fas fa-paint-brush"></i></button>
+                            <button onclick="setDrawTool('eraser')" id="toolEraser" class="draw-tool-btn"><i class="fas fa-eraser"></i></button>
+                            <button onclick="setDrawTool('rect')" id="toolRect" class="draw-tool-btn"><i class="fas fa-square"></i></button>
+                            <button onclick="setDrawTool('circle')" id="toolCircle" class="draw-tool-btn"><i class="fas fa-circle"></i></button>
+                            <button onclick="setDrawTool('line')" id="toolLine" class="draw-tool-btn"><i class="fas fa-slash"></i></button>
+                        </div>
+                        <div class="h-8 w-px bg-white/10 mx-2 hidden md:block"></div>
+                        <div class="flex items-center gap-3 bg-white/5 px-4 py-1.5 rounded-xl border border-white/10">
+                            <input type="color" id="drawColor" value="#ec4899" class="w-6 h-6 bg-transparent border-none cursor-pointer rounded-lg overflow-hidden">
+                            <input type="range" id="brushSize" min="1" max="50" value="5" class="w-24 h-1 bg-gray-700 rounded-lg accent-pink-500" title="Brush Size">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex-grow grid grid-cols-1 lg:grid-cols-12 gap-6 min-h-0">
+                    <!-- Toolbox & Meta -->
+                    <div class="lg:col-span-2 flex flex-col gap-4 order-2 lg:order-1 overflow-y-auto custom-scrollbar pr-1">
+                        <div class="glass p-4 space-y-4">
+                            <h4 class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Canvas Controls</h4>
+                            <div class="grid grid-cols-1 gap-2">
+                                <button onclick="undoDraw()" class="draw-action-btn"><i class="fas fa-undo mr-2"></i> Undo</button>
+                                <button onclick="redoDraw()" class="draw-action-btn"><i class="fas fa-redo mr-2"></i> Redo</button>
+                                <button onclick="clearDrawCanvas()" class="draw-action-btn text-red-400 hover:bg-red-500/10"><i class="fas fa-trash-can mr-2"></i> Purge</button>
+                            </div>
+                        </div>
+                        <div class="glass p-4 space-y-4">
+                            <h4 class="text-[9px] font-black text-gray-500 uppercase tracking-widest">Export Vault</h4>
+                            <div class="grid grid-cols-1 gap-2">
+                                <button onclick="exportDrawing('png')" class="draw-action-btn bg-pink-600/20 text-pink-400 border-pink-500/30 hover:bg-pink-600 hover:text-white font-black"><i class="fas fa-image mr-2"></i> PNG IMAGE</button>
+                                <button onclick="exportDrawing('raw')" class="draw-action-btn"><i class="fas fa-code mr-2"></i> RAW DATA</button>
+                                <button onclick="importDrawing()" class="draw-action-btn"><i class="fas fa-file-import mr-2"></i> LOAD RAW</button>
+                            </div>
+                        </div>
+                        <div class="glass p-4 mt-auto">
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-[8px] font-black text-gray-500 uppercase">Memory Usage</span>
+                                <span id="drawMem" class="text-[8px] font-mono text-pink-400">0%</span>
+                            </div>
+                            <div class="w-full h-1 bg-white/5 rounded-full overflow-hidden">
+                                <div id="drawMemBar" class="h-full bg-pink-500 w-0 transition-all duration-500"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Canvas Main -->
+                    <div class="lg:col-span-10 flex flex-col gap-4 order-1 lg:order-2 min-h-[400px]">
+                        <div id="drawContainer" class="flex-grow bg-white/5 rounded-3xl border-2 border-white/5 relative overflow-hidden group shadow-2xl">
+                            <canvas id="drawCanvas" class="absolute inset-0 w-full h-full cursor-crosshair touch-none"></canvas>
+                            <!-- Coordinate Display -->
+                            <div class="absolute bottom-4 left-4 text-[9px] font-mono text-gray-500 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                                X: <span id="drawX">0</span> Y: <span id="drawY">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- sOuLSNAKE Page -->
         <section id="snake" class="page">
             <div class="max-w-6xl mx-auto py-4 md:py-10">
@@ -1650,95 +1788,7 @@
             </div>
         </section>
 
-        <!-- Fun Page -->
-        <section id="fun" class="page text-center">
-            <div class="max-w-6xl mx-auto py-10">
-                <div class="text-center mb-12">
-                    <h2 class="text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-rose-600">sOuLFUN</h2>
-                    <p class="text-gray-500 text-xs mt-2 uppercase tracking-[0.3em]">The Playground of the Digital Sanctuary</p>
-                </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    <!-- Clicker -->
-                    <div class="glass p-8 group hover:border-cyan-500/50 transition-all flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-xl font-bold mb-2">Clicker Speed Test</h3>
-                            <p class="text-xs text-gray-500 mb-6">How many clicks can you land in 10 seconds?</p>
-                            <div id="clickCounter" class="text-6xl font-black text-cyan-400 mb-2">0</div>
-                            <div id="clickTimer" class="text-[10px] font-mono text-gray-500 uppercase tracking-widest mb-6">10s remaining</div>
-                        </div>
-                        <button id="clickBtn" onclick="startClicker()" class="bg-cyan-600 w-full py-3 rounded-xl font-bold hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20 active:scale-95">CLICK!</button>
-                    </div>
-
-                    <!-- Zen Breath -->
-                    <div class="glass p-8 group hover:border-teal-500/50 transition-all flex flex-col items-center">
-                        <h3 class="text-xl font-bold mb-2">Zen Breath</h3>
-                        <p class="text-xs text-gray-500 mb-8">Sync your existence with the rhythm of life.</p>
-                        <div class="relative w-32 h-32 mb-8">
-                            <div class="absolute inset-0 border-4 border-teal-500/20 rounded-full"></div>
-                            <div id="breathCircle" class="absolute inset-2 bg-teal-500/20 rounded-full flex items-center justify-center transition-all duration-[4000ms] ease-in-out">
-                                <span id="breathText" class="text-[10px] font-black text-teal-400 uppercase tracking-widest">Inhale</span>
-                            </div>
-                        </div>
-                        <button onclick="toggleZenBreath(this)" class="w-full bg-teal-600 py-3 rounded-xl font-bold hover:bg-teal-500 transition shadow-lg shadow-teal-600/20">START SESSION</button>
-                    </div>
-
-                    <!-- Reaction Test -->
-                    <div class="glass p-8 group hover:border-amber-500/50 transition-all flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-xl font-bold mb-2">Reaction Pulse</h3>
-                            <p class="text-xs text-gray-500 mb-6">Wait for GREEN, then tap as fast as you can.</p>
-                            <div id="reactionArea" class="h-32 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center cursor-pointer mb-6 group-active:scale-[0.98] transition-all">
-                                <span id="reactionText" class="text-xs font-black text-gray-500 uppercase tracking-widest">Ready?</span>
-                            </div>
-                        </div>
-                        <div id="reactionResult" class="text-lg font-black text-amber-400 font-mono mb-4 hidden">000ms</div>
-                        <button onclick="startReactionTest()" id="reactionBtn" class="bg-amber-600 w-full py-3 rounded-xl font-bold hover:bg-amber-500 transition shadow-lg shadow-amber-600/20">TEST REFLEXES</button>
-                    </div>
-
-                    <!-- Magic 8-Ball -->
-                    <div class="glass p-8 group hover:border-purple-500/50 transition-all flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-xl font-bold mb-2">Soul Oracle</h3>
-                            <p class="text-xs text-gray-500 mb-6">Consult the mystical 8-ball for answers.</p>
-                            <div class="relative w-24 h-24 mx-auto mb-6">
-                                <div class="absolute inset-0 bg-black rounded-full shadow-2xl border-4 border-white/5 flex items-center justify-center">
-                                    <div class="w-12 h-12 bg-purple-900/40 rounded-full border border-purple-500/30 flex items-center justify-center text-[8px] font-bold text-purple-300 text-center px-1" id="ballResponse">8</div>
-                                </div>
-                            </div>
-                        </div>
-                        <button onclick="shakeBall()" class="bg-purple-600 w-full py-3 rounded-xl font-bold hover:bg-purple-500 transition shadow-lg shadow-purple-600/20">SHAKE THE VOID</button>
-                    </div>
-
-                    <!-- Visual Coin Flip -->
-                    <div class="glass p-8 group hover:border-yellow-500/50 transition-all flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-xl font-bold mb-2">Aureum Flip</h3>
-                            <p class="text-xs text-gray-500 mb-6">Let the laws of physics decide your path.</p>
-                            <div class="flex justify-center mb-8">
-                                <div id="coin" class="w-24 h-24 relative preserve-3d transition-transform duration-500">
-                                    <div class="absolute inset-0 bg-yellow-500 rounded-full border-4 border-yellow-600 flex items-center justify-center text-yellow-900 font-black text-[10px] shadow-lg backface-hidden uppercase tracking-widest">Heads</div>
-                                    <div class="absolute inset-0 bg-yellow-600 rounded-full border-4 border-yellow-500 flex items-center justify-center text-yellow-100 font-black text-[10px] shadow-lg backface-hidden rotate-y-180 uppercase tracking-widest">Tails</div>
-                                </div>
-                            </div>
-                        </div>
-                        <button onclick="flipCoinFun()" class="bg-yellow-600 w-full py-3 rounded-xl font-bold hover:bg-yellow-500 transition shadow-lg shadow-yellow-600/20">FLIP COIN</button>
-                    </div>
-
-                    <!-- Soul Quotes -->
-                    <div class="glass p-8 group hover:border-indigo-500/50 transition-all flex flex-col justify-between">
-                        <div>
-                            <h3 class="text-xl font-bold mb-2">Eternal Echoes</h3>
-                            <p class="text-xs text-gray-500 mb-6">Receive wisdom from the collective consciousness.</p>
-                            <div class="italic text-sm text-gray-300 leading-relaxed min-h-[80px] flex items-center justify-center" id="quoteText">
-                                "The only way to do great work is to love what you do."
-                            </div>
-                        </div>
-                        <button onclick="generateSoulQuote()" class="bg-indigo-600 w-full py-3 rounded-xl font-bold hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20 mt-6">HEAR ECHOES</button>
-                    </div>
-                </div>
-            </div>
-        </section>
 
         <!-- sOuLSEEK Page -->
         <section id="seek" class="page">
