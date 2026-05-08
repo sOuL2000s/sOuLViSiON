@@ -4050,7 +4050,7 @@ async function generateSoulSeekReport() {
     
     setLoading(true, "Compiling Numerological Blueprint");
     // Ensure we use the selected model from the UI
-    const model = document.getElementById('seekModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+    const model = document.getElementById('seekModelSelect')?.value || aiConfig.models[0]?.id || "gemini-2.5-flash";
     const key = aiConfig.keys[currentKeyIndex];
 
     const prompt = `Based on our conversation history, generate a COMPREHENSIVE Numerological Report. 
@@ -5078,10 +5078,14 @@ function initFocusPage() {
     updateBreathingTotalTimeUI();
 }
 
-function setFocusMode(mode) {
+function setFocusMode(mode, saveToCloud = true) {
     focusState.currentMode = mode;
-    ['japaMode', 'tapasyaMode', 'anantaMode'].forEach(id => document.getElementById(id).classList.add('hidden'));
-    document.getElementById(`${mode}Mode`).classList.remove('hidden');
+    ['japaMode', 'tapasyaMode', 'anantaMode'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.add('hidden');
+    });
+    const modeEl = document.getElementById(`${mode}Mode`);
+    if (modeEl) modeEl.classList.remove('hidden');
 
     ['modeJapa', 'modeTapasya', 'modeAnanta'].forEach(id => {
         const btn = document.getElementById(id);
@@ -5094,7 +5098,8 @@ function setFocusMode(mode) {
         }
     });
 
-    const activeBtn = document.getElementById(`mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+    const activeBtnName = `mode${mode.charAt(0).toUpperCase() + mode.slice(1)}`;
+    const activeBtn = document.getElementById(activeBtnName);
     if (activeBtn) {
         activeBtn.classList.add('active');
         activeBtn.classList.replace('bg-white/5', 'bg-cyan-600/20');
@@ -5107,11 +5112,15 @@ function setFocusMode(mode) {
     stopJapa();
     pauseTapasyaTimer();
     pauseAnantaStopwatch();
-    if (breathingState.active) toggleBreathingSession(); // Stop breathing if active
+    if (breathingState.active) toggleBreathingSession(); 
 
     // Reload content for the active mode
     renderFocusModeUI();
-    loadFocusData(); // Load relevant data for the new mode
+    
+    // Only save if explicitly requested, and never call loadFocusData here to avoid recursion loops
+    if (saveToCloud) {
+        saveFocusData();
+    }
 }
 
 function renderFocusModeUI() {
@@ -5348,7 +5357,7 @@ async function loadFocusData() {
             document.getElementById('anantaIntentionInput').value = focusState.ananta.intention;
             updateAnantaDisplay();
 
-            setFocusMode(focusState.currentMode); // Re-render UI based on loaded mode
+            setFocusMode(focusState.currentMode, false); // Re-render UI based on loaded mode
             
             // Re-activate breathing if it was active in Tapasya
             breathingState.active = storedFocusState.tapasya?.isBreathingActive || false;
@@ -5566,7 +5575,7 @@ async function getSpiritualAdvice() {
 
         const prompt = `Based on these recent soul journals: "${journals}" and my metrics (Health: ${health}, Wealth: ${wealth}), give me one sentence of deep spiritual wisdom and one specific actionable advice for my day. Be concise.`;
         
-        const model = aiConfig.unifiedModel || "gemini-1.5-flash";
+        const model = aiConfig.unifiedModel || "gemini-2.5-flash";
         const key = aiConfig.keys[currentKeyIndex];
         
         const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
@@ -5654,7 +5663,7 @@ async function finishReport() {
 
     try {
         // AI Analysis Generation
-        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-2.5-flash";
         const key = aiConfig.keys[currentKeyIndex];
         const analysisPrompt = `Act as a high-level psychological and spiritual analyst. 
         Based on the following reflections and metrics, provide a deep, insightful, and constructive analysis of the user's current state of soul and productivity. 
