@@ -383,7 +383,7 @@ export default async function handler(req, res) {
         }
 
         // Persistence for AI, Cricket, Fun, Random, Music, Reports, Seek, Solve, Time
-        if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist', 'user_reports', 'quiz_score', 'soulseek_history', 'solve_history', 'calendar_events', 'alarms', 'world_clocks'].includes(query.route)) {
+        if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist', 'user_reports', 'quiz_score', 'soulseek_history', 'solve_history', 'calendar_events', 'alarms', 'world_clocks', 'soulsuggest_history'].includes(query.route)) {
             const col = db.collection(query.route);
             const userId = query.userId;
 

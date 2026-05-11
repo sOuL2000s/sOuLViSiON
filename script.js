@@ -302,6 +302,11 @@ let selectedConversations = new Set();
 let currentChatId = null;
 let seekHistory = [];
 
+let suggestState = {
+    type: 'movie',
+    history: []
+};
+
 async function fetchNumerologyKnowledge() {
     if (HARISH_JOHARI_KNOWLEDGE) return;
     try {
@@ -662,7 +667,7 @@ function setNoteFilter(filter) {
 const pageCache = new Map();
 
 function showPage(pageId, pushState = true) {
-    const validPages = ['home', 'notes', 'code', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz', 'seek', 'solve', 'compare', 'draw'];
+    const validPages = ['home', 'notes', 'code', 'ai', 'play', 'random', 'cricket', 'snake', 'focus', 'fun', 'support', 'dashboard', 'who', 'manage', 'login', 'legal', 'forgotPass', 'quiz', 'seek', 'solve', 'compare', 'draw', 'suggest'];
     if (!validPages.includes(pageId)) pageId = 'home';
 
     // Optimization: Don't re-render/re-toggle if already active
@@ -778,6 +783,10 @@ function showPage(pageId, pushState = true) {
         if (pageId === 'solve') {
             initSolveInterface();
             syncSolveHistory();
+        }
+
+        if (pageId === 'suggest') {
+            syncSuggestHistory();
         }
 
         // Trigger auto-resize for primary textareas on page entry
@@ -956,7 +965,8 @@ async function syncAllData() {
             syncMusicPlaylist(),
             syncFocusData(),
             syncQuizLeaderboard(),
-            syncSolveHistory()
+            syncSolveHistory(),
+            syncSuggestHistory()
         ];
         
         if (currentUser.isAdmin) {
@@ -8307,6 +8317,239 @@ document.addEventListener('visibilitychange', () => {
         if (isMusicPlaying) updateMusicUI();
     }
 });
+
+// --- sOuLSUGGEST LOGIC ---
+const TMDB_API_KEY = 'b96cb73aa029d5f23f26838fe0e61640'; 
+
+function setSuggestType(type) {
+    suggestState.type = type;
+    const movieBtn = document.getElementById('suggestTypeMovie');
+    const tvBtn = document.getElementById('suggestTypeTv');
+    
+    if (type === 'movie') {
+        movieBtn.className = "flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all bg-indigo-600 text-white";
+        tvBtn.className = "flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all text-gray-400";
+    } else {
+        tvBtn.className = "flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all bg-indigo-600 text-white";
+        movieBtn.className = "flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all text-gray-400";
+    }
+}
+
+async function getSoulSuggestion() {
+    const idle = document.getElementById('suggestIdle');
+    const loading = document.getElementById('suggestLoading');
+    const resultsList = document.getElementById('suggestResultsList');
+    const genBtn = document.getElementById('suggestGenBtn');
+
+    idle.classList.add('hidden');
+    loading.classList.remove('hidden');
+    resultsList.classList.add('hidden');
+    genBtn.disabled = true;
+
+    try {
+        const count = parseInt(document.getElementById('suggestCount').value);
+        const type = suggestState.type;
+        
+        let queryParams = `&sort_by=popularity.desc&include_adult=false&vote_count.gte=50`;
+
+        // Apply filters directly as checkboxes are removed
+        queryParams += `&vote_average.gte=${document.getElementById('suggestMinRating').value}`;
+        
+        const era = document.getElementById('suggestEra').value;
+        if (era !== 'all') {
+            const dateField = type === 'movie' ? 'primary_release_date' : 'first_air_date';
+            if (era === '2024') queryParams += `&${dateField}.gte=2024-01-01`;
+            else if (era === '2020') queryParams += `&${dateField}.gte=2020-01-01`;
+            else if (era === '2010') queryParams += `&${dateField}.gte=2010-01-01&${dateField}.lte=2019-12-31`;
+            else if (era === '2000') queryParams += `&${dateField}.gte=2000-01-01&${dateField}.lte=2009-12-31`;
+            else if (era === '1990') queryParams += `&${dateField}.gte=1990-01-01&${dateField}.lte=1999-12-31`;
+            else if (era === 'classic') queryParams += `&${dateField}.lte=1989-12-31`;
+        }
+
+        const genre = document.getElementById('suggestGenre').value;
+        if (genre !== 'all') {
+            queryParams += `&with_genres=${genre}`;
+        }
+
+        const lang = document.getElementById('suggestLang').value;
+        if (lang !== 'all') {
+            queryParams += `&with_original_language=${lang}`;
+        }
+
+        const discoverUrl = `https://api.themoviedb.org/3/discover/${type}?api_key=${TMDB_API_KEY}${queryParams}`;
+        const discRes = await fetch(discoverUrl);
+        const discData = await discRes.json();
+        
+        const totalPages = Math.min(discData.total_pages, 500); 
+        const randomPage = Math.floor(Math.random() * totalPages) + 1;
+
+        const finalUrl = `${discoverUrl}&page=${randomPage}`;
+        const res = await fetch(finalUrl);
+        const data = await res.json();
+        
+        if (!data.results.length) throw new Error("The Oracle found nothing matching these parameters.");
+
+        // Pick 'count' random unique items from current page
+        let selection = [];
+        let pool = [...data.results];
+        while (selection.length < count && pool.length > 0) {
+            const idx = Math.floor(Math.random() * pool.length);
+            selection.push(pool.splice(idx, 1)[0]);
+        }
+
+        resultsList.innerHTML = '';
+        for (const item of selection) {
+            await renderSuggestResult(item, type, resultsList);
+        }
+
+        resultsList.classList.remove('hidden');
+        
+    } catch (e) {
+        showToast(e.message || "Connection lost to the cinematic archives.", "error");
+        idle.classList.remove('hidden');
+    } finally {
+        loading.classList.add('hidden');
+        genBtn.disabled = false;
+    }
+}
+
+async function renderSuggestResult(item, type, container) {
+    const title = item.title || item.name;
+    const date = item.release_date || item.first_air_date || 'N/A';
+    const rating = item.vote_average.toFixed(1);
+    const poster = item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : 'https://placehold.co/500x750?text=No+Poster';
+
+    const genreList = await fetchGenres(type);
+    const genres = (item.genre_ids || []).map(id => genreList[id]).filter(g => g);
+    const genreHtml = genres.map(g => `<span class="genre-tag">${g}</span>`).join('');
+
+    const card = document.createElement('div');
+    card.className = "w-full flex flex-col md:flex-row gap-6 p-4 bg-white/5 rounded-3xl border border-white/10 hover:border-indigo-500/30 transition-all duration-500 animate-fadeIn";
+    card.innerHTML = `
+        <div class="w-full md:w-48 shrink-0">
+            <img src="${poster}" class="w-full rounded-2xl shadow-xl border border-white/5 object-cover aspect-[2/3]" alt="${title}">
+        </div>
+        <div class="flex-grow space-y-3 py-2">
+            <div class="flex flex-wrap gap-1.5">${genreHtml}</div>
+            <h3 class="text-2xl font-black tracking-tight text-white">${title}</h3>
+            <div class="flex items-center gap-4 text-[10px] font-black font-mono">
+                <span class="text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded"><i class="fas fa-star mr-1"></i> ${rating}</span>
+                <span class="text-gray-500 uppercase">${date.split('-')[0]}</span>
+                <span class="text-cyan-400 uppercase tracking-widest border border-cyan-400/20 px-2 py-0.5 rounded">${type}</span>
+            </div>
+            <p class="text-xs text-gray-400 leading-relaxed line-clamp-3 md:line-clamp-none">${item.overview || "Deep in the archives, no summary was recorded."}</p>
+            <div class="pt-4 flex gap-3">
+                <button onclick="window.open('https://www.themoviedb.org/${type}/${item.id}', '_blank')" class="flex-grow bg-indigo-600 hover:bg-indigo-500 py-2.5 rounded-xl font-bold transition flex items-center justify-center gap-2 text-xs">
+                    <i class="fas fa-external-link-alt"></i> TMDB SOURCE
+                </button>
+                <button onclick="navigator.clipboard.writeText('${title.replace(/'/g, "\\'")}').then(() => showToast('Copied Title', 'info'))" class="p-2.5 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 transition text-gray-400">
+                    <i class="far fa-copy"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    container.appendChild(card);
+
+    addToSuggestHistory({ id: item.id, title, poster, type, rating, timestamp: Date.now() });
+}
+
+let tmdbGenres = { movie: null, tv: null };
+async function fetchGenres(type) {
+    if (tmdbGenres[type]) return tmdbGenres[type];
+    const res = await fetch(`https://api.themoviedb.org/3/genre/${type}/list?api_key=${TMDB_API_KEY}`);
+    const data = await res.json();
+    const map = {};
+    data.genres.forEach(g => map[g.id] = g.name);
+    tmdbGenres[type] = map;
+    return map;
+}
+
+function addToSuggestHistory(item) {
+    // Prevent duplicates in history
+    suggestState.history = suggestState.history.filter(h => h.id !== item.id);
+    suggestState.history.unshift(item);
+    if (suggestState.history.length > 20) suggestState.history.pop();
+    
+    renderSuggestHistory();
+    if (currentUser) {
+        fetch(`/api/main?route=soulsuggest_history&userId=${encodeURIComponent(currentUser.email)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item)
+        });
+    }
+}
+
+async function syncSuggestHistory() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=soulsuggest_history&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            suggestState.history = data;
+            renderSuggestHistory();
+        }
+    } catch (e) { console.warn("Suggest history sync failed"); }
+}
+
+function renderSuggestHistory() {
+    const list = document.getElementById('suggestHistoryList');
+    if (!suggestState.history.length) {
+        list.innerHTML = '<p class="text-[10px] text-gray-600 italic">History is yet to be written.</p>';
+        return;
+    }
+
+    list.innerHTML = suggestState.history.map(h => `
+        <div class="flex items-center gap-3 p-2 bg-white/5 rounded-xl border border-white/5 group hover:border-indigo-500/30 transition cursor-pointer" onclick="viewHistoryItem(${h.id}, '${h.type}')">
+            <img src="${h.poster}" class="w-10 h-14 rounded-lg object-cover">
+            <div class="flex-grow overflow-hidden">
+                <p class="text-[10px] font-bold text-white truncate">${h.title}</p>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="text-[8px] font-black text-indigo-400 uppercase">${h.type}</span>
+                    <span class="text-[8px] text-gray-500">${h.rating} ★</span>
+                </div>
+            </div>
+            <button onclick="event.stopPropagation(); deleteSuggestItem(${h.id})" class="opacity-0 group-hover:opacity-100 text-red-400 p-2"><i class="fas fa-trash-alt text-[9px]"></i></button>
+        </div>
+    `).join('');
+}
+
+async function viewHistoryItem(id, type) {
+    setLoading(true, "Materializing Selection");
+    try {
+        const res = await fetch(`https://api.themoviedb.org/3/${type}/${id}?api_key=${TMDB_API_KEY}`);
+        const item = await res.json();
+        
+        // Re-map format from item to discovery-like for existing render fn
+        if(item.genres) item.genre_ids = item.genres.map(g => g.id);
+        
+        renderSuggestResult(item, type);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+        showToast("Archive link broken.", "error");
+    } finally {
+        setLoading(false);
+    }
+}
+
+async function deleteSuggestItem(id) {
+    suggestState.history = suggestState.history.filter(h => h.id !== id);
+    renderSuggestHistory();
+    if (currentUser) {
+        await fetch(`/api/main?route=soulsuggest_history&userId=${encodeURIComponent(currentUser.email)}&id=${id}`, { method: 'DELETE' });
+    }
+}
+
+async function clearSuggestHistory() {
+    if (!confirm("Wipe all cinematic history?")) return;
+    suggestState.history = [];
+    renderSuggestHistory();
+    if (currentUser) {
+        await fetch(`/api/main?route=soulsuggest_history&userId=${encodeURIComponent(currentUser.email)}`, { method: 'DELETE' });
+    }
+}
+
+// Removed as integrated into per-card buttons
 
 // --- sOuLSOLVE LOGIC ---
 const SOLVE_BUTTONS = {

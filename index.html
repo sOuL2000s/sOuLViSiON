@@ -110,6 +110,7 @@
             <button onclick="showPage('solve')" class="text-left hover:text-cyan-400"><i class="fas fa-calculator w-8"></i> sOuLSOLVE</button>
             <button onclick="showPage('fun')" class="text-left hover:text-cyan-400"><i class="fas fa-smile w-8"></i> sOuLFUN</button>
             <button onclick="showPage('compare')" class="text-left hover:text-cyan-400"><i class="fas fa-columns w-8"></i> sOuLCOMPARE</button>
+            <button onclick="showPage('suggest')" class="text-left hover:text-cyan-400"><i class="fas fa-film w-8"></i> sOuLSUGGEST</button>
             <button onclick="showPage('support')" class="text-left hover:text-cyan-400"><i class="fas fa-hand-holding-heart w-8"></i> sOuLSUPPORT</button>
             <button onclick="showPage('who')" class="text-left hover:text-cyan-400"><i class="fas fa-ghost w-8"></i> sOuLWHO?</button>
             
@@ -155,6 +156,7 @@
             <button onclick="showPage('draw')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Draw</button>
             <button onclick="showPage('fun')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Fun</button>
             <button onclick="showPage('compare')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Compare</button>
+            <button onclick="showPage('suggest')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Suggest</button>
 
             <button id="dashboardBtn" onclick="showPage('dashboard')" class="hidden text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Dash</button>
             <button onclick="showPage('support')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Support</button>
@@ -510,6 +512,16 @@
                     <h3 class="text-xl font-bold mb-2">sOuLWHO?</h3>
                     <p class="text-sm text-gray-400">The story, the mission, and the people behind sOuLViSiON.</p>
                     <div class="mt-4 text-gray-300 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
+                </div>
+
+                <div class="glass p-8 group hover:border-indigo-400/50 transition-all cursor-pointer relative overflow-hidden" onclick="showPage('suggest')">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <i class="fas fa-film text-6xl"></i>
+                    </div>
+                    <i class="fas fa-film text-3xl mb-4 text-indigo-400"></i>
+                    <h3 class="text-xl font-bold mb-2">sOuLSUGGEST</h3>
+                    <p class="text-sm text-gray-400">Randomized Movie & TV Show recommendations tailored for your soul.</p>
+                    <div class="mt-4 text-indigo-400 text-xs font-bold flex items-center gap-2">LAUNCH <i class="fas fa-arrow-right"></i></div>
                 </div>
             </div>
         </section>
@@ -2548,6 +2560,211 @@
                     <div id="compareResultContainer" class="flex-grow grid grid-cols-1 lg:grid-cols-2 bg-black/40 overflow-hidden min-h-[400px]">
                         <div id="compareDiffLeft" class="font-mono text-[12px] border-r border-white/5 overflow-auto custom-scrollbar"></div>
                         <div id="compareDiffRight" class="font-mono text-[12px] overflow-auto custom-scrollbar"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- sOuLSUGGEST Page -->
+        <section id="suggest" class="page">
+            <div class="max-w-6xl mx-auto py-10 px-4">
+                <div class="text-center mb-12">
+                    <h2 class="text-5xl font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-600">sOuLSUGGEST</h2>
+                    <p class="text-gray-500 text-xs mt-2 uppercase tracking-[0.3em]">Cinematic Oracle & Randomizer</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    <!-- Config Sidebar -->
+                    <div class="lg:col-span-4 space-y-6">
+                        <div class="glass p-6">
+                            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-6">Oracle Filters</h3>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-[10px] text-gray-500 font-black uppercase mb-2">Content Type</label>
+                                    <div class="flex bg-black/20 p-1 rounded-xl border border-white/5">
+                                        <button onclick="setSuggestType('movie')" id="suggestTypeMovie" class="flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all bg-indigo-600 text-white">Movies</button>
+                                        <button onclick="setSuggestType('tv')" id="suggestTypeTv" class="flex-1 py-2 rounded-lg text-[10px] font-black uppercase transition-all text-gray-400">TV Series</button>
+                                    </div>
+                                </div>
+
+                                <!-- Filter Group: Rating -->
+                                <div class="bg-black/20 p-3 rounded-xl border border-white/5">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-[9px] text-gray-400 font-black uppercase tracking-widest">Min Rating</label>
+                                    </div>
+                                    <input type="range" id="suggestMinRating" min="0" max="9" step="0.5" value="6" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('minRatingVal').innerText = this.value">
+                                    <div class="flex justify-between mt-1 font-mono text-[9px] text-indigo-400">
+                                        <span>0.0</span>
+                                        <span id="minRatingVal" class="font-bold">6.0</span>
+                                        <span>9.0</span>
+                                    </div>
+                                </div>
+
+                                <!-- Filter Group: Era -->
+                                <div class="bg-black/20 p-3 rounded-xl border border-white/5">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-[9px] text-gray-400 font-black uppercase tracking-widest">Release Era</label>
+                                    </div>
+                                    <select id="suggestEra" class="w-full bg-gray-900/50 border border-white/10 p-2 rounded-lg text-[10px] font-bold text-gray-300 outline-none focus:border-indigo-500 transition">
+                                        <option value="all">All Time</option>
+                                        <option value="2024">Current Year (2024)</option>
+                                        <option value="2020">Modern (2020+)</option>
+                                        <option value="2010">Recent (2010-2019)</option>
+                                        <option value="2000">Millennium (2000-2009)</option>
+                                        <option value="1990">Retro (1990-1999)</option>
+                                        <option value="classic">Classic (< 1990)</option>
+                                    </select>
+                                </div>
+
+                                <!-- Filter Group: Language -->
+                                <div class="bg-black/20 p-3 rounded-xl border border-white/5">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-[9px] text-gray-400 font-black uppercase tracking-widest">Language</label>
+                                    </div>
+                                    <select id="suggestLang" class="w-full bg-gray-900/50 border border-white/10 p-2 rounded-lg text-[10px] font-bold text-gray-300 outline-none focus:border-indigo-500 transition">
+                                        <option value="all">All Languages</option>
+                                        <option value="af">Afrikaans</option>
+                                        <option value="sq">Albanian</option>
+                                        <option value="ar">Arabic</option>
+                                        <option value="hy">Armenian</option>
+                                        <option value="as">Assamese</option>
+                                        <option value="az">Azerbaijani</option>
+                                        <option value="eu">Basque</option>
+                                        <option value="be">Belarusian</option>
+                                        <option value="bn">Bengali</option>
+                                        <option value="bs">Bosnian</option>
+                                        <option value="bg">Bulgarian</option>
+                                        <option value="my">Burmese</option>
+                                        <option value="ca">Catalan</option>
+                                        <option value="zh">Chinese</option>
+                                        <option value="hr">Croatian</option>
+                                        <option value="cs">Czech</option>
+                                        <option value="da">Danish</option>
+                                        <option value="nl">Dutch</option>
+                                        <option value="en">English</option>
+                                        <option value="et">Estonian</option>
+                                        <option value="fi">Finnish</option>
+                                        <option value="fr">French</option>
+                                        <option value="gl">Galician</option>
+                                        <option value="ka">Georgian</option>
+                                        <option value="de">German</option>
+                                        <option value="el">Greek</option>
+                                        <option value="gu">Gujarati</option>
+                                        <option value="he">Hebrew</option>
+                                        <option value="hi">Hindi</option>
+                                        <option value="hu">Hungarian</option>
+                                        <option value="is">Icelandic</option>
+                                        <option value="id">Indonesian</option>
+                                        <option value="it">Italian</option>
+                                        <option value="ja">Japanese</option>
+                                        <option value="kn">Kannada</option>
+                                        <option value="kk">Kazakh</option>
+                                        <option value="km">Khmer</option>
+                                        <option value="ko">Korean</option>
+                                        <option value="ky">Kyrgyz</option>
+                                        <option value="lo">Lao</option>
+                                        <option value="lv">Latvian</option>
+                                        <option value="lt">Lithuanian</option>
+                                        <option value="mk">Macedonian</option>
+                                        <option value="ms">Malay</option>
+                                        <option value="ml">Malayalam</option>
+                                        <option value="mr">Marathi</option>
+                                        <option value="mn">Mongolian</option>
+                                        <option value="ne">Nepali</option>
+                                        <option value="no">Norwegian</option>
+                                        <option value="or">Oriya</option>
+                                        <option value="ps">Pashto</option>
+                                        <option value="fa">Persian</option>
+                                        <option value="pl">Polish</option>
+                                        <option value="pt">Portuguese</option>
+                                        <option value="pa">Punjabi</option>
+                                        <option value="ro">Romanian</option>
+                                        <option value="ru">Russian</option>
+                                        <option value="sr">Serbian</option>
+                                        <option value="si">Sinhala</option>
+                                        <option value="sk">Slovak</option>
+                                        <option value="sl">Slovenian</option>
+                                        <option value="es">Spanish</option>
+                                        <option value="sw">Swahili</option>
+                                        <option value="sv">Swedish</option>
+                                        <option value="ta">Tamil</option>
+                                        <option value="te">Telugu</option>
+                                        <option value="th">Thai</option>
+                                        <option value="tr">Turkish</option>
+                                        <option value="uk">Ukrainian</option>
+                                        <option value="ur">Urdu</option>
+                                        <option value="uz">Uzbek</option>
+                                        <option value="vi">Vietnamese</option>
+                                        <option value="cy">Welsh</option>
+                                    </select>
+                                </div>
+
+                                <!-- Filter Group: Genre -->
+                                <div class="bg-black/20 p-3 rounded-xl border border-white/5">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-[9px] text-gray-400 font-black uppercase tracking-widest">Genre Focus</label>
+                                    </div>
+                                    <select id="suggestGenre" class="w-full bg-gray-900/50 border border-white/10 p-2 rounded-lg text-[10px] font-bold text-gray-300 outline-none focus:border-indigo-500 transition">
+                                        <option value="all">All Genres</option>
+                                        <option value="28">Action</option>
+                                        <option value="12">Adventure</option>
+                                        <option value="16">Animation</option>
+                                        <option value="35">Comedy</option>
+                                        <option value="80">Crime</option>
+                                        <option value="18">Drama</option>
+                                        <option value="14">Fantasy</option>
+                                        <option value="27">Horror</option>
+                                        <option value="10749">Romance</option>
+                                        <option value="878">Sci-Fi</option>
+                                        <option value="53">Thriller</option>
+                                    </select>
+                                </div>
+
+                                <!-- Suggestion Count -->
+                                <div class="bg-black/20 p-3 rounded-xl border border-white/5">
+                                    <label class="block text-[9px] text-gray-400 font-black uppercase tracking-widest mb-2">Suggestions per batch</label>
+                                    <input type="range" id="suggestCount" min="1" max="10" value="1" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-indigo-500" oninput="document.getElementById('countVal').innerText = this.value">
+                                    <div class="text-center font-mono text-[10px] text-indigo-400 mt-1">
+                                        <span id="countVal" class="font-bold">1</span> Result(s)
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button onclick="getSoulSuggestion()" id="suggestGenBtn" class="w-full mt-6 bg-indigo-600 py-3 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20 active:scale-95 text-xs">Consult Oracle</button>
+                        </div>
+
+                        <!-- Mini History -->
+                        <div class="glass p-6">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em]">Past Visions</h3>
+                                <button onclick="clearSuggestHistory()" class="text-[8px] text-red-400 font-bold hover:underline">PURGE</button>
+                            </div>
+                            <div id="suggestHistoryList" class="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
+                                <p class="text-[10px] text-gray-600 italic">History is yet to be written.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Main Display -->
+                    <div class="lg:col-span-8 flex flex-col gap-4">
+                        <div id="suggestDisplay" class="glass min-h-[500px] relative overflow-hidden flex flex-col p-4 md:p-8 transition-all duration-500">
+                            <div id="suggestIdle" class="flex-grow flex flex-col items-center justify-center text-center space-y-4">
+                                <div class="w-20 h-20 mx-auto rounded-full bg-indigo-500/10 flex items-center justify-center">
+                                    <i class="fas fa-magic text-4xl text-indigo-400 animate-pulse"></i>
+                                </div>
+                                <p class="text-gray-400 italic text-sm">Awaiting your desire for cinematic exploration.</p>
+                            </div>
+
+                            <div id="suggestLoading" class="hidden flex-grow flex flex-col items-center justify-center space-y-4 py-20">
+                                <div class="w-12 h-12 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+                                <p class="text-[10px] text-indigo-400 font-black uppercase tracking-widest animate-pulse">Scanning the Archives...</p>
+                            </div>
+
+                            <div id="suggestResultsList" class="hidden flex flex-col gap-8 animate-fadeIn">
+                                <!-- Cards will be injected here -->
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
