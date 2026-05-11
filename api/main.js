@@ -389,8 +389,11 @@ export default async function handler(req, res) {
 
             if (method === 'GET') {
                 const filter = userId ? { userId } : {};
-                // Sort by lastUpdated primarily, with id as fallback for reliable newest-first order
-                const data = await col.find(filter).sort({ lastUpdated: -1, id: -1 }).limit(userId ? 1000 : 50).toArray();
+                // Improved sorting: Check timestamp for fun_stats/history items, lastUpdated for active sessions
+                const data = await col.find(filter)
+                    .sort({ lastUpdated: -1, timestamp: -1, id: -1 })
+                    .limit(userId ? 1000 : 100)
+                    .toArray();
                 return res.status(200).json(data);
             }
             if (method === 'POST') {

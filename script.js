@@ -46,7 +46,7 @@ function showToast(message, type = 'success', duration = 3000) {
         setTimeout(() => toast.remove(), 300);
     }, duration);
 }
-let isStreamingMode = true;
+let isStreamingMode = false;
 let currentAbortController = null;
 
 // --- Time Modal Global States ---
@@ -4445,22 +4445,38 @@ async function syncFunLeaderboard() {
         const res = await fetch('/api/main?route=fun_stats');
         const stats = await res.json();
         
+        if (!Array.isArray(stats)) return;
+
         const renderList = (data, target, formatter) => {
-            if (data.length === 0) { target.innerHTML = '<p class="text-[9px] text-gray-600 italic">No legends yet.</p>'; return; }
-            target.innerHTML = data.slice(0, 5).map((s, i) => `
-                <div class="flex justify-between text-[10px]">
-                    <span class="text-gray-400 truncate max-w-[80px]">${s.userId.split('@')[0]}</span>
-                    <span class="font-black ${i === 0 ? 'text-white' : 'text-gray-500'}">${formatter(s.score)}</span>
-                </div>
-            `).join('');
+            if (!data || data.length === 0) { 
+                target.innerHTML = '<p class="text-[9px] text-gray-600 italic">No legends yet.</p>'; 
+                return; 
+            }
+            target.innerHTML = data.slice(0, 5).map((s, i) => {
+                const displayName = (s.userId && s.userId.includes('@')) ? s.userId.split('@')[0] : (s.name || "Anonymous");
+                return `
+                    <div class="flex justify-between text-[10px]">
+                        <span class="text-gray-400 truncate max-w-[80px]">${displayName}</span>
+                        <span class="font-black ${i === 0 ? 'text-white' : 'text-gray-500'}">${formatter(s.score)}</span>
+                    </div>
+                `;
+            }).join('');
         };
 
-        const clickerData = stats.filter(s => s.type === 'clicker').sort((a,b) => b.score - a.score);
-        const reactionData = stats.filter(s => s.type === 'reaction').sort((a,b) => a.score - b.score);
+        // Ensure we only look at specific types and have valid scores
+        const clickerData = stats
+            .filter(s => s.type === 'clicker' && s.score !== undefined)
+            .sort((a,b) => Number(b.score) - Number(a.score));
 
-        renderList(clickerData, clickerList, (s) => s + " CPS");
-        renderList(reactionData, reactionList, (s) => s + "ms");
-    } catch (e) {}
+        const reactionData = stats
+            .filter(s => s.type === 'reaction' && s.score !== undefined)
+            .sort((a,b) => Number(a.score) - Number(b.score));
+
+        renderList(clickerData, clickerList, (score) => Number(score).toFixed(1) + " CPS");
+        renderList(reactionData, reactionList, (score) => Math.round(score) + "ms");
+    } catch (e) {
+        console.error("Fun Leaderboard Sync Error:", e);
+    }
 }
 
 async function syncFunStats() {
