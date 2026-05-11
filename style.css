@@ -553,19 +553,28 @@ body {
 
 /* --- Glassmorphism Effect --- */
 .glass {
-    background: rgba(15, 23, 42, 0.45);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border: 1px solid var(--glass-border);
     border-radius: 1.5rem;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    box-shadow: 0 10px 40px 0 rgba(0, 0, 0, 0.45);
     transition: background 0.3s ease, border-color 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     min-width: 0;
 }
 
 .glass:hover {
-    background: rgba(15, 23, 42, 0.55);
-    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(15, 23, 42, 0.7);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Enhanced visibility and deep focus for header dropdowns */
+nav .absolute .glass {
+    backdrop-filter: blur(60px);
+    -webkit-backdrop-filter: blur(60px);
+    background: rgba(10, 15, 28, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8);
 }
 
 /* --- Page Transitions --- */
@@ -637,9 +646,20 @@ body {
     overscroll-behavior-y: none; /* Prevents pull-to-refresh interference */
 }
 
+.nav-link {
+    @apply text-[10px] xl:text-xs font-black uppercase tracking-widest text-gray-400 hover:text-cyan-400 px-3 py-1.5 rounded-lg transition-all duration-300;
+}
+
+.nav-link.bg-white\/10 {
+    @apply text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 shadow-lg shadow-cyan-900/20;
+}
+
+.nav-dropdown-item {
+    @apply w-full flex items-center gap-3 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider text-gray-400 hover:text-white hover:bg-white/5 transition-all text-left;
+}
+
 nav button:hover {
     color: var(--primary);
-    background: var(--glass);
 }
 
 /* --- sOuLAI & sOuLSEEK Layouts --- */

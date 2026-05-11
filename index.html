@@ -140,28 +140,58 @@
             <h1 class="text-xl md:text-2xl font-bold tracking-tighter text-cyan-400 cursor-pointer" onclick="showPage('home')">sOuLViSiON</h1>
         </div>
         
-        <div class="hidden xl:flex items-center gap-0.5 lg:gap-1 xl:gap-2 overflow-hidden">
-            <button onclick="showPage('home')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Home</button>
-            <button onclick="showPage('notes')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Notes</button>
-            <button onclick="showPage('code')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Code</button>
-            <button onclick="showPage('ai')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">AI</button>
-            <button onclick="showPage('quiz')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Quiz</button>
-            <button onclick="showPage('solve')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Solve</button>
-            <button onclick="showPage('play')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Music</button>
-            <button onclick="showPage('focus')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Focus</button>
-            <button onclick="showPage('seek')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Seek</button>
-            <button onclick="showPage('random')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Random</button>
-            <button onclick="showPage('cricket')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Cricket</button>
-            <button onclick="showPage('snake')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Snake</button>
-            <button onclick="showPage('draw')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Draw</button>
-            <button onclick="showPage('fun')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Fun</button>
-            <button onclick="showPage('compare')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Compare</button>
-            <button onclick="showPage('suggest')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Suggest</button>
+        <div class="hidden xl:flex items-center gap-1 xl:gap-2">
+            <!-- Core Essentials -->
+            <button onclick="showPage('home')" class="nav-link">Home</button>
+            <button onclick="showPage('ai')" class="nav-link">sOuLAI</button>
+            <button onclick="showPage('notes')" class="nav-link">sOuLNOTES</button>
+            <button onclick="showPage('play')" class="nav-link">sOuLPLAY</button>
 
-            <button id="dashboardBtn" onclick="showPage('dashboard')" class="hidden text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Dash</button>
-            <button onclick="showPage('support')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Support</button>
-            <button onclick="showPage('who')" class="text-[10px] xl:text-xs font-medium hover:text-cyan-400 px-1.5 py-1">Who?</button>
-            <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400 text-[10px] xl:text-xs font-medium px-1.5 py-1 border border-red-500/20 rounded-md bg-red-500/5">Admin</button>
+            <!-- Workspace Mega Dropdown -->
+            <div class="relative group/workspace">
+                <button class="nav-link flex items-center gap-1.5">
+                    WORKSPACE <i class="fas fa-chevron-down text-[8px] opacity-50 group-hover/workspace:rotate-180 transition-transform"></i>
+                </button>
+                <div class="absolute top-full left-1/2 -translate-x-1/2 pt-3 opacity-0 pointer-events-none group-hover/workspace:opacity-100 group-hover/workspace:pointer-events-auto transition-all translate-y-1 group-hover/workspace:translate-y-0 z-[100]">
+                    <div class="glass p-4 w-[480px] grid grid-cols-2 gap-4 border-t-4 border-cyan-500">
+                        <div class="space-y-2">
+                            <p class="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1 px-2">Engineering</p>
+                            <button onclick="showPage('code')" class="nav-dropdown-item"><i class="fas fa-code text-blue-400 w-5"></i> sOuLCODE</button>
+                            <button onclick="showPage('solve')" class="nav-dropdown-item"><i class="fas fa-calculator text-emerald-400 w-5"></i> sOuLSOLVE</button>
+                            <button onclick="showPage('compare')" class="nav-dropdown-item"><i class="fas fa-columns text-cyan-500 w-5"></i> sOuLCOMPARE</button>
+                            <button onclick="showPage('draw')" class="nav-dropdown-item"><i class="fas fa-palette text-pink-500 w-5"></i> sOuLDRAW</button>
+                        </div>
+                        <div class="space-y-2 border-l border-white/5 pl-4">
+                            <p class="text-[8px] font-black text-gray-500 uppercase tracking-widest mb-1 px-2">Soul & Insight</p>
+                            <button onclick="showPage('focus')" class="nav-dropdown-item"><i class="fas fa-spa text-red-400 w-5"></i> sOuLFOCUS</button>
+                            <button onclick="showPage('seek')" class="nav-dropdown-item"><i class="fas fa-compass text-orange-400 w-5"></i> sOuLSEEK</button>
+                            <button onclick="showPage('random')" class="nav-dropdown-item"><i class="fas fa-random text-blue-400 w-5"></i> sOuLRANDOM</button>
+                            <button onclick="showPage('suggest')" class="nav-dropdown-item"><i class="fas fa-film text-indigo-400 w-5"></i> sOuLSUGGEST</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Leisure Dropdown -->
+            <div class="relative group/leisure">
+                <button class="nav-link flex items-center gap-1.5">
+                    ARCADE <i class="fas fa-chevron-down text-[8px] opacity-50 group-hover/leisure:rotate-180 transition-transform"></i>
+                </button>
+                <div class="absolute top-full left-1/2 -translate-x-1/2 pt-3 opacity-0 pointer-events-none group-hover/leisure:opacity-100 group-hover/leisure:pointer-events-auto transition-all translate-y-1 group-hover/leisure:translate-y-0 z-[100]">
+                    <div class="glass p-3 w-56 space-y-1 border-t-4 border-purple-500">
+                        <button onclick="showPage('cricket')" class="nav-dropdown-item"><i class="fas fa-baseball-bat-ball text-orange-500 w-5"></i> sOuLCRICKET</button>
+                        <button onclick="showPage('snake')" class="nav-dropdown-item"><i class="fas fa-wave-square text-green-500 w-5"></i> sOuLSNAKE</button>
+                        <button onclick="showPage('quiz')" class="nav-dropdown-item"><i class="fas fa-lightbulb text-indigo-400 w-5"></i> sOuLQUIZ</button>
+                        <button onclick="showPage('fun')" class="nav-dropdown-item"><i class="fas fa-smile text-pink-400 w-5"></i> sOuLFUN</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Meta Links -->
+            <button id="dashboardBtn" onclick="showPage('dashboard')" class="hidden nav-link">Dash</button>
+            <button onclick="showPage('support')" class="nav-link">Support</button>
+            <button onclick="showPage('who')" class="nav-link">Who?</button>
+            <button onclick="showPage('manage')" id="adminBtn" class="hidden text-red-400 text-[10px] xl:text-xs font-black px-3 py-1 border border-red-500/20 rounded-lg bg-red-500/5 hover:bg-red-500 hover:text-white transition-colors">Admin</button>
         </div>
 
         <div id="userProfile" class="flex items-center gap-2 md:gap-3 shrink-0">
