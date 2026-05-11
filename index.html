@@ -522,24 +522,27 @@
                     <p class="text-gray-500 text-xs mt-2 uppercase tracking-[0.3em]">Synaptic Logic & Precision Computation</p>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start h-auto lg:h-[700px]">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start lg:min-h-[750px]">
                     <!-- History Sidebar -->
-                    <div class="lg:col-span-3 flex flex-col h-full gap-4 order-2 lg:order-1">
+                    <div class="lg:col-span-3 flex flex-col lg:h-[750px] gap-4 order-2 lg:order-1">
                         <div class="glass p-4 flex flex-col h-full overflow-hidden">
-                            <div class="flex justify-between items-center mb-4">
-                                <h4 class="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Temporal Log</h4>
-                                <button onclick="clearSolveHistory()" class="text-[9px] text-red-400 hover:text-red-300 uppercase font-bold">Clear</button>
+                            <div class="flex justify-between items-center mb-4 shrink-0">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                    <h4 class="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Temporal Log</h4>
+                                </div>
+                                <button onclick="clearSolveHistory()" class="text-[9px] text-red-400/60 hover:text-red-400 uppercase font-bold transition-colors">Clear</button>
                             </div>
-                            <div id="solveHistory" class="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                            <div id="solveHistory" class="flex-grow overflow-y-auto space-y-2 pr-2 custom-scrollbar min-h-[200px]">
                                 <p class="text-[10px] text-gray-600 italic text-center py-10">No calculations recorded.</p>
                             </div>
                         </div>
                     </div>
 
                     <!-- Main Display & Input -->
-                    <div class="lg:col-span-6 flex flex-col h-full gap-4 order-1 lg:order-2">
+                    <div class="lg:col-span-6 flex flex-col lg:h-[750px] gap-4 order-1 lg:order-2">
                         <!-- Advanced Display -->
-                        <div class="glass p-6 flex flex-col justify-between relative overflow-hidden min-h-[180px] bg-black/40 border-t-4 border-emerald-500">
+                        <div class="glass p-6 flex flex-col justify-between relative overflow-hidden min-h-[200px] bg-black/60 border-t-4 border-emerald-500 shadow-2xl">
                             <div class="flex justify-between items-start">
                                 <div id="solveModeBadge" class="text-[8px] font-black bg-emerald-600 text-white px-2 py-0.5 rounded tracking-widest uppercase">PRO MODE</div>
                                 <div class="flex gap-2">
@@ -547,10 +550,10 @@
                                 </div>
                             </div>
                             
-                            <div class="flex flex-col items-end mt-4">
-                                <div id="solveExpression" class="text-gray-500 text-sm md:text-lg font-mono truncate w-full text-right h-8 mb-1"></div>
-                                <div id="solveResult" class="text-4xl md:text-6xl font-black text-white tracking-tighter tabular-nums truncate w-full text-right drop-shadow-[0_0_10px_rgba(16,185,129,0.3)]">0</div>
-                                <div id="solveLatexPreview" class="mt-2 min-h-[30px] w-full flex justify-end items-center text-emerald-400/60 opacity-80 overflow-x-auto no-scrollbar"></div>
+                            <div class="flex flex-col items-end mt-4 flex-grow justify-center">
+                                <div id="solveExpression" class="text-gray-500 text-sm md:text-lg font-mono truncate w-full text-right h-8 mb-1 transition-all duration-300"></div>
+                                <div id="solveResult" class="text-5xl md:text-7xl font-black text-white tracking-tighter tabular-nums truncate w-full text-right drop-shadow-[0_0_15px_rgba(16,185,129,0.4)] transition-all duration-300">0</div>
+                                <div id="solveLatexPreview" class="mt-4 min-h-[40px] w-full flex justify-end items-center text-emerald-400/40 hover:text-emerald-400/80 transition-colors overflow-x-auto no-scrollbar"></div>
                             </div>
 
                             <div id="solveError" class="absolute bottom-2 left-6 right-6 text-[10px] text-red-400 font-bold uppercase tracking-wide hidden animate-pulse">
@@ -570,42 +573,41 @@
                                 </button>
                             </div>
 
-                            <div id="solvePad" class="grid grid-cols-4 sm:grid-cols-5 gap-2 flex-grow overflow-y-auto pr-1 custom-scrollbar">
+                            <div id="solvePad" class="grid gap-2 flex-grow overflow-y-auto pr-1 custom-scrollbar">
                                 <!-- Dynamic Buttons Generated by JS -->
                             </div>
                         </div>
                     </div>
 
                     <!-- AI Extension -->
-                    <div class="lg:col-span-3 flex flex-col h-[500px] lg:h-full gap-4 order-3 overflow-hidden">
-                        <div class="glass flex flex-col h-full overflow-hidden border-l-4 border-purple-500">
-                            <div class="p-3 border-b border-white/5 bg-purple-900/5 flex justify-between items-center shrink-0">
+                    <div class="lg:col-span-3 flex flex-col lg:h-[750px] gap-4 order-3 overflow-hidden">
+                        <div class="glass flex flex-col h-full overflow-hidden border-l-4 border-purple-600 shadow-2xl">
+                            <div class="p-4 border-b border-white/5 bg-purple-900/10 flex justify-between items-center shrink-0">
                                 <div class="flex items-center gap-2">
-                                    <i class="fas fa-brain text-purple-400 text-[10px]"></i>
-                                    <span class="text-[9px] font-black text-white uppercase tracking-widest">Compute AI</span>
+                                    <i class="fas fa-brain text-purple-400 text-xs"></i>
+                                    <span class="text-[10px] font-black text-white uppercase tracking-widest">Compute AI</span>
                                 </div>
-                                <select id="solveModelSelect" class="bg-gray-800/50 border border-white/10 p-1 rounded-md text-[8px] font-bold text-purple-300 outline-none max-w-[80px] cursor-pointer"></select>
+                                <select id="solveModelSelect" class="bg-gray-900/50 border border-white/10 p-1 rounded-lg text-[9px] font-bold text-purple-300 outline-none max-w-[100px] cursor-pointer hover:bg-gray-800 transition-colors"></select>
                             </div>
-                            <div id="solveAIChat" class="flex-grow p-4 overflow-y-auto space-y-4 text-[11px] custom-scrollbar bg-black/10 min-h-0">
-                                <div class="text-gray-500 italic">I can explain complex steps, convert units, or extend your variables. Hit the AI button on a calculation to begin.</div>
+                            <div id="solveAIChat" class="flex-grow p-4 overflow-y-auto space-y-4 text-[11px] custom-scrollbar bg-black/20 min-h-[300px] lg:min-h-0">
+                                <div class="text-gray-500 italic p-4 text-center bg-white/5 rounded-xl border border-dashed border-white/10">
+                                    Analyze complex variables, perform unit conversions, or request derivation steps.
+                                </div>
                             </div>
-                            <div id="solveAIStatus" class="hidden px-4 py-1 border-t border-white/5 bg-purple-900/10 shrink-0">
-                                <span class="text-[8px] font-black text-purple-400 uppercase animate-pulse">Computing Insight...</span>
-                            </div>
-                            <div id="solveAttachmentPreview" class="px-3 py-1 flex gap-1 flex-wrap empty:hidden border-t border-white/5 bg-black/10 shrink-0"></div>
-                            <div class="p-3 bg-black/40 border-t border-white/5 shrink-0">
+                            <div id="solveAIStatus" class="hidden shrink-0"></div>
+                            <div id="solveAttachmentPreview" class="px-3 py-2 flex gap-2 flex-wrap empty:hidden border-t border-white/5 bg-black/20 shrink-0"></div>
+                            <div class="p-3 bg-black/60 border-t border-white/10 shrink-0">
                                 <div class="flex gap-2 items-center">
                                     <input type="file" id="solveAIFileInput" class="hidden" multiple onchange="handleAIFile(event)">
-                                    <button onclick="document.getElementById('solveAIFileInput').click()" class="bg-gray-800 text-gray-400 hover:text-purple-400 w-8 h-8 rounded-lg border border-gray-700 transition-all flex items-center justify-center shrink-0" title="Attach Files"><i class="fas fa-paperclip text-[10px]"></i></button>
-                                    <input type="file" id="solveAIFileInput" class="hidden" multiple onchange="handleAIFile(event)">
-                                    <button onclick="document.getElementById('solveAIFileInput').click()" class="bg-gray-800 text-gray-400 hover:text-purple-400 w-8 h-8 rounded-lg border border-gray-700 transition-all flex items-center justify-center shrink-0" title="Attach Files"><i class="fas fa-paperclip text-[10px]"></i></button>
-                                    <button id="solveSttBtn" onclick="toggleSpeechToText('solveAIInput', 'solveSttBtn', false, false)" class="bg-gray-800 text-gray-500 hover:text-purple-400 w-8 h-8 rounded-lg border border-gray-700 transition-all flex items-center justify-center shrink-0" title="Voice Input">
-                                        <i class="fas fa-microphone text-[10px]"></i>
+                                    <button onclick="document.getElementById('solveAIFileInput').click()" class="bg-gray-800 text-gray-400 hover:text-purple-400 w-10 h-10 rounded-xl border border-gray-700 transition-all flex items-center justify-center shrink-0" title="Attach Files"><i class="fas fa-paperclip text-xs"></i></button>
+                                    <button id="solveSttBtn" onclick="toggleSpeechToText('solveAIInput', 'solveSttBtn', false, false)" class="bg-gray-800 text-gray-500 hover:text-purple-400 w-10 h-10 rounded-xl border border-gray-700 transition-all flex items-center justify-center shrink-0" title="Voice Input">
+                                        <i class="fas fa-microphone text-xs"></i>
                                     </button>
-                                    <input id="solveAIInput" type="text" placeholder="Ask about logic..." 
-                                        class="flex-grow bg-gray-800 text-[10px] p-2 rounded border border-gray-700 outline-none focus:border-purple-500"
-                                        onkeydown="if(event.key==='Enter') askSolveAI()">
-                                    <button onclick="askSolveAI()" id="solveAISendBtn" class="bg-purple-600 w-8 h-8 rounded flex items-center justify-center active:scale-95 shrink-0"><i class="fas fa-paper-plane text-[10px]"></i></button>
+                                    <textarea id="solveAIInput" rows="1" placeholder="Explain logic..." 
+                                        class="flex-grow bg-gray-900 border border-white/10 text-xs p-3 rounded-xl outline-none focus:border-purple-500 transition-all resize-none custom-scrollbar"
+                                        oninput="autoResize(this)"
+                                        onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); askSolveAI(); }"></textarea>
+                                    <button onclick="askSolveAI()" id="solveAISendBtn" class="bg-purple-600 w-10 h-10 rounded-xl flex items-center justify-center active:scale-95 shadow-lg shadow-purple-900/20 shrink-0"><i class="fas fa-paper-plane text-xs"></i></button>
                                 </div>
                             </div>
                         </div>
@@ -2142,34 +2144,114 @@
                 </div>
             </div>
 
+            <!-- Interactive Toss Section -->
+            <div id="cricketToss" class="hidden max-w-lg mx-auto text-center animate-fadeIn">
+                <div class="glass p-8 space-y-8 border-t-4 border-yellow-500">
+                    <h3 class="text-3xl font-black italic tracking-tighter uppercase">The Deciding Toss</h3>
+                    <div id="tossCoinContainer" class="flex justify-center py-6">
+                        <div id="cricketCoin" class="w-24 h-24 relative preserve-3d transition-transform duration-[1500ms]">
+                            <div class="absolute inset-0 bg-yellow-500 rounded-full border-4 border-yellow-600 flex items-center justify-center text-yellow-900 font-black text-sm shadow-xl backface-hidden uppercase">Heads</div>
+                            <div class="absolute inset-0 bg-yellow-600 rounded-full border-4 border-yellow-500 flex items-center justify-center text-yellow-100 font-black text-sm shadow-xl backface-hidden rotate-y-180 uppercase">Tails</div>
+                        </div>
+                    </div>
+                    <div id="tossChoice" class="space-y-4">
+                        <p class="text-xs text-gray-400 uppercase tracking-widest">Call for the toss</p>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button onclick="handleToss('Heads')" class="bg-white/5 border border-white/10 py-3 rounded-xl font-bold hover:bg-yellow-600/20 hover:text-yellow-400 transition">HEADS</button>
+                            <button onclick="handleToss('Tails')" class="bg-white/5 border border-white/10 py-3 rounded-xl font-bold hover:bg-yellow-600/20 hover:text-yellow-400 transition">TAILS</button>
+                        </div>
+                    </div>
+                    <div id="tossDecision" class="hidden space-y-4 animate-fadeIn">
+                        <p id="tossResultText" class="text-lg font-bold text-cyan-400"></p>
+                        <div id="tossActionBtns" class="hidden grid grid-cols-2 gap-4">
+                            <button onclick="setTossDecision('bat')" class="bg-cyan-600 py-3 rounded-xl font-bold hover:bg-cyan-500 transition">BAT FIRST</button>
+                            <button onclick="setTossDecision('bowl')" class="bg-orange-600 py-3 rounded-xl font-bold hover:bg-orange-500 transition">BOWL FIRST</button>
+                        </div>
+                        <button id="tossContinueBtn" onclick="startCricketGround()" class="hidden w-full bg-cyan-600 py-3 rounded-xl font-bold">CONTINUE</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Innings Transition Overlay -->
+            <div id="inningsTransition" class="hidden fixed inset-0 z-[120] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6 text-center">
+                <div class="max-w-md w-full animate-fadeIn">
+                    <h3 class="text-[10px] font-black text-gray-500 uppercase tracking-[0.4em] mb-4">End of Innings</h3>
+                    <div class="glass p-8 border-t-4 border-cyan-500 mb-8">
+                        <p id="transitionInningsSummary" class="text-gray-400 text-sm mb-2"></p>
+                        <div id="transitionTargetBox" class="py-6">
+                            <p class="text-[10px] font-black text-cyan-400 uppercase tracking-widest mb-1">Target</p>
+                            <h2 id="transitionTargetScore" class="text-6xl font-black text-white">0</h2>
+                        </div>
+                        <p id="transitionRequiredRate" class="text-xs font-mono text-gray-500"></p>
+                    </div>
+                    <button onclick="startSecondInnings()" class="w-full bg-cyan-600 py-4 rounded-2xl font-black text-lg tracking-widest uppercase hover:bg-cyan-500 transition shadow-xl shadow-cyan-600/20 active:scale-95">Begin the Chase</button>
+                </div>
+            </div>
+
             <div id="cricketGround" class="hidden text-center max-w-4xl mx-auto">
                 <button id="newMatchBtn" onclick="resetCricketMatch()" class="hidden mb-6 bg-red-600 px-8 py-3 rounded-xl font-bold hover:bg-red-700 transition">Start New Match</button>
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-2">
-                        <div class="glass p-8 rounded-3xl mb-6 relative overflow-hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div class="lg:col-span-8">
+                        <div class="glass p-6 md:p-8 rounded-3xl mb-6 relative overflow-hidden">
                             <div class="absolute top-0 left-0 w-1 h-full bg-orange-500"></div>
-                            <div class="flex justify-between items-start mb-10">
+                            
+                            <div class="flex justify-between items-start mb-6">
                                 <div class="text-left">
                                     <p id="battingTeamName" class="text-orange-400 font-bold uppercase tracking-widest text-sm"></p>
-                                    <div class="text-6xl font-black" id="score">0/0</div>
-                                    <p id="battingPartnership" class="text-gray-500 text-xs mt-1">CRR: 0.00</p>
+                                    <div class="text-5xl md:text-6xl font-black" id="score">0/0</div>
+                                    <p id="battingPartnership" class="text-gray-500 text-[10px] md:text-xs mt-1">CRR: 0.00</p>
                                 </div>
                                 <div class="text-right">
-                                    <p class="text-xs text-gray-400 uppercase">Overs</p>
-                                    <div class="text-3xl font-mono" id="overs">0.0</div>
-                                    <p id="targetDisplay" class="text-cyan-400 font-bold mt-2"></p>
+                                    <p class="text-[10px] text-gray-400 uppercase font-black">Overs</p>
+                                    <div class="text-2xl md:text-3xl font-mono" id="overs">0.0</div>
+                                    <p id="targetDisplay" class="text-cyan-400 font-bold mt-2 text-xs"></p>
                                 </div>
                             </div>
-                            <div id="status" class="bg-black/40 p-4 rounded-2xl mb-8 text-xl border border-white/5 min-h-[4rem] flex items-center justify-center">Wait for Bowler...</div>
-                            <div class="grid grid-cols-1 gap-4">
-                                <button onclick="playCricket()" id="hitBtn" class="bg-orange-500 text-white p-8 rounded-3xl font-black text-4xl hover:bg-orange-600 shadow-xl active:scale-95 transition-all">HIT!</button>
+
+                            <div class="bg-black/40 p-3 rounded-xl mb-4 border border-white/5 flex justify-between items-center px-4">
+                                <div class="text-left">
+                                    <p class="text-[8px] text-gray-500 uppercase font-black">On Strike</p>
+                                    <p id="strikerDisplay" class="text-xs font-bold text-white"></p>
+                                </div>
+                                <div class="w-px h-8 bg-white/5"></div>
+                                <div class="text-right flex flex-col items-end">
+                                    <p class="text-[8px] text-gray-500 uppercase font-black">Bowling</p>
+                                    <div class="flex items-center gap-2">
+                                        <p id="bowlerDisplay" class="text-xs font-bold text-orange-400"></p>
+                                        <button id="changeBowlerBtn" onclick="manualChangeBowler()" class="hidden text-[8px] bg-orange-600/20 text-orange-400 px-1.5 py-0.5 rounded border border-orange-500/30 hover:bg-orange-600 hover:text-white transition">CHANGE</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="status" class="bg-black/20 p-4 rounded-xl mb-6 text-sm md:text-base border border-white/5 min-h-[4rem] flex items-center justify-center italic text-gray-300">Prepare for the next delivery...</div>
+                            
+                            <!-- Commentary Box -->
+                            <div class="h-20 overflow-hidden relative border-y border-white/5 mb-8 bg-white/2">
+                                <div id="cricketCommentary" class="absolute inset-0 p-3 space-y-1 text-[10px] md:text-xs font-mono text-gray-500 overflow-y-auto no-scrollbar scroll-smooth">
+                                    <p class="animate-pulse opacity-50">Watching from the boundary ropes...</p>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-3">
+                                <button onclick="playCricket('defensive')" class="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-green-600/20 hover:border-green-500/30 transition group">
+                                    <i class="fas fa-shield-halved text-green-500 mb-1"></i>
+                                    <span class="text-[10px] font-black uppercase text-gray-400 group-hover:text-white">Defend</span>
+                                </button>
+                                <button onclick="playCricket('balanced')" class="flex flex-col items-center justify-center p-3 rounded-2xl bg-orange-600 hover:bg-orange-500 shadow-lg shadow-orange-900/30 transition">
+                                    <i class="fas fa-baseball-bat-ball text-white mb-1"></i>
+                                    <span class="text-[10px] font-black uppercase text-white">Strike</span>
+                                </button>
+                                <button onclick="playCricket('aggressive')" class="flex flex-col items-center justify-center p-3 rounded-2xl bg-white/5 border border-white/10 hover:bg-red-600/20 hover:border-red-500/30 transition group">
+                                    <i class="fas fa-fire text-red-500 mb-1"></i>
+                                    <span class="text-[10px] font-black uppercase text-gray-400 group-hover:text-white">Attack</span>
+                                </button>
                             </div>
                         </div>
                         <div id="cricketHistory" class="flex gap-2 justify-center flex-wrap mb-6"></div>
                     </div>
-                    <div class="glass p-6 h-fit">
-                        <h3 class="font-bold mb-4 border-b border-white/10 pb-2">Scorecard</h3>
-                        <div id="liveScorecard" class="text-sm space-y-2 text-left h-96 overflow-y-auto pr-2"></div>
+                    <div class="lg:col-span-4 glass p-6 h-fit flex flex-col min-w-0">
+                        <h3 class="font-bold mb-4 border-b border-white/10 pb-2 text-cyan-400 uppercase tracking-widest text-[10px]">Match Progress</h3>
+                        <div id="liveScorecard" class="space-y-2 text-left max-h-[600px] overflow-y-auto pr-2 custom-scrollbar"></div>
                     </div>
                 </div>
             </div>
@@ -2937,11 +3019,13 @@
                     <div id="modalTabContent-stopwatch" class="modal-tab-content hidden text-center">
                         <h3 class="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-gray-300">Precision Stopwatch</h3>
                         <div id="modalStopwatchDisplay" class="text-5xl sm:text-7xl font-black font-mono tracking-tighter mb-6 sm:mb-8 tabular-nums text-purple-400">00:00:00</div>
-                        <div class="flex gap-2 sm:gap-4 justify-center">
+                        <div class="flex gap-2 sm:gap-4 justify-center mb-6">
                             <button id="modalStopwatchStartBtn" onclick="startModalStopwatch()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-purple-600 flex items-center justify-center text-lg sm:text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-play"></i></button>
                             <button id="modalStopwatchPauseBtn" onclick="pauseModalStopwatch()" class="hidden w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-indigo-600 flex items-center justify-center text-lg sm:text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-pause"></i></button>
-                            <button onclick="resetModalStopwatch()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg sm:text-xl hover:bg-white/10 transition"><i class="fas fa-redo-alt"></i></button>
+                            <button onclick="addStopwatchLap()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-lg sm:text-xl hover:bg-white/20 transition" title="Record Lap"><i class="fas fa-flag"></i></button>
+                            <button onclick="resetModalStopwatch()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg sm:text-xl hover:bg-white/10 transition" title="Reset"><i class="fas fa-redo-alt"></i></button>
                         </div>
+                        <div id="stopwatchLaps" class="max-h-40 overflow-y-auto custom-scrollbar space-y-1 pr-2"></div>
                     </div>
 
                     <!-- Timer Tab Content -->
@@ -2952,6 +3036,12 @@
                             <button id="modalTimerStartBtn" onclick="startModalTimer()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-red-600 flex items-center justify-center text-lg sm:text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-play"></i></button>
                             <button id="modalTimerPauseBtn" onclick="pauseModalTimer()" class="hidden w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-orange-600 flex items-center justify-center text-lg sm:text-xl hover:scale-110 transition active:scale-95"><i class="fas fa-pause"></i></button>
                             <button onclick="resetModalTimer()" class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-lg sm:text-xl hover:bg-white/10 transition"><i class="fas fa-redo-alt"></i></button>
+                        </div>
+                        <div class="flex flex-wrap justify-center gap-2 mb-6">
+                            <button onclick="updateModalTimerDuration(5)" class="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold hover:bg-red-600/20 transition">5m</button>
+                            <button onclick="updateModalTimerDuration(15)" class="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold hover:bg-red-600/20 transition">15m</button>
+                            <button onclick="updateModalTimerDuration(25)" class="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold hover:bg-red-600/20 transition">25m</button>
+                            <button onclick="updateModalTimerDuration(60)" class="px-3 py-1 rounded-lg bg-white/5 border border-white/10 text-[10px] font-bold hover:bg-red-600/20 transition">1h</button>
                         </div>
                         <div class="w-full space-y-2 sm:space-y-4 max-w-xs mx-auto">
                             <input type="range" id="modalTimerRange" min="1" max="120" value="25" class="w-full accent-red-600" oninput="updateModalTimerDuration(this.value)">
@@ -3006,7 +3096,10 @@
 
                 <!-- Right Section: Calendar & Events -->
                 <div class="xl:w-80 shrink-0 border-l xl:border-b-0 xl:border-l-0 pt-4 sm:pt-6 xl:pt-0">
-                    <h3 class="text-lg sm:text-xl font-bold mb-4 sm:mb-6 text-gray-300 text-center">Calendar & Events</h3>
+                    <div class="flex justify-between items-center mb-4 sm:mb-6">
+                        <h3 class="text-lg sm:text-xl font-bold text-gray-300">Calendar & Events</h3>
+                        <button onclick="exportCalendarReport()" class="text-cyan-400 hover:text-white transition" title="Export Events PDF"><i class="fas fa-file-pdf"></i></button>
+                    </div>
                     <div class="flex justify-between items-center mb-4 sm:mb-6">
                         <h3 id="calMonthYear" class="text-base sm:text-lg font-black text-white uppercase tracking-widest">January 2024</h3>
                         <div class="flex gap-1 sm:gap-2">

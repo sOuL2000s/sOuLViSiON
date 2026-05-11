@@ -382,8 +382,8 @@ export default async function handler(req, res) {
             return res.status(201).json({ success: true });
         }
 
-        // Persistence for AI, Cricket, Fun, Random, Music, Reports, Seek, Solve
-        if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist', 'user_reports', 'quiz_score', 'soulseek_history', 'solve_history', 'calendar_events'].includes(query.route)) {
+        // Persistence for AI, Cricket, Fun, Random, Music, Reports, Seek, Solve, Time
+        if (['ai_conversations', 'cricket_history', 'cricket_setup', 'fun_stats', 'random_history', 'music_playlist', 'user_reports', 'quiz_score', 'soulseek_history', 'solve_history', 'calendar_events', 'alarms', 'world_clocks'].includes(query.route)) {
             const col = db.collection(query.route);
             const userId = query.userId;
 
@@ -485,8 +485,8 @@ export default async function handler(req, res) {
                         // Helper to safely handle characters not supported by standard PDF fonts
                         const cleanStr = (str) => {
                             if (typeof str !== 'string') return "";
-                            // Expanded range for common punctuation, currency, and symbols
-                            return str.replace(/[^\x00-\x7F\u00A0-\u00FF\u2010-\u2043\u2200-\u22FF]/g, " ");
+                            return str.replace(/[^\x00-\x7F\u00A0-\u00FF\u2010-\u2043\u2200-\u22FF]/g, "?")
+                                      .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, "?");
                         };
 
                         const drawHeader = () => {

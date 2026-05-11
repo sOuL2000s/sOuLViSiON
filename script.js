@@ -3159,14 +3159,11 @@ let editingAttachmentIdx = -1;
 // Updated Auto-Resize Logic
 function autoResize(textarea) {
     if (!textarea) return;
-
-    // Force style reset to calculate correct scrollHeight
-    textarea.style.height = 'auto'; 
+    textarea.style.height = '0'; 
     
     const isLargeEditor = textarea.id === 'noteInput' || textarea.id === 'editNoteText';
     const baseHeight = isLargeEditor ? 120 : 44; 
     
-    // Use scrollHeight but ensure it's at least the base height
     let newHeight = textarea.scrollHeight;
     if (newHeight < baseHeight) newHeight = baseHeight;
     
@@ -3176,7 +3173,7 @@ function autoResize(textarea) {
         textarea.style.height = maxHeight + 'px';
         textarea.style.overflowY = 'auto';
     } else {
-        textarea.style.height = newHeight + 'px';
+        textarea.style.height = (newHeight + 2) + 'px';
         textarea.style.overflowY = 'hidden';
     }
 }
@@ -5905,8 +5902,30 @@ let match = {
     isOver: false,
     strikerIdx: 0,
     nonStrikerIdx: 1,
-    bowlerIdx: -1
+    bowlerIdx: -1,
+    userTeamIdx: 0, // Team the user is controlling
+    commentary: [],
+    difficulty: 'normal'
 };
+
+const CRICKET_PHRASES = {
+    6: ["Magnificent! That's out of the park!", "Clean strike! All the way for six!", "Massive hit, the crowd is on its feet!"],
+    4: ["Crunched through the covers for four!", "Beautiful timing, that's reaching the boundary.", "Pure class! Pierces the gap perfectly."],
+    W: ["Clean bowled! A clinical delivery.", "Edged and taken! The fielder makes no mistake.", "LBW! Umpire's finger goes up immediately."],
+    0: ["Excellent delivery, no room to work with.", "Straight to the fielder.", "A swing and a miss."],
+    other: ["Quick single taken.", "Smart running, they pick up two.", "Superb placement for three runs."]
+};
+
+function generateCommentary(result, player) {
+    const pool = CRICKET_PHRASES[result] || CRICKET_PHRASES.other;
+    const phrase = pool[Math.floor(Math.random() * pool.length)];
+    const el = document.getElementById('cricketCommentary');
+    const p = document.createElement('p');
+    p.className = "border-l-2 border-orange-500/30 pl-2 py-0.5 animate-fadeIn";
+    p.innerHTML = `<span class="text-orange-400 font-bold">${player}:</span> ${phrase}`;
+    el.prepend(p);
+    if(el.children.length > 20) el.lastChild.remove();
+}
 
 function parsePlayers(raw) {
     return raw.split('\n').filter(l => l.trim()).map(l => {
@@ -5922,26 +5941,17 @@ function parsePlayers(raw) {
 function selectBowler() {
     const bowlingTeam = match.teams[match.currentInnings === 0 ? 1 : 0];
     const priorities = { 'Bowler': 1, 'Bowling AR': 2, 'Batting AR': 3, 'Wicketkeeper': 4, 'Batsman': 5 };
-    // Max overs a single bowler can bowl (Standard rule: 1/5th of total innings overs)
     const maxPerBowler = Math.ceil(match.maxOvers / 5);
     
     const playersWithIdx = bowlingTeam.players.map((p, idx) => ({ ...p, idx }));
-    let available = playersWithIdx.filter(p => {
-        const hasNotExhaustedLimit = (p.ballsBowled / 6) < maxPerBowler;
-        const isEligibleType = (priorities[p.type] || 5) <= 3;
-        return hasNotExhaustedLimit && isEligibleType;
-    });
-    
-    if (available.length === 0) {
-        available = playersWithIdx.filter(p => (p.ballsBowled / 6) < maxPerBowler);
-    }
+    let available = playersWithIdx.filter(p => (p.ballsBowled / 6) < maxPerBowler);
     
     if (available.length === 0) available = playersWithIdx;
 
     available.sort((a, b) => {
-        const pA = priorities[a.type] || 5;
-        const pB = priorities[b.type] || 5;
-        return pA - pB || a.ballsBowled - b.ballsBowled;
+        const isEligibleA = (priorities[a.type] || 5) <= 3 ? 0 : 1;
+        const isEligibleB = (priorities[b.type] || 5) <= 3 ? 0 : 1;
+        return isEligibleA - isEligibleB || (priorities[a.type] || 5) - (priorities[b.type] || 5) || a.ballsBowled - b.ballsBowled;
     });
     
     const next = available.find(p => p.idx !== match.bowlerIdx) || available[0];
@@ -5978,33 +5988,116 @@ async function startMatch() {
     match.isOver = false;
     match.strikerIdx = 0;
     match.nonStrikerIdx = 1;
-    selectBowler();
+    match.commentary = [];
 
-    // Auto-save setup to database when match starts if logged in
     if (currentUser) {
-        try {
-            await fetch(`/api/main?route=cricket_setup&userId=${currentUser.email}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ tA, tB, pA, pB, overs: oversVal })
-            });
-        } catch (e) {
-            console.warn("Failed to auto-save cricket setup", e);
-        }
+        fetch(`/api/main?route=cricket_setup&userId=${currentUser.email}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tA, tB, pA, pB, overs: oversVal })
+        }).catch(() => {});
     }
 
     document.getElementById('cricketSetup').classList.add('hidden');
+    document.getElementById('cricketToss').classList.remove('hidden');
+    
+    document.getElementById('tossChoice').classList.remove('hidden');
+    document.getElementById('tossDecision').classList.add('hidden');
+    document.getElementById('tossActionBtns').classList.add('hidden');
+    document.getElementById('tossContinueBtn').classList.add('hidden');
+}
+
+function handleToss(userCall) {
+    const coin = document.getElementById('cricketCoin');
+    const result = Math.random() < 0.5 ? 'Heads' : 'Tails';
+    const userWon = userCall === result;
+    
+    coin.classList.remove('flipping-heads', 'flipping-tails');
+    void coin.offsetWidth;
+    coin.classList.add(`flipping-${result.toLowerCase()}`);
+
+    document.getElementById('tossChoice').classList.add('hidden');
+    
+    setTimeout(() => {
+        const text = document.getElementById('tossResultText');
+        const decision = document.getElementById('tossDecision');
+        const actions = document.getElementById('tossActionBtns');
+        const cont = document.getElementById('tossContinueBtn');
+        
+        decision.classList.remove('hidden');
+        if (userWon) {
+            text.innerText = `The coin landed on ${result.toUpperCase()}. You WON the toss!`;
+            actions.classList.remove('hidden');
+        } else {
+            const aiChoice = Math.random() < 0.5 ? 'bat' : 'bowl';
+            text.innerText = `The coin landed on ${result.toUpperCase()}. You LOST the toss. Opponent chose to ${aiChoice} first.`;
+            setTossDecision(aiChoice, false);
+            cont.classList.remove('hidden');
+        }
+    }, 1600);
+}
+
+function setTossDecision(choice, userPick = true) {
+    if (choice === 'bat') {
+        match.userTeamIdx = userPick ? 0 : 1; 
+    } else {
+        match.userTeamIdx = userPick ? 1 : 0;
+    }
+    
+    if (userPick) {
+        document.getElementById('tossActionBtns').classList.add('hidden');
+        document.getElementById('tossContinueBtn').classList.remove('hidden');
+    }
+}
+
+function startCricketGround() {
+    document.getElementById('cricketToss').classList.add('hidden');
     document.getElementById('cricketGround').classList.remove('hidden');
+    
+    if (match.userTeamIdx === 0) {
+        const temp = match.teams[0];
+        match.teams[0] = match.teams[1];
+        match.teams[1] = temp;
+    }
+    
+    selectBowler();
     updateCricketUI();
 }
 
-function playCricket() {
+function getSituationalOutcomes(striker, bowler, shotType) {
+    let pool = [0, 1, 2, 3, 4, 6, 'W'];
+    
+    if (shotType === 'defensive') {
+        pool = [0, 0, 0, 1, 1, 1, 2, 'W'];
+    } else if (shotType === 'aggressive') {
+        pool = [0, 4, 4, 6, 6, 6, 'W', 'W', 'W'];
+    } else {
+        pool = [0, 1, 1, 2, 4, 6, 'W'];
+    }
+
+    if (striker.type.toLowerCase().includes('batsman')) {
+        if (shotType !== 'aggressive') pool.push(1, 2, 4);
+    } else if (striker.type.toLowerCase().includes('bowler')) {
+        pool.push('W', 'W', 0, 0);
+    }
+
+    if (bowler.type.toLowerCase().includes('bowler')) {
+        pool.push('W', 0, 0);
+    }
+
+    if (match.difficulty === 'hard') pool.push('W', 0);
+    if (match.difficulty === 'easy') pool.push(4, 6);
+
+    return pool;
+}
+
+function playCricket(shotType = 'balanced') {
     if(match.isOver) return;
-    if (window.navigator.vibrate) window.navigator.vibrate(10);
     const battingTeam = match.teams[match.currentInnings];
     const bowlingTeam = match.teams[match.currentInnings === 0 ? 1 : 0];
     const maxBalls = match.maxOvers * 6;
     
+    // Check if innings already concluded
     if(battingTeam.wickets >= 10 || battingTeam.balls >= maxBalls || (match.target && battingTeam.score >= match.target)) {
         endInnings(); return;
     }
@@ -6012,50 +6105,98 @@ function playCricket() {
     const striker = battingTeam.players[match.strikerIdx];
     const bowler = bowlingTeam.players[match.bowlerIdx];
     
-    let outcomes = [0, 1, 2, 3, 4, 6, 'W'];
-    if (match.difficulty === 'easy') outcomes = [0, 1, 2, 3, 4, 6, 4, 6, 1, 2, 'W'];
-    if (match.difficulty === 'hard') outcomes = [0, 1, 2, 'W', 'W', 3, 0, 1];
-
+    const outcomes = getSituationalOutcomes(striker, bowler, shotType);
     const res = outcomes[Math.floor(Math.random() * outcomes.length)];
     
     battingTeam.balls++;
     striker.balls++;
     bowler.ballsBowled++;
     
+    if (window.navigator.vibrate) window.navigator.vibrate(res === 'W' ? [30, 50] : 10);
+
     if (res === 'W') {
         battingTeam.wickets++;
         striker.isOut = true;
         bowler.wickets++;
         battingTeam.history.push('W');
         document.getElementById('status').innerText = `OUT! ${striker.name} departed!`;
+        generateCommentary('W', bowler.name);
+
         if (battingTeam.wickets < 10) {
-            const nextIdx = Math.max(match.strikerIdx, match.nonStrikerIdx) + 1;
-            match.strikerIdx = nextIdx < battingTeam.players.length ? nextIdx : match.nonStrikerIdx;
+            // Find next batsman: not out AND not currently the other batsman at crease
+            const nextIdx = battingTeam.players.findIndex((p, idx) => 
+                !p.isOut && idx !== match.nonStrikerIdx
+            );
+            if (nextIdx !== -1) {
+                match.strikerIdx = nextIdx;
+            }
         }
     } else {
         battingTeam.score += res;
         striker.runs += res;
         bowler.runsConceded += res;
         battingTeam.history.push(res);
-        document.getElementById('status').innerText = `${res} runs! Great shot by ${striker.name}`;
+        document.getElementById('status').innerText = `${res} runs! ${striker.name} on the move.`;
+        generateCommentary(res, striker.name);
         
-        if (striker.runs >= 100 && !striker.milestoneReached) {
-            striker.milestoneReached = true;
-            triggerCricketCelebration('milestone', `${striker.name} hits a magnificent 100!`);
+        // Celebrations
+        if (striker.runs >= 50 && !striker.halfCentury) {
+            striker.halfCentury = true;
+            triggerCricketCelebration('milestone', `${striker.name} reaches 50!`);
+        }
+        if (striker.runs >= 100 && !striker.century) {
+            striker.century = true;
+            triggerCricketCelebration('milestone', `${striker.name} hits a MAGNIFICENT 100!`);
         }
 
-        if (typeof res === 'number' && res % 2 !== 0) {
+        // Change strike on odd runs
+        if (res % 2 !== 0) {
             [match.strikerIdx, match.nonStrikerIdx] = [match.nonStrikerIdx, match.strikerIdx];
         }
     }
 
-    if (battingTeam.balls % 6 === 0 && !match.isOver) {
+    // Over conclusion logic
+    if (battingTeam.balls % 6 === 0 && battingTeam.balls < maxBalls && !match.isOver) {
+        // Change strike at end of over
         [match.strikerIdx, match.nonStrikerIdx] = [match.nonStrikerIdx, match.strikerIdx];
         selectBowler();
+        document.getElementById('status').innerText = `End of Over. Bowler changed.`;
     }
 
     updateCricketUI();
-    if(battingTeam.wickets >= 10 || battingTeam.balls >= maxBalls || (match.target && battingTeam.score >= match.target)) endInnings();
+
+    // Re-check target or limit for ending innings
+    if(battingTeam.wickets >= 10 || battingTeam.balls >= maxBalls || (match.target && battingTeam.score >= match.target)) {
+        setTimeout(endInnings, 1000);
+    }
+}
+
+function manualChangeBowler() {
+    const bowlingTeam = match.teams[match.currentInnings === 0 ? 1 : 0];
+    const userIsFielding = (match.currentInnings === 0);
+    
+    if (!userIsFielding) {
+        showToast("You can only change bowlers when fielding.", "warning");
+        return;
+    }
+    
+    const maxPerBowler = Math.ceil(match.maxOvers / 5);
+    const available = bowlingTeam.players
+        .map((p, i) => ({...p, i}))
+        .filter(p => (p.ballsBowled / 6) < maxPerBowler);
+        
+    if (available.length === 0) return showToast("All eligible bowlers have exhausted their limits.", "error");
+
+    const list = available.map(p => `${p.i}: ${p.name} [${p.wickets}-${p.runsConceded}]`).join('\n');
+    const pick = prompt(`Fielding Captain: Choose next bowler:\n${list}`, match.bowlerIdx);
+    
+    if (pick !== null && bowlingTeam.players[pick] && available.find(p => p.i == pick)) {
+        match.bowlerIdx = parseInt(pick);
+        updateCricketUI();
+        showToast(`${bowlingTeam.players[pick].name} comes into the attack.`, "info");
+    } else if (pick !== null) {
+        showToast("Invalid selection or over-limit exhausted.", "error");
+    }
 }
 
 function triggerCricketCelebration(type, detail) {
@@ -6110,12 +6251,7 @@ function triggerCricketCelebration(type, detail) {
 async function endInnings() {
     if(match.currentInnings === 0) {
         match.target = match.teams[0].score + 1;
-        match.currentInnings = 1;
-        match.strikerIdx = 0;
-        match.nonStrikerIdx = 1;
-        selectBowler();
-        alert(`Innings Break! ${match.teams[1].name} needs ${match.target} to win.`);
-        updateCricketUI();
+        showInningsTransition();
     } else {
         match.isOver = true;
         const t1 = match.teams[0];
@@ -6127,24 +6263,22 @@ async function endInnings() {
         document.getElementById('newMatchBtn').classList.remove('hidden');
         
         triggerCricketCelebration('victory', winMsg);
+        
+        const summary = await generateAIMatchSummary(t1, t2, winMsg);
+        document.getElementById('status').innerHTML = `${winMsg}<br><span class="text-xs text-gray-500 italic mt-2 block">"${summary}"</span>`;
 
         if (currentUser) {
-            // Create a deep copy of players to ensure data persistence
-            const cleanPlayers = (players) => players.map(p => ({
+            const cleanPlayers = (ps) => ps.map(p => ({
                 name: p.name, type: p.type, runs: p.runs, balls: p.balls, 
                 wickets: p.wickets, runsConceded: p.runsConceded, ballsBowled: p.ballsBowled, isOut: p.isOut
             }));
 
             const historyObj = { 
-                id: Date.now(),
-                result: winMsg, 
+                id: Date.now(), result: winMsg, aiSummary: summary,
                 teamA: { name: t1.name, score: t1.score, wickets: t1.wickets, balls: t1.balls, players: cleanPlayers(t1.players) },
                 teamB: { name: t2.name, score: t2.score, wickets: t2.wickets, balls: t2.balls, players: cleanPlayers(t2.players) },
                 maxOvers: Number(match.maxOvers),
-                setup: {
-                    pA: document.getElementById('teamAPlayers').value,
-                    pB: document.getElementById('teamBPlayers').value
-                }
+                setup: { pA: document.getElementById('teamAPlayers').value, pB: document.getElementById('teamBPlayers').value }
             };
             
             try {
@@ -6153,12 +6287,133 @@ async function endInnings() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(historyObj)
                 });
-                await syncCricketHistory();
-            } catch (e) {
-                console.error("Failed to save match history", e);
-            }
+                syncCricketHistory();
+            } catch (e) {}
         }
     }
+}
+
+function showInningsTransition() {
+    const t1 = match.teams[0];
+    const trans = document.getElementById('inningsTransition');
+    
+    document.getElementById('transitionInningsSummary').innerText = `${t1.name} finished at ${t1.score}/${t1.wickets} in ${match.maxOvers} overs.`;
+    document.getElementById('transitionTargetScore').innerText = match.target;
+    document.getElementById('transitionRequiredRate').innerText = `Required Run Rate: ${((match.target / match.maxOvers)).toFixed(2)}`;
+    
+    trans.classList.remove('hidden');
+}
+
+function startSecondInnings() {
+    match.currentInnings = 1;
+    match.strikerIdx = 0;
+    match.nonStrikerIdx = 1;
+    selectBowler();
+    document.getElementById('inningsTransition').classList.add('hidden');
+    document.getElementById('cricketCommentary').innerHTML = '<p class="text-cyan-400 font-bold">Second innings starts! The chase is on.</p>';
+    updateCricketUI();
+}
+
+async function generateAIMatchSummary(t1, t2, result) {
+    if (!aiConfig.keys.length) return "A thrilling encounter concluded.";
+    
+    const prompt = `Generate a one-sentence dramatic sports headline for this cricket match: 
+    Team A (${t1.name}): ${t1.score}/${t1.wickets}. 
+    Team B (${t2.name}): ${t2.score}/${t2.wickets}. 
+    Result: ${result}. 
+    Keep it punchy and exciting.`;
+
+    try {
+        const model = aiConfig.models[0]?.id || "gemini-2.5-flash";
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiConfig.keys[currentKeyIndex]}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "A classic battle of nerves!";
+    } catch (e) {
+        return "An unforgettable match for the archives.";
+    }
+}
+
+function updateCricketUI() {
+    const team = match.teams[match.currentInnings];
+    if (!team) return;
+    const striker = team.players[match.strikerIdx];
+    const nonStriker = team.players[match.nonStrikerIdx];
+    const bowlingTeam = match.teams[match.currentInnings === 0 ? 1 : 0];
+    const bowler = bowlingTeam.players[match.bowlerIdx];
+
+    const changeBtn = document.getElementById('changeBowlerBtn');
+    if (changeBtn) {
+        const isBetweenOvers = team.balls % 6 === 0 && team.balls > 0;
+        const userIsFielding = (match.currentInnings === 0);
+        changeBtn.classList.toggle('hidden', !(isBetweenOvers && userIsFielding));
+    }
+
+    document.getElementById('battingTeamName').innerText = team.name;
+    document.getElementById('score').innerText = `${team.score}/${team.wickets}`;
+    document.getElementById('overs').innerText = `${Math.floor(team.balls/6)}.${team.balls%6}`;
+    
+    if (striker) {
+        document.getElementById('strikerDisplay').innerText = `* ${striker.name} ${striker.runs}(${striker.balls})`;
+    }
+    if (bowler) {
+        document.getElementById('bowlerDisplay').innerText = `${bowler.name} ${bowler.wickets}-${bowler.runsConceded}`;
+    }
+    
+    const oversBowled = team.balls / 6 || 1;
+    const crr = (team.score / oversBowled).toFixed(2);
+    let statsText = `CRR: ${crr}`;
+    
+    if (match.target) {
+        const totalBalls = match.maxOvers * 6;
+        const remainingBalls = totalBalls - team.balls;
+        const runsNeeded = Math.max(0, match.target - team.score);
+        const rrr = remainingBalls > 0 ? ((runsNeeded / remainingBalls) * 6).toFixed(2) : '0.00';
+        statsText += ` | RRR: ${rrr}`;
+        document.getElementById('targetDisplay').innerText = `Target: ${match.target} (Need ${runsNeeded} off ${remainingBalls} balls)`;
+    } else {
+        document.getElementById('targetDisplay').innerText = '';
+    }
+    
+    document.getElementById('battingPartnership').innerText = statsText;
+    
+    const hist = document.getElementById('cricketHistory');
+    hist.innerHTML = team.history.slice(-12).map(r => `<span class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${r === 'W' ? 'bg-red-600' : 'bg-gray-700'}">${r}</span>`).join('');
+
+    const scorecard = document.getElementById('liveScorecard');
+    scorecard.innerHTML = match.teams.map((t, tIdx) => {
+        const isBatting = tIdx === match.currentInnings;
+        return `
+            <div class="mb-6 bg-white/5 p-4 rounded-2xl border border-white/5 ${isBatting ? 'border-orange-500/30 ring-1 ring-orange-500/10' : ''}">
+                <div class="flex justify-between items-center border-b border-white/10 mb-3 pb-2">
+                    <h4 class="font-black text-cyan-400 uppercase text-[10px] tracking-wider">${t.name}</h4>
+                    <span class="font-mono font-black text-white text-xs">${t.score}/${t.wickets} <span class="text-[10px] text-gray-500 font-normal">(${Math.floor(t.balls/6)}.${t.balls%6})</span></span>
+                </div>
+                <div class="space-y-1.5">
+                    ${t.players.filter(p => p.balls > 0 || !p.isOut).map((p, pIdx) => {
+                        const sr = ((p.runs / (p.balls || 1)) * 100).toFixed(1);
+                        const isAtCrease = isBatting && (pIdx === match.strikerIdx || pIdx === match.nonStrikerIdx);
+                        return `<div class="flex justify-between text-[11px] md:text-xs py-1 border-b border-white/5 last:border-0 ${p.isOut ? 'opacity-40 line-through' : (isAtCrease ? 'text-orange-400 font-black' : 'text-gray-300')}">
+                            <span class="truncate pr-2">${isAtCrease ? '* ' : ''}${p.name}</span>
+                            <span class="shrink-0 font-mono">${p.runs}(${p.balls}) <span class="hidden sm:inline text-[9px] opacity-40">SR: ${sr}</span></span>
+                        </div>`;
+                    }).join('')}
+                </div>
+                <div class="mt-4 pt-3 border-t border-white/5 text-[11px] md:text-xs text-gray-500">
+                    <p class="font-black uppercase mb-2 tracking-widest text-[9px] text-gray-600">Bowling Performance</p>
+                    ${t.players.filter(p => p.ballsBowled > 0).map(p => `
+                        <div class="flex justify-between py-0.5">
+                            <span class="truncate pr-2">${p.name}</span>
+                            <span class="shrink-0 font-mono text-gray-400">${p.wickets}-${p.runsConceded} <span class="text-[9px] opacity-60">(${Math.floor(p.ballsBowled/6)}.${p.ballsBowled%6})</span></span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 async function saveCricketSetup() {
@@ -6400,8 +6655,9 @@ function renderCricketHistoryList() {
                         <p class="text-xl font-black">${tB.score ?? 0}/${tB.wickets ?? 0}</p>
                     </div>
                 </div>
-                <div class="text-center p-2 bg-black/20 rounded-lg text-xs font-bold text-gray-300 mb-4">
+                <div class="text-center p-2 bg-black/20 rounded-lg text-[10px] md:text-xs font-bold text-gray-300 mb-4">
                     ${m.result || 'Match Completed'}
+                    ${m.aiSummary ? `<p class="mt-1 text-[8px] text-gray-500 italic font-medium">"${m.aiSummary}"</p>` : ''}
                 </div>
                 <button onclick="event.stopPropagation(); viewMatchDetail(${idx})" class="w-full py-2 text-xs bg-white/5 rounded-lg hover:bg-white/10 transition">Deep Dive</button>
             </div>
@@ -6470,54 +6726,7 @@ function closeMatchDetail() {
     document.getElementById('matchDetailModal').classList.add('hidden');
 }
 
-function updateCricketUI() {
-    const team = match.teams[match.currentInnings];
-    const crr = (team.score / (team.balls / 6 || 1)).toFixed(2);
-    document.getElementById('battingTeamName').innerText = team.name;
-    document.getElementById('score').innerText = `${team.score}/${team.wickets}`;
-    document.getElementById('overs').innerText = `${Math.floor(team.balls/6)}.${team.balls%6}`;
-    
-    let statsText = `CRR: ${crr}`;
-    if (match.target) {
-        const remainingBalls = (match.maxOvers * 6) - team.balls;
-        const runsNeeded = match.target - team.score;
-        const rrr = remainingBalls > 0 ? ((runsNeeded / remainingBalls) * 6).toFixed(2) : '0.00';
-        statsText += ` | RRR: ${rrr}`;
-        document.getElementById('targetDisplay').innerText = `Target: ${match.target} (Need ${runsNeeded} off ${remainingBalls} balls)`;
-    } else {
-        document.getElementById('targetDisplay').innerText = '';
-    }
-    
-    document.getElementById('battingPartnership').innerText = statsText;
-    
-    const hist = document.getElementById('cricketHistory');
-    hist.innerHTML = team.history.slice(-12).map(r => `<span class="w-8 h-8 rounded-full flex items-center justify-center text-xs ${r === 'W' ? 'bg-red-600' : 'bg-gray-700'}">${r}</span>`).join('');
 
-    const scorecard = document.getElementById('liveScorecard');
-    scorecard.innerHTML = match.teams.map(t => `
-        <div class="mb-6 bg-white/5 p-3 rounded-lg">
-            <h4 class="font-bold text-cyan-400 border-b border-white/10 mb-2">${t.name} ${t.score}/${t.wickets} (${(t.balls/6).toFixed(1)} ov)</h4>
-            <div class="space-y-1">
-                ${t.players.filter(p => p.balls > 0 || !p.isOut).map(p => {
-                    const sr = ((p.runs / (p.balls || 1)) * 100).toFixed(1);
-                    return `<div class="flex justify-between text-[10px] ${p.isOut ? 'opacity-50' : 'text-white'}">
-                        <span>${p.name}${p.isOut ? ' (out)' : ''}</span>
-                        <span>${p.runs}(${p.balls}) SR: ${sr}</span>
-                    </div>`;
-                }).join('')}
-            </div>
-            <div class="mt-2 pt-2 border-t border-white/5 text-[10px] text-gray-400">
-                <p class="font-bold mb-1">Bowling</p>
-                ${t.players.filter(p => p.ballsBowled > 0).map(p => `
-                    <div class="flex justify-between">
-                        <span>${p.name}</span>
-                        <span>${p.wickets}-${p.runsConceded} (${Math.floor(p.ballsBowled/6)}.${p.ballsBowled%6})</span>
-                    </div>
-                `).join('')}
-            </div>
-        </div>
-    `).join('');
-}
 
 // --- SUPPORT & RAZORPAY ---
 async function payNow() {
@@ -7375,6 +7584,8 @@ function setActiveTimeModalTab(tabId) {
 }
 
 // --- Modal Stopwatch Functions ---
+let stopwatchLaps = [];
+
 function updateModalStopwatchDisplay() {
     const format = (s) => {
         const hrs = Math.floor(s / 3600);
@@ -7387,10 +7598,8 @@ function updateModalStopwatchDisplay() {
 
 function startModalStopwatch() {
     if (modalStopwatchInterval) return;
-
     document.getElementById('modalStopwatchStartBtn').classList.add('hidden');
     document.getElementById('modalStopwatchPauseBtn').classList.remove('hidden');
-
     modalStopwatchInterval = setInterval(() => {
         modalStopwatchTime++;
         updateModalStopwatchDisplay();
@@ -7408,20 +7617,45 @@ function pauseModalStopwatch() {
 function resetModalStopwatch() {
     pauseModalStopwatch();
     modalStopwatchTime = 0;
+    stopwatchLaps = [];
     updateModalStopwatchDisplay();
+    renderStopwatchLaps();
     localStorage.removeItem('modalStopwatchTime');
+    localStorage.removeItem('modalStopwatchLaps');
     showToast("Stopwatch reset.", "warning");
+}
+
+function addStopwatchLap() {
+    const format = (s) => {
+        const hrs = Math.floor(s / 3600);
+        const mins = Math.floor((s % 3600) / 60);
+        const secs = s % 60;
+        return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+    stopwatchLaps.unshift({ id: Date.now(), time: format(modalStopwatchTime) });
+    localStorage.setItem('modalStopwatchLaps', JSON.stringify(stopwatchLaps));
+    renderStopwatchLaps();
+    if (window.navigator.vibrate) window.navigator.vibrate(10);
+}
+
+function renderStopwatchLaps() {
+    const list = document.getElementById('stopwatchLaps');
+    if (!list) return;
+    list.innerHTML = stopwatchLaps.map((lap, i) => `
+        <div class="flex justify-between items-center px-4 py-2 bg-white/5 rounded-lg border border-white/5 animate-fadeIn">
+            <span class="text-[10px] font-black text-gray-500 uppercase tracking-widest">LAP ${stopwatchLaps.length - i}</span>
+            <span class="text-xs font-mono text-purple-400 font-bold">${lap.time}</span>
+        </div>
+    `).join('');
 }
 
 function renderModalStopwatch() {
     const savedTime = localStorage.getItem('modalStopwatchTime');
-    if (savedTime !== null) {
-        modalStopwatchTime = parseInt(savedTime);
-    } else {
-        modalStopwatchTime = 0;
-    }
+    const savedLaps = localStorage.getItem('modalStopwatchLaps');
+    modalStopwatchTime = savedTime ? parseInt(savedTime) : 0;
+    stopwatchLaps = savedLaps ? JSON.parse(savedLaps) : [];
     updateModalStopwatchDisplay();
-    // Ensure buttons are in correct state based on whether interval is active
+    renderStopwatchLaps();
     if (modalStopwatchInterval) {
         document.getElementById('modalStopwatchStartBtn').classList.add('hidden');
         document.getElementById('modalStopwatchPauseBtn').classList.remove('hidden');
@@ -7516,78 +7750,56 @@ function renderModalTimer() {
 }
 
 // --- Alarm Clock Functions ---
-function loadAlarms() {
-    const savedAlarms = localStorage.getItem('alarms');
-    if (savedAlarms) {
-        alarms = JSON.parse(savedAlarms);
-        alarms.forEach(alarm => alarm.days = new Set(alarm.days)); // Re-hydrate Set
+async function loadAlarms() {
+    if (currentUser) {
+        try {
+            const res = await fetch(`/api/main?route=alarms&userId=${encodeURIComponent(currentUser.email)}`);
+            const data = await res.json();
+            alarms = Array.isArray(data) ? data : [];
+            alarms.forEach(a => a.days = new Set(a.days));
+        } catch (e) { console.warn("Cloud alarm load failed."); }
     } else {
-        alarms = [];
+        const saved = localStorage.getItem('alarms');
+        alarms = saved ? JSON.parse(saved) : [];
+        alarms.forEach(a => a.days = new Set(a.days));
     }
     renderAlarms();
-    checkAlarms(); // Start checking alarms
+    if (!alarmCheckInterval) checkAlarms();
 }
 
-function addAlarm() {
-    const timeInput = document.getElementById('newAlarmTime');
-    const labelInput = document.getElementById('newAlarmLabel');
-    const dayCheckboxes = document.querySelectorAll('.modal-alarm-day:checked');
+async function syncAlarmsToCloud() {
+    if (!currentUser) {
+        localStorage.setItem('alarms', JSON.stringify(alarms, (k, v) => v instanceof Set ? Array.from(v) : v));
+        return;
+    }
+    await fetch(`/api/main?route=alarms&userId=${encodeURIComponent(currentUser.email)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 'user_alarms', list: alarms.map(a => ({...a, days: Array.from(a.days)})) })
+    });
+}
 
-    const time = timeInput.value;
-    const label = labelInput.value.trim() || 'Alarm';
-    const days = new Set(Array.from(dayCheckboxes).map(cb => parseInt(cb.value)));
-
-    if (!time) return showToast("Please set a time for the alarm.", "error");
-
-    const newAlarm = {
-        id: Date.now(),
-        time, // "HH:MM"
-        label,
-        days, // Set of 0-6 (Sunday-Saturday)
-        enabled: true,
-        lastTriggered: null // To prevent immediate re-triggering if already past for the day
-    };
-    
-    alarms.push(newAlarm);
-    localStorage.setItem('alarms', JSON.stringify(alarms, (key, value) => {
-        if (value instanceof Set) {
-            return Array.from(value); // Convert Set to Array for JSON serialization
-        }
-        return value;
-    }));
+async function addAlarm() {
+    const time = document.getElementById('newAlarmTime').value;
+    if (!time) return showToast("Time required.", "error");
+    const label = document.getElementById('newAlarmLabel').value.trim() || 'Alarm';
+    const days = new Set(Array.from(document.querySelectorAll('.modal-alarm-day:checked')).map(cb => parseInt(cb.value)));
+    alarms.push({ id: Date.now(), time, label, days, enabled: true, lastTriggered: null });
     renderAlarms();
-    timeInput.value = '';
-    labelInput.value = '';
-    dayCheckboxes.forEach(cb => cb.checked = false);
-    showToast(`Alarm "${label}" set for ${time}.`, "success");
+    await syncAlarmsToCloud();
+    showToast(`Alarm "${label}" set.`, "success");
 }
 
-function toggleAlarm(id) {
+async function toggleAlarm(id) {
     const alarm = alarms.find(a => a.id === id);
-    if (alarm) {
-        alarm.enabled = !alarm.enabled;
-        localStorage.setItem('alarms', JSON.stringify(alarms, (key, value) => {
-            if (value instanceof Set) {
-                return Array.from(value);
-            }
-            return value;
-        }));
-        renderAlarms();
-        showToast(`Alarm "${alarm.label}" ${alarm.enabled ? 'enabled' : 'disabled'}.`, "info");
-    }
+    if (alarm) { alarm.enabled = !alarm.enabled; renderAlarms(); await syncAlarmsToCloud(); }
 }
 
-function deleteAlarm(id) {
-    if (!confirm("Delete this alarm?")) return;
+async function deleteAlarm(id) {
+    if (!confirm("Delete alarm?")) return;
     alarms = alarms.filter(a => a.id !== id);
-    localStorage.setItem('alarms', JSON.stringify(alarms, (key, value) => {
-        if (value instanceof Set) {
-            return Array.from(value);
-        }
-        return value;
-    }));
     renderAlarms();
-    showToast("Alarm deleted.", "warning");
+    await syncAlarmsToCloud();
 }
 
 function renderAlarms() {
@@ -7685,35 +7897,43 @@ function populateTimezoneDropdown() {
     select.innerHTML = commonTimezones.map(tz => `<option value="${tz.value}">${tz.name}</option>`).join('');
 }
 
-function loadWorldClocks() {
-    const savedWorldClocks = localStorage.getItem('worldClocks');
-    if (savedWorldClocks) {
-        worldClocks = JSON.parse(savedWorldClocks);
+async function loadWorldClocks() {
+    if (currentUser) {
+        try {
+            const res = await fetch(`/api/main?route=world_clocks&userId=${encodeURIComponent(currentUser.email)}`);
+            const data = await res.json();
+            worldClocks = Array.isArray(data) ? data : [];
+        } catch (e) { console.warn("Cloud clocks load failed."); }
     } else {
-        worldClocks = [];
+        const saved = localStorage.getItem('worldClocks');
+        worldClocks = saved ? JSON.parse(saved) : [];
     }
     renderWorldClocks();
 }
 
-function addWorldClock() {
-    const select = document.getElementById('newWorldClockTimezone');
-    const newTz = select.value;
+async function syncWorldClocksToCloud() {
+    if (!currentUser) { localStorage.setItem('worldClocks', JSON.stringify(worldClocks)); return; }
+    await fetch(`/api/main?route=world_clocks&userId=${encodeURIComponent(currentUser.email)}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 'user_world_clocks', list: worldClocks })
+    });
+}
+
+async function addWorldClock() {
+    const newTz = document.getElementById('newWorldClockTimezone').value;
     if (newTz && !worldClocks.includes(newTz)) {
-        worldClocks.push(newTz);
-        localStorage.setItem('worldClocks', JSON.stringify(worldClocks));
-        renderWorldClocks();
-        showToast(`${commonTimezones.find(t => t.value === newTz)?.name || newTz} added.`, "success");
-    } else {
-        showToast("Timezone already added or invalid.", "warning");
+        worldClocks.push(newTz); renderWorldClocks(); await syncWorldClocksToCloud();
     }
 }
 
-function deleteWorldClock(timezone) {
-    if (!confirm(`Remove ${commonTimezones.find(t => t.value === timezone)?.name || timezone}?`)) return;
-    worldClocks = worldClocks.filter(tz => tz !== timezone);
-    localStorage.setItem('worldClocks', JSON.stringify(worldClocks));
-    renderWorldClocks();
-    showToast("Timezone removed.", "warning");
+async function deleteWorldClock(timezone) {
+    if (!confirm("Remove clock?")) return;
+    worldClocks = worldClocks.filter(tz => tz !== timezone); renderWorldClocks(); await syncWorldClocksToCloud();
+}
+
+async function exportCalendarReport() {
+    if (calendarEvents.length === 0) return showToast("No events to export.", "warning");
+    await exportData('calendar_event_report', Date.now(), 'pdf', calendarEvents);
 }
 
 function renderWorldClocks() {
@@ -8107,26 +8327,42 @@ const SOLVE_BUTTONS = {
     pro: [
         { label: 'C', cmd: 'clear', class: 'text-red-400' },
         { label: '(', cmd: '(' }, { label: ')', cmd: ')' },
-        { label: 'MOD', cmd: '%' },
-        { label: 'DEL', cmd: 'backspace', class: 'text-orange-400' },
+        { label: '%', cmd: '%' },
+        { label: '⌫', cmd: 'backspace', class: 'text-orange-400' },
         
-        { label: 'sin', cmd: 'sin(' }, { label: 'cos', cmd: 'cos(' }, { label: 'tan', cmd: 'tan(' }, { label: 'π', cmd: 'pi' }, { label: '÷', cmd: '/', class: 'text-emerald-400' },
+        { label: 'sin', cmd: 'sin(' }, { label: 'cos', cmd: 'cos(' }, { label: 'tan', cmd: 'tan(' }, { label: 'π', cmd: 'pi' }, { label: '÷', cmd: '/', class: 'text-emerald-400 font-black' },
         
-        { label: 'log', cmd: 'log(' }, { label: 'ln', cmd: 'log(' }, { label: '√', cmd: 'sqrt(' }, { label: '^', cmd: '^' }, { label: '×', cmd: '*', class: 'text-emerald-400' },
+        { label: 'log', cmd: 'log(' }, { label: '√', cmd: 'sqrt(' }, { label: '^', cmd: '^' }, { label: 'abs', cmd: 'abs(' }, { label: '×', cmd: '*', class: 'text-emerald-400 font-black' },
         
-        { label: '7', cmd: '7' }, { label: '8', cmd: '8' }, { label: '9', cmd: '9' }, { label: '!', cmd: '!' }, { label: '-', cmd: '-', class: 'text-emerald-400' },
+        { label: '7', cmd: '7', class: 'text-white' }, { label: '8', cmd: '8', class: 'text-white' }, { label: '9', cmd: '9', class: 'text-white' }, { label: '!', cmd: '!' }, { label: '-', cmd: '-', class: 'text-emerald-400 font-black' },
         
-        { label: '4', cmd: '4' }, { label: '5', cmd: '5' }, { label: '6', cmd: '6' }, { label: 'e', cmd: 'e' }, { label: '+', cmd: '+', class: 'text-emerald-400' },
+        { label: '4', cmd: '4', class: 'text-white' }, { label: '5', cmd: '5', class: 'text-white' }, { label: '6', cmd: '6', class: 'text-white' }, { label: 'e', cmd: 'e' }, { label: '+', cmd: '+', class: 'text-emerald-400 font-black' },
         
-        { label: '1', cmd: '1' }, { label: '2', cmd: '2' }, { label: '3', cmd: '3' }, { label: 'ANS', cmd: 'ans' }, { label: '=', cmd: 'equal', class: 'bg-emerald-600 text-white' },
+        { label: '1', cmd: '1', class: 'text-white' }, { label: '2', cmd: '2', class: 'text-white' }, { label: '3', cmd: '3', class: 'text-white' }, { label: 'ANS', cmd: 'ans' }, { label: '=', cmd: 'equal', class: 'bg-emerald-600 text-white border-emerald-400' },
         
-        { label: '0', cmd: '0' }, { label: '00', cmd: '00' }, { label: '.', cmd: '.' }, { label: 'unit', cmd: 'unit(' }, { label: 'matrix', cmd: '[[]]' }
+        { label: '0', cmd: '0', class: 'text-white' }, { label: '.', cmd: '.', class: 'text-white' }, { label: 'exp', cmd: 'exp(' }, { label: 'unit', cmd: 'unit(' }, { label: '[mat]', cmd: '[[]]' }
     ]
 };
 
 function initSolveInterface() {
+    const pad = document.getElementById('solvePad');
+    if (pad) {
+        // Dynamically adjust grid columns based on mode to ensure buttons align correctly
+        if (solveState.mode === 'pro') {
+            pad.style.gridTemplateColumns = 'repeat(5, minmax(0, 1fr))';
+        } else {
+            pad.style.gridTemplateColumns = 'repeat(4, minmax(0, 1fr))';
+        }
+    }
     renderSolvePad();
-    document.getElementById('solveModeBadge').innerText = solveState.mode === 'pro' ? 'PRO MODE' : 'SIMPLE MODE';
+    const badge = document.getElementById('solveModeBadge');
+    if (badge) {
+        badge.innerText = solveState.mode === 'pro' ? 'PRO MODE' : 'SIMPLE MODE';
+        badge.className = `text-[8px] font-black ${solveState.mode === 'pro' ? 'bg-emerald-600' : 'bg-blue-600'} text-white px-2 py-0.5 rounded tracking-widest uppercase`;
+    }
+    // Refresh autoResize for the AI input in case it was toggled
+    const aiInput = document.getElementById('solveAIInput');
+    if (aiInput) autoResize(aiInput);
 }
 
 function renderSolvePad() {
@@ -8317,7 +8553,8 @@ async function askSolveAI(customPrompt = null) {
     const userMsg = query + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
     appendAIMessage('user', userMsg, 'solveAIChat');
     inputEl.value = '';
-    [document.getElementById('aiAttachmentPreview'), document.getElementById('miniAttachmentPreview'), document.getElementById('codeAttachmentPreview'), document.getElementById('solveAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
+    autoResize(inputEl); // Reset height after sending
+    [document.getElementById('aiAttachmentPreview'), document.getElementById('miniChatAttachmentPreview'), document.getElementById('codeAttachmentPreview'), document.getElementById('solveAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
 
     const model = document.getElementById('solveModelSelect').value;
     
@@ -9665,6 +9902,7 @@ function openTimeModal() {
     selectCalendarDate(new Date().toISOString().split('T')[0]);
     
     renderCalendar();
+    initAnalogClockTicks(); // Add visual ticks to the analog face
     populateTimezoneDropdown(); // Populate dropdown for world clocks
 
     // Initialize all modal states
@@ -9736,7 +9974,8 @@ function changeMonth(delta) {
 function renderCalendar() {
     const grid = document.getElementById('calendarGrid');
     const header = document.getElementById('calMonthYear');
-    
+    if (!grid) return;
+
     const year = calendarDate.getFullYear();
     const month = calendarDate.getMonth();
     
@@ -9750,22 +9989,33 @@ function renderCalendar() {
     
     // Prev Month Padding
     for (let i = firstDay; i > 0; i--) {
-        html += `<div class="cal-day other-month">${daysInPrevMonth - i + 1}</div>`;
+        html += `<div class="cal-day other-month opacity-20 cursor-default">${daysInPrevMonth - i + 1}</div>`;
     }
     
     // Current Month
     const today = new Date();
     for (let i = 1; i <= daysInMonth; i++) {
-        const dateString = new Date(year, month, i).toISOString().split('T')[0]; // YYYY-MM-DD
-        const isToday = today.getDate() === i && today.getMonth() === month && today.getFullYear() === year;
-        const isSelected = selectedCalendarDate.toDateString() === new Date(year, month, i).toDateString();
+        const currentDate = new Date(year, month, i);
+        const dateString = `${year}-${(month + 1).toString().padStart(2, '0')}-${i.toString().padStart(2, '0')}`;
         
-        const hasEvent = calendarEvents.some(event => {
+        const isToday = today.getDate() === i && today.getMonth() === month && today.getFullYear() === year;
+        const isSelected = selectedCalendarDate.toDateString() === currentDate.toDateString();
+        
+        const dayEvents = calendarEvents.filter(event => {
             const eventDate = new Date(event.date);
             return eventDate.getFullYear() === year && eventDate.getMonth() === month && eventDate.getDate() === i;
         });
+
+        const hasEvent = dayEvents.length > 0;
+        const eventCountTag = dayEvents.length > 1 ? `<span class="absolute top-1 right-1 text-[7px] bg-cyan-500 text-white w-3 h-3 rounded-full flex items-center justify-center font-black">${dayEvents.length}</span>` : '';
         
-        html += `<div class="cal-day active-month ${isToday ? 'today' : ''} ${isSelected ? 'selected-date' : ''} ${hasEvent ? 'has-event' : ''}" onclick="selectCalendarDate('${dateString}')">${i}</div>`;
+        html += `
+            <div class="cal-day active-month relative ${isToday ? 'today scale-105 z-10' : ''} ${isSelected ? 'selected-date' : ''} ${hasEvent ? 'has-event' : ''}" 
+                 onclick="selectCalendarDate('${dateString}')"
+                 title="${dayEvents.length} event(s)">
+                ${i}
+                ${eventCountTag}
+            </div>`;
     }
     
     // Next Month Padding
@@ -9773,10 +10023,28 @@ function renderCalendar() {
     const consumed = firstDay + daysInMonth;
     const remaining = totalCells - consumed;
     for (let i = 1; i <= remaining; i++) {
-        html += `<div class="cal-day other-month">${i}</div>`;
+        html += `<div class="cal-day other-month opacity-20 cursor-default">${i}</div>`;
     }
     
     grid.innerHTML = html;
+}
+
+function initAnalogClockTicks() {
+    const clock = document.getElementById('displayAnalog');
+    if (!clock || clock.querySelector('.analog-tick')) return;
+
+    for (let i = 0; i < 60; i++) {
+        const tick = document.createElement('div');
+        const isMajor = i % 5 === 0;
+        tick.className = `analog-tick ${isMajor ? 'major' : 'minor'}`;
+        tick.style.transform = `translate(-50%, -100%) rotate(${i * 6}deg) translateY(-${isMajor ? 135 : 140}px)`;
+        // Recalculate based on container size for true responsiveness if needed, 
+        // currently using fixed relative offsets based on 320px diameter (160px radius)
+        const radius = clock.offsetWidth / 2;
+        const offset = isMajor ? radius * 0.88 : radius * 0.92;
+        tick.style.transform = `translate(-50%, -100%) rotate(${i * 6}deg) translateY(-${offset}px)`;
+        clock.appendChild(tick);
+    }
 }
 
 if (document.readyState === 'loading') {
