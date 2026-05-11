@@ -1114,6 +1114,52 @@
                             <button onclick="toggleZenBreath(this)" class="w-full bg-teal-600 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-teal-500 transition-all shadow-lg shadow-teal-600/20">Begin Cycle</button>
                         </div>
 
+                        <!-- Ambient Atmosphere (Mixer) -->
+                        <div class="glass p-6 group hover:border-blue-400/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Atmosphere</h3>
+                                <p class="text-[10px] text-gray-500 mb-6 uppercase">Multi-track ambient synthesis</p>
+                                
+                                <div class="space-y-4">
+                                    <!-- Rain -->
+                                    <div class="flex items-center gap-3">
+                                        <button onclick="toggleAmbientSound('rain', this)" class="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xs text-gray-500 hover:text-cyan-400 transition-all" title="Toggle Rain"><i class="fas fa-cloud-showers-heavy"></i></button>
+                                        <div class="flex-grow">
+                                            <div class="flex justify-between mb-1"><span class="text-[8px] font-black text-gray-500 uppercase">Rain</span><span class="text-[8px] font-mono text-cyan-400" id="volVal_rain">50%</span></div>
+                                            <input type="range" min="0" max="1" step="0.01" value="0.5" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-cyan-500" oninput="updateAmbientVolume('rain', this.value)">
+                                        </div>
+                                    </div>
+                                    <!-- Forest -->
+                                    <div class="flex items-center gap-3">
+                                        <button onclick="toggleAmbientSound('forest', this)" class="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xs text-gray-500 hover:text-emerald-400 transition-all" title="Toggle Forest"><i class="fas fa-tree"></i></button>
+                                        <div class="flex-grow">
+                                            <div class="flex justify-between mb-1"><span class="text-[8px] font-black text-gray-500 uppercase">Forest</span><span class="text-[8px] font-mono text-emerald-400" id="volVal_forest">50%</span></div>
+                                            <input type="range" min="0" max="1" step="0.01" value="0.5" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-emerald-500" oninput="updateAmbientVolume('forest', this.value)">
+                                        </div>
+                                    </div>
+                                    <!-- Ocean -->
+                                    <div class="flex items-center gap-3">
+                                        <button onclick="toggleAmbientSound('ocean', this)" class="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xs text-gray-500 hover:text-blue-400 transition-all" title="Toggle Ocean"><i class="fas fa-water"></i></button>
+                                        <div class="flex-grow">
+                                            <div class="flex justify-between mb-1"><span class="text-[8px] font-black text-gray-500 uppercase">Waves</span><span class="text-[8px] font-mono text-blue-400" id="volVal_ocean">50%</span></div>
+                                            <input type="range" min="0" max="1" step="0.01" value="0.5" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500" oninput="updateAmbientVolume('ocean', this.value)">
+                                        </div>
+                                    </div>
+                                    <!-- Fire -->
+                                    <div class="flex items-center gap-3">
+                                        <button onclick="toggleAmbientSound('fire', this)" class="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-xs text-gray-500 hover:text-orange-400 transition-all" title="Toggle Fire"><i class="fas fa-fire"></i></button>
+                                        <div class="flex-grow">
+                                            <div class="flex justify-between mb-1"><span class="text-[8px] font-black text-gray-500 uppercase">Crackle</span><span class="text-[8px] font-mono text-orange-400" id="volVal_fire">50%</span></div>
+                                            <input type="range" min="0" max="1" step="0.01" value="0.5" class="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-orange-500" oninput="updateAmbientVolume('fire', this.value)">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="pt-4 border-t border-white/5">
+                                <button onclick="stopAllAmbient()" class="w-full bg-white/5 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-red-600/20 hover:text-red-400 transition-all border border-white/10">Silence Atmosphere</button>
+                            </div>
+                        </div>
+
                         <!-- Reaction Ninja -->
                         <div class="glass p-6 group hover:border-amber-500/50 transition-all flex flex-col justify-between relative min-h-[18rem]">
                             <div>
@@ -1191,7 +1237,6 @@
                             <div class="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity">
                                 <canvas id="funCanvas" class="w-full h-full"></canvas>
                             </div>
-                            <!-- Added pointer-events-none to ensure clicks pass through to the canvas -->
                             <div class="relative z-10 pointer-events-none">
                                 <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Particle Void</h3>
                                 <p class="text-[10px] text-gray-500 mb-6 uppercase">Touch the canvas to create life</p>
@@ -1201,6 +1246,194 @@
                             </div>
                             <button onclick="clearParticleVoid()" class="bg-indigo-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20 relative z-20 pointer-events-auto">Reset Canvas</button>
                         </div>
+
+                        <!-- Memory Matrix -->
+                        <div class="glass p-6 group hover:border-blue-500/50 transition-all flex flex-col justify-between min-h-[18rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Memory Matrix</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Recall the sequence</p>
+                                <div id="memoryGrid" class="grid grid-cols-3 gap-2 aspect-square max-w-[150px] mx-auto opacity-50 pointer-events-none">
+                                    <!-- 9 squares generated via JS -->
+                                    <div class="memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square"></div><div class="memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square"></div><div class="memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square"></div>
+                                    <div class="memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square"></div><div class="memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square"></div><div class="memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square"></div>
+                                    <div class="memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square"></div><div class="memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square"></div><div class="memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square"></div>
+                                </div>
+                            </div>
+                            <button id="memoryStartBtn" onclick="startMemoryMatrix()" class="bg-blue-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-blue-500 transition shadow-lg shadow-blue-600/20">Engage</button>
+                        </div>
+
+                        <!-- Pattern Pulse -->
+                        <div class="glass p-6 group hover:border-emerald-500/50 transition-all flex flex-col justify-between min-h-[18rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Pattern Pulse</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Match the rhythm</p>
+                                <div class="relative h-20 bg-black/20 rounded-xl flex items-center justify-center overflow-hidden mb-4">
+                                    <div id="pulseBar" class="absolute left-0 top-0 bottom-0 bg-emerald-500/20 w-0"></div>
+                                    <div id="pulseIndicator" class="w-4 h-4 rounded-full bg-emerald-500 shadow-[0_0_15px_#10b981] opacity-0"></div>
+                                </div>
+                            </div>
+                            <button onmousedown="handlePulseTap()" id="pulseBtn" class="bg-emerald-600 w-full py-8 rounded-2xl font-black uppercase tracking-widest hover:bg-emerald-500 transition shadow-lg shadow-emerald-600/20">TAP BEAT</button>
+                        </div>
+
+                        <!-- Color Mixer -->
+                        <div class="glass p-6 group hover:border-orange-500/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Color Mixer</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Match the target</p>
+                                <div class="flex gap-4 mb-4">
+                                    <div class="flex-1 text-center">
+                                        <div id="mixerTarget" class="w-full h-16 rounded-xl border border-white/10"></div>
+                                        <p class="text-[8px] text-gray-500 mt-1">TARGET</p>
+                                    </div>
+                                    <div class="flex-1 text-center">
+                                        <div id="mixerUser" class="w-full h-16 rounded-xl border border-white/10" style="background-color: rgb(127,127,127)"></div>
+                                        <p class="text-[8px] text-gray-500 mt-1">YOURS</p>
+                                    </div>
+                                </div>
+                                <div class="space-y-2">
+                                    <input type="range" min="0" max="255" value="127" class="w-full accent-red-500 h-1" oninput="updateMixer('r', this.value)">
+                                    <input type="range" min="0" max="255" value="127" class="w-full accent-green-500 h-1" oninput="updateMixer('g', this.value)">
+                                    <input type="range" min="0" max="255" value="127" class="w-full accent-blue-500 h-1" oninput="updateMixer('b', this.value)">
+                                </div>
+                            </div>
+                            <button id="mixerBtn" onclick="startColorMixer()" class="bg-orange-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-orange-500 transition shadow-lg shadow-orange-600/20">Compare</button>
+                        </div>
+
+                        <!-- Zen Typing -->
+                        <div class="glass p-6 group hover:border-cyan-400/50 transition-all flex flex-col justify-between min-h-[18rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Zen Typing</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Flow with the letters</p>
+                                <div id="zenTypingArea" class="bg-black/20 p-4 rounded-xl border border-white/5 mb-4 min-h-[80px]">
+                                    <p id="zenSentence" class="text-xs text-gray-500 italic">Press start to begin...</p>
+                                </div>
+                                <input id="zenTypingInput" type="text" class="w-full bg-gray-900 border border-white/10 p-2 rounded text-xs hidden" oninput="checkZenTyping(this.value)">
+                            </div>
+                            <button id="zenTypingBtn" onclick="startZenTyping()" class="bg-cyan-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20">Begin Flow</button>
+                        </div>
+
+                        <!-- Word Scramble -->
+                        <div class="glass p-6 group hover:border-yellow-500/50 transition-all flex flex-col justify-between min-h-[18rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Word Scramble</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Daily Linguistic Challenge</p>
+                                <div class="bg-black/20 p-6 rounded-xl border border-white/5 mb-4 text-center">
+                                    <p id="scrambledWord" class="text-2xl font-black tracking-[0.2em] text-yellow-400">-----</p>
+                                </div>
+                                <input id="scrambleInput" type="text" placeholder="Your answer..." class="w-full bg-gray-900 border border-white/10 p-2 rounded text-xs hidden">
+                            </div>
+                            <button id="scrambleBtn" onclick="startScramble()" class="bg-yellow-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-yellow-500 transition shadow-lg shadow-yellow-600/20">Decrypt</button>
+                        </div>
+
+                        <!-- Emoji Match-3 -->
+                        <div class="glass p-6 group hover:border-rose-400/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Emoji Match-3</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">Casual swap & pop</p>
+                                <div id="emojiGrid" class="grid grid-cols-5 gap-1 mx-auto aspect-square max-w-[200px]">
+                                    <!-- Grid generated via JS -->
+                                </div>
+                            </div>
+                            <button onclick="initEmojiMatch()" class="bg-rose-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-rose-500 transition shadow-lg shadow-rose-600/20">New Game</button>
+                        </div>
+
+                        <!-- AI Riddle -->
+                        <div class="glass p-6 group hover:border-purple-500/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">"What Am I?"</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">AI Generated Riddles</p>
+                                <div class="bg-black/20 p-4 rounded-xl border border-white/5 mb-4 min-h-[100px] flex items-center justify-center">
+                                    <p id="riddleText" class="text-xs italic text-purple-300 text-center">Tap to consult the Sphinx...</p>
+                                </div>
+                                <div id="riddleInputArea" class="hidden">
+                                    <input id="riddleInput" type="text" placeholder="Solve me..." class="w-full bg-gray-900 border border-white/10 p-2 rounded text-xs">
+                                </div>
+                            </div>
+                            <button id="riddleBtn" onclick="generateRiddle()" class="bg-purple-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-purple-500 transition shadow-lg shadow-purple-600/20">Summon Riddle</button>
+                        </div>
+
+                        <!-- Number Guessing (AI) -->
+                        <div class="glass p-6 group hover:border-cyan-500/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Neural Guess</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">AI Hidden Logic</p>
+                                <div class="bg-black/20 p-4 rounded-xl border border-white/5 mb-4 text-center">
+                                    <p id="numGuessStatus" class="text-xs text-gray-400 mb-2">I am thinking of a number between 1 and 100.</p>
+                                    <div id="guessHistory" class="flex flex-wrap gap-1 justify-center min-h-[20px]"></div>
+                                </div>
+                                <div id="guessInputArea" class="hidden">
+                                    <input id="guessInput" type="number" placeholder="Enter guess..." class="w-full bg-gray-900 border border-white/10 p-2 rounded text-xs">
+                                </div>
+                            </div>
+                            <button id="guessBtn" onclick="startNumGuess()" class="bg-cyan-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-cyan-500 transition shadow-lg shadow-cyan-600/20">Start Neural Hunt</button>
+                        </div>
+
+                        <!-- AI Story Generator -->
+                        <div class="glass p-6 group hover:border-blue-400/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Story Weaver</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">AI Generative Narrative</p>
+                                <div class="bg-black/20 p-4 rounded-xl border border-white/5 mb-4 min-h-[120px] max-h-[180px] overflow-y-auto custom-scrollbar">
+                                    <p id="storyOutput" class="text-xs text-gray-400 italic">Enter keywords to forge a tale...</p>
+                                </div>
+                                <input id="storyKeywords" type="text" placeholder="e.g. cat, moon, pizza" class="w-full bg-gray-900 border border-white/10 p-2 rounded text-xs">
+                            </div>
+                            <button id="storyBtn" onclick="generateStory()" class="bg-blue-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-blue-500 transition shadow-lg shadow-blue-600/20">Weave Tale</button>
+                        </div>
+
+                        <!-- AI Character Creator -->
+                        <div class="glass p-6 group hover:border-emerald-400/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Persona Forge</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">AI Character Smith</p>
+                                <div class="bg-black/20 p-4 rounded-xl border border-white/5 mb-4 min-h-[120px] max-h-[180px] overflow-y-auto custom-scrollbar">
+                                    <div id="characterOutput" class="text-xs text-gray-400 italic">Describe a soul to manifest...</div>
+                                </div>
+                                <input id="charTraits" type="text" placeholder="e.g. grumpy wizard, space chef" class="w-full bg-gray-900 border border-white/10 p-2 rounded text-xs">
+                            </div>
+                            <button id="charBtn" onclick="createCharacter()" class="bg-emerald-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-emerald-500 transition shadow-lg shadow-emerald-600/20">Forge Persona</button>
+                        </div>
+
+                        <!-- AI Compliment Generator -->
+                        <div class="glass p-6 group hover:border-pink-400/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Soul Spark</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">AI Uplift Engine</p>
+                                <div class="bg-black/20 p-6 rounded-2xl border border-white/5 mb-4 text-center min-h-[120px] flex items-center justify-center">
+                                    <p id="complimentText" class="text-sm font-bold italic text-pink-300">Tap to receive cosmic affirmation.</p>
+                                </div>
+                            </div>
+                            <button id="complimentBtn" onclick="getAICompliment()" class="bg-pink-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-pink-500 transition shadow-lg shadow-pink-600/20">Receive Spark</button>
+                        </div>
+
+                        <!-- AI Abstract Art Prompt -->
+                        <div class="glass p-6 group hover:border-orange-400/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Matrix Muse</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">AI Drawing Inspiration</p>
+                                <div class="bg-black/20 p-4 rounded-xl border border-white/5 mb-4 min-h-[120px] flex items-center justify-center text-center">
+                                    <p id="artPromptText" class="text-xs italic text-orange-300">Awaiting your creative spark...</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="artPromptBtn" onclick="getArtPrompt()" class="flex-1 bg-orange-600 py-4 rounded-xl font-black uppercase tracking-widest hover:bg-orange-500 transition shadow-lg shadow-orange-600/20 text-[10px]">Summon Muse</button>
+                                <button onclick="showPage('draw')" class="bg-white/5 border border-white/10 px-4 rounded-xl hover:bg-white/10 transition" title="Go to Draw"><i class="fas fa-palette text-orange-400"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- AI Dream Interpreter -->
+                        <div class="glass p-6 group hover:border-indigo-400/50 transition-all flex flex-col justify-between min-h-[22rem]">
+                            <div>
+                                <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Oneiro-Link</h3>
+                                <p class="text-[10px] text-gray-500 mb-4 uppercase">AI Dream Weaver</p>
+                                <div class="bg-black/20 p-4 rounded-xl border border-white/5 mb-4 min-h-[120px] max-h-[180px] overflow-y-auto custom-scrollbar">
+                                    <p id="dreamOutput" class="text-xs text-gray-400 italic">Share your subconscious echoes...</p>
+                                </div>
+                                <input id="dreamInput" type="text" placeholder="I was flying on a giant taco..." class="w-full bg-gray-900 border border-white/10 p-2 rounded text-xs">
+                            </div>
+                            <button id="dreamBtn" onclick="interpretDream()" class="bg-indigo-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20">Decode Dream</button>
+                        </div>
+
                     </div>
                 </div>
             </div>

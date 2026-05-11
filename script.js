@@ -5000,8 +5000,72 @@ let funState = {
     clicker: { active: false, count: 0, timeLeft: 10, lastTime: 0, interval: null },
     reaction: { timer: null, start: 0, active: false },
     alchemy: { slots: [null, null], discoveries: new Set(JSON.parse(localStorage.getItem('soul_alchemy_discovery')) || []) },
-    particles: { array: [], canvas: null, ctx: null, lastSpawn: 0 }
+    particles: { array: [], canvas: null, ctx: null, lastSpawn: 0 },
+    memory: { active: false, sequence: [], userIdx: 0, level: 1 },
+    pulse: { active: false, nextBeat: 0, interval: null, score: 0, total: 0 },
+    mixer: { active: false, target: {r:0,g:0,b:0}, current: {r:127,g:127,b:127} },
+    zenTyping: { active: false, text: "", index: 0, start: 0 },
+    scramble: { active: false, word: "" },
+    emojiMatch: { grid: [], selected: null },
+    guess: { active: false, target: 0, tries: 0 },
+    riddle: { active: false, answer: "" },
+    ambient: { 
+        rain: { audio: new Audio('https://www.soundjay.com/nature/sounds/rain-03.mp3'), active: false },
+        forest: { audio: new Audio('https://www.soundjay.com/nature/sounds/forest-birds-01.mp3'), active: false },
+        ocean: { audio: new Audio('https://www.soundjay.com/nature/sounds/ocean-waves-1.mp3'), active: false },
+        fire: { audio: new Audio('https://www.soundjay.com/nature/sounds/fire-1.mp3'), active: false }
+    }
 };
+
+// Setup ambient looping
+Object.values(funState.ambient).forEach(obj => {
+    obj.audio.loop = true;
+    obj.audio.volume = 0.5;
+});
+
+function toggleAmbientSound(type, btn) {
+    const sound = funState.ambient[type];
+    if (!sound) return;
+
+    if (sound.active) {
+        sound.audio.pause();
+        sound.active = false;
+        btn.classList.remove('bg-cyan-600/20', 'border-cyan-500/30', 'text-cyan-400', 'bg-emerald-600/20', 'border-emerald-500/30', 'text-emerald-400', 'bg-blue-600/20', 'border-blue-500/30', 'text-blue-400', 'bg-orange-600/20', 'border-orange-500/30', 'text-orange-400');
+        btn.classList.add('bg-white/5', 'text-gray-500');
+    } else {
+        sound.audio.play().catch(e => showToast("Interaction required for audio play.", "info"));
+        sound.active = true;
+        btn.classList.remove('bg-white/5', 'text-gray-500');
+        
+        const colors = { rain: 'cyan', forest: 'emerald', ocean: 'blue', fire: 'orange' };
+        const c = colors[type];
+        btn.classList.add(`bg-${c}-600/20`, `border-${c}-500/30`, `text-${c}-400`);
+    }
+}
+
+function updateAmbientVolume(type, val) {
+    const sound = funState.ambient[type];
+    if (sound) {
+        sound.audio.volume = parseFloat(val);
+        document.getElementById(`volVal_${type}`).innerText = Math.round(val * 100) + '%';
+    }
+}
+
+function stopAllAmbient() {
+    Object.keys(funState.ambient).forEach(type => {
+        const sound = funState.ambient[type];
+        if (sound.active) {
+            sound.audio.pause();
+            sound.active = false;
+            const btn = document.querySelector(`button[onclick*="toggleAmbientSound('${type}'"]`);
+            if (btn) {
+                btn.classList.remove('bg-cyan-600/20', 'border-cyan-500/30', 'text-cyan-400', 'bg-emerald-600/20', 'border-emerald-500/30', 'text-emerald-400', 'bg-blue-600/20', 'border-blue-500/30', 'text-blue-400', 'bg-orange-600/20', 'border-orange-500/30', 'text-orange-400');
+                btn.classList.add('bg-white/5', 'text-gray-500');
+            }
+        }
+    });
+    showToast("Atmosphere silenced.", "warning");
+}
 
 // Breathing state unified
 let zenInterval = null;
@@ -5178,6 +5242,432 @@ function toggleZenBreath(btn) {
     
     animate();
     zenInterval = setInterval(animate, 4000);
+}
+
+// --- NEW FUN GAMES LOGIC ---
+
+// 1. Memory Matrix
+async function startMemoryMatrix() {
+    if (funState.memory.active) return;
+    funState.memory.active = true;
+    funState.memory.sequence = [];
+    funState.memory.level = 1;
+    document.getElementById('memoryGrid').classList.remove('opacity-50', 'pointer-events-none');
+    document.getElementById('memoryStartBtn').innerText = "Level 1";
+    
+    // Initialize Grid Squares
+    const grid = document.getElementById('memoryGrid');
+    grid.innerHTML = '';
+    for (let i = 0; i < 9; i++) {
+        const sq = document.createElement('div');
+        sq.className = "memory-sq bg-white/5 rounded-lg border border-white/10 aspect-square cursor-pointer";
+        sq.onclick = () => handleMemoryClick(i);
+        grid.appendChild(sq);
+    }
+    
+    nextMemoryLevel();
+}
+
+async function nextMemoryLevel() {
+    funState.memory.userIdx = 0;
+    funState.memory.sequence.push(Math.floor(Math.random() * 9));
+    document.getElementById('memoryStartBtn').innerText = `Level ${funState.memory.level}`;
+    
+    // Show Sequence
+    document.getElementById('memoryGrid').style.pointerEvents = 'none';
+    for (const idx of funState.memory.sequence) {
+        await new Promise(r => setTimeout(r, 600));
+        flashMemorySq(idx);
+    }
+    document.getElementById('memoryGrid').style.pointerEvents = 'auto';
+}
+
+function flashMemorySq(idx) {
+    const sqs = document.querySelectorAll('.memory-sq');
+    sqs[idx].classList.add('flash');
+    setTimeout(() => sqs[idx].classList.remove('flash'), 300);
+}
+
+function handleMemoryClick(idx) {
+    if (!funState.memory.active) return;
+    
+    if (idx === funState.memory.sequence[funState.memory.userIdx]) {
+        flashMemorySq(idx);
+        funState.memory.userIdx++;
+        if (funState.memory.userIdx === funState.memory.sequence.length) {
+            funState.memory.level++;
+            setTimeout(nextMemoryLevel, 800);
+        }
+    } else {
+        showToast(`Game Over! Reached Level ${funState.memory.level}`, "error");
+        funState.memory.active = false;
+        document.getElementById('memoryGrid').classList.add('opacity-50', 'pointer-events-none');
+        document.getElementById('memoryStartBtn').innerText = "Try Again";
+    }
+}
+
+// 2. Pattern Pulse
+function handlePulseTap() {
+    if (!funState.pulse.active) {
+        startPatternPulse();
+        return;
+    }
+    
+    const now = Date.now();
+    const diff = Math.abs(now - funState.pulse.nextBeat);
+    funState.pulse.total++;
+    
+    if (diff < 150) {
+        funState.pulse.score++;
+        showToast("Perfect!", "success", 500);
+    } else {
+        showToast("Off beat", "warning", 500);
+    }
+}
+
+function startPatternPulse() {
+    funState.pulse.active = true;
+    funState.pulse.score = 0;
+    funState.pulse.total = 0;
+    document.getElementById('pulseBtn').innerText = "TAP ON LIGHT";
+    
+    const indicator = document.getElementById('pulseIndicator');
+    const bar = document.getElementById('pulseBar');
+    
+    const beat = () => {
+        if (!funState.pulse.active) return;
+        indicator.style.opacity = '1';
+        funState.pulse.nextBeat = Date.now();
+        
+        bar.style.transition = 'none';
+        bar.style.width = '0%';
+        setTimeout(() => {
+            bar.style.transition = 'width 1000ms linear';
+            bar.style.width = '100%';
+        }, 10);
+
+        setTimeout(() => indicator.style.opacity = '0', 200);
+    };
+
+    beat();
+    funState.pulse.interval = setInterval(beat, 1000);
+    
+    setTimeout(() => {
+        clearInterval(funState.pulse.interval);
+        funState.pulse.active = false;
+        const acc = Math.round((funState.pulse.score / funState.pulse.total) * 100) || 0;
+        showToast(`Session End. Accuracy: ${acc}%`, "info");
+        document.getElementById('pulseBtn').innerText = "Begin New Session";
+        document.getElementById('pulseBar').style.width = '0%';
+    }, 10000);
+}
+
+// 3. Color Mixer
+function startColorMixer() {
+    if (funState.mixer.active) {
+        const rD = Math.abs(funState.mixer.target.r - funState.mixer.current.r);
+        const gD = Math.abs(funState.mixer.target.g - funState.mixer.current.g);
+        const bD = Math.abs(funState.mixer.target.b - funState.mixer.current.b);
+        const acc = Math.round(100 - ((rD + gD + bD) / 765 * 100));
+        
+        showToast(`Match Accuracy: ${acc}%`, acc > 90 ? "success" : "info");
+        funState.mixer.active = false;
+        document.getElementById('mixerBtn').innerText = "New Target";
+        return;
+    }
+
+    funState.mixer.active = true;
+    funState.mixer.target = {
+        r: Math.floor(Math.random() * 256),
+        g: Math.floor(Math.random() * 256),
+        b: Math.floor(Math.random() * 256)
+    };
+    document.getElementById('mixerTarget').style.backgroundColor = `rgb(${funState.mixer.target.r},${funState.mixer.target.g},${funState.mixer.target.b})`;
+    document.getElementById('mixerBtn').innerText = "Compare Colors";
+}
+
+function updateMixer(channel, val) {
+    funState.mixer.current[channel] = parseInt(val);
+    const c = funState.mixer.current;
+    document.getElementById('mixerUser').style.backgroundColor = `rgb(${c.r},${c.g},${c.b})`;
+}
+
+// 4. Zen Typing
+const ZEN_PHRASES = [
+    "The soul is the mirror of the universe.",
+    "Silence is the language of God, all else is poor translation.",
+    "In the heart of every winter lies a breathing spring.",
+    "Breath is the bridge which connects life to consciousness.",
+    "The quieter you become, the more you are able to hear."
+];
+
+function startZenTyping() {
+    funState.zenTyping.active = true;
+    funState.zenTyping.index = 0;
+    funState.zenTyping.text = ZEN_PHRASES[Math.floor(Math.random() * ZEN_PHRASES.length)];
+    funState.zenTyping.start = Date.now();
+    
+    const area = document.getElementById('zenSentence');
+    area.innerHTML = funState.zenTyping.text.split('').map(c => `<span class="zen-char">${c}</span>`).join('');
+    
+    const input = document.getElementById('zenTypingInput');
+    input.classList.remove('hidden');
+    input.value = '';
+    input.focus();
+    document.getElementById('zenTypingBtn').classList.add('hidden');
+}
+
+function checkZenTyping(val) {
+    const chars = document.querySelectorAll('.zen-char');
+    const target = funState.zenTyping.text;
+    
+    for (let i = 0; i < chars.length; i++) {
+        chars[i].classList.remove('correct', 'wrong', 'current');
+        if (i < val.length) {
+            chars[i].classList.add(val[i] === target[i] ? 'correct' : 'wrong');
+        } else if (i === val.length) {
+            chars[i].classList.add('current');
+        }
+    }
+
+    if (val === target) {
+        const time = ((Date.now() - funState.zenTyping.start) / 1000).toFixed(1);
+        showToast(`Perfect Flow! Time: ${time}s`, "success");
+        document.getElementById('zenTypingInput').classList.add('hidden');
+        document.getElementById('zenTypingBtn').classList.remove('hidden');
+        document.getElementById('zenSentence').innerText = "Serenity achieved.";
+        funState.zenTyping.active = false;
+    }
+}
+
+// 5. Word Scramble
+const SCRAMBLE_POOL = ["QUANTUM", "SYNAPSE", "ORACLE", "MYSTIC", "NEURAL", "ECLIPSE", "ZENITH", "COSMOS"];
+
+function startScramble() {
+    const word = SCRAMBLE_POOL[Math.floor(Math.random() * SCRAMBLE_POOL.length)];
+    funState.scramble.word = word;
+    const scrambled = word.split('').sort(() => Math.random() - 0.5).join('');
+    
+    document.getElementById('scrambledWord').innerText = scrambled;
+    const input = document.getElementById('scrambleInput');
+    input.classList.remove('hidden');
+    input.value = '';
+    input.focus();
+    
+    const btn = document.getElementById('scrambleBtn');
+    btn.innerText = "Check Answer";
+    btn.onclick = checkScramble;
+}
+
+function checkScramble() {
+    const guess = document.getElementById('scrambleInput').value.toUpperCase();
+    if (guess === funState.scramble.word) {
+        showToast("Linguistic Lock Opened!", "success");
+        document.getElementById('scrambledWord').innerText = "SOLVED";
+        document.getElementById('scrambleInput').classList.add('hidden');
+        document.getElementById('scrambleBtn').innerText = "New Scramble";
+        document.getElementById('scrambleBtn').onclick = startScramble;
+    } else {
+        showToast("Incorrect sequence.", "error");
+    }
+}
+
+// 6. Emoji Match-3
+function initEmojiMatch() {
+    const grid = document.getElementById('emojiGrid');
+    const emojis = ['🌟', '💎', '🔥', '💧', '🍀'];
+    funState.emojiMatch.grid = [];
+    grid.innerHTML = '';
+    
+    for (let i = 0; i < 25; i++) {
+        const emo = emojis[Math.floor(Math.random() * emojis.length)];
+        funState.emojiMatch.grid.push(emo);
+        const cell = document.createElement('div');
+        cell.className = "emoji-cell bg-white/5 border border-white/5";
+        cell.innerText = emo;
+        cell.onclick = () => handleEmojiClick(i, cell);
+        grid.appendChild(cell);
+    }
+}
+
+function handleEmojiClick(idx, el) {
+    if (funState.emojiMatch.selected === null) {
+        funState.emojiMatch.selected = idx;
+        el.classList.add('selected');
+    } else {
+        const prevIdx = funState.emojiMatch.selected;
+        const cells = document.querySelectorAll('.emoji-cell');
+        cells[prevIdx].classList.remove('selected');
+        
+        // Check if adjacent
+        const isAdj = [1, -1, 5, -5].includes(idx - prevIdx);
+        if (isAdj) {
+            const temp = funState.emojiMatch.grid[idx];
+            funState.emojiMatch.grid[idx] = funState.emojiMatch.grid[prevIdx];
+            funState.emojiMatch.grid[prevIdx] = temp;
+            cells[idx].innerText = funState.emojiMatch.grid[idx];
+            cells[prevIdx].innerText = funState.emojiMatch.grid[prevIdx];
+            showToast("Swapped!", "info", 500);
+        }
+        funState.emojiMatch.selected = null;
+    }
+}
+
+// 7. AI Riddle
+async function generateRiddle() {
+    const text = document.getElementById('riddleText');
+    const btn = document.getElementById('riddleBtn');
+    text.innerText = "Querying the Sphinx...";
+    btn.disabled = true;
+
+    try {
+        const model = document.getElementById('focusModelSelect')?.value || "gemini-2.5-flash";
+        const key = aiConfig.keys[currentKeyIndex];
+        const prompt = "Generate a short, challenging riddle. Return format: RIDDLE: [text] ANSWER: [one word answer]. No other text.";
+        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        
+        const [riddle, answer] = content.split('ANSWER:');
+        funState.riddle.answer = answer.trim().toLowerCase().replace(/[^\w]/g, '');
+        text.innerText = riddle.replace('RIDDLE:', '').trim();
+        
+        document.getElementById('riddleInputArea').classList.remove('hidden');
+        document.getElementById('riddleInput').value = '';
+        btn.innerText = "Check Solution";
+        btn.disabled = false;
+        btn.onclick = checkRiddle;
+    } catch (e) {
+        text.innerText = "The Oracle is weary. Try again.";
+        btn.disabled = false;
+    }
+}
+
+function checkRiddle() {
+    const guess = document.getElementById('riddleInput').value.toLowerCase().trim();
+    if (guess === funState.riddle.answer) {
+        showToast("Correct! The riddle is solved.", "success");
+        document.getElementById('riddleText').innerText = "Riddle Solved.";
+        document.getElementById('riddleInputArea').classList.add('hidden');
+        document.getElementById('riddleBtn').innerText = "Summon Another";
+        document.getElementById('riddleBtn').onclick = generateRiddle;
+    } else {
+        showToast("The Sphinx is unimpressed.", "error");
+    }
+}
+
+// 8. Number Guessing (AI Hints)
+function startNumGuess() {
+    funState.guess.target = Math.floor(Math.random() * 100) + 1;
+    funState.guess.tries = 0;
+    document.getElementById('numGuessStatus').innerText = "I have chosen. Make your move.";
+    document.getElementById('guessHistory').innerHTML = '';
+    document.getElementById('guessInputArea').classList.remove('hidden');
+    document.getElementById('guessInput').value = '';
+    
+    const btn = document.getElementById('guessBtn');
+    btn.innerText = "Submit Guess";
+    btn.onclick = submitGuess;
+}
+
+async function submitGuess() {
+    const input = document.getElementById('guessInput');
+    const guess = parseInt(input.value);
+    if (isNaN(guess)) return;
+    
+    funState.guess.tries++;
+    input.value = '';
+    
+    const history = document.getElementById('guessHistory');
+    const chip = document.createElement('span');
+    chip.className = "px-2 py-0.5 bg-white/5 rounded text-[10px] text-gray-500 border border-white/5";
+    chip.innerText = guess;
+    history.appendChild(chip);
+
+    if (guess === funState.guess.target) {
+        showToast(`Neural Hunt Success! Found in ${funState.guess.tries} tries.`, "success");
+        document.getElementById('numGuessStatus').innerText = "Target Eliminated.";
+        document.getElementById('guessInputArea').classList.add('hidden');
+        document.getElementById('guessBtn').innerText = "New Hunt";
+        document.getElementById('guessBtn').onclick = startNumGuess;
+        return;
+    }
+
+    const direction = guess < funState.guess.target ? "HIGHER" : "LOWER";
+    const diff = Math.abs(guess - funState.guess.target);
+    const temp = diff < 5 ? "BURNING" : (diff < 15 ? "WARM" : "COLD");
+    
+    document.getElementById('numGuessStatus').innerHTML = `<span class="text-cyan-400 font-black">${direction}</span> | <span class="text-orange-400">${temp}</span>`;
+}
+
+// --- NEW AI FUN FUNCTIONS ---
+
+async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", useMarkdown = false) {
+    const outputEl = document.getElementById(outputElId);
+    const btn = document.getElementById(btnId);
+    if (isAICooldownActive) return showAICooldownOverlay();
+
+    outputEl.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-center gap-2"><i class="fas fa-spinner fa-spin text-purple-400"></i><span class="animate-pulse text-[8px] uppercase tracking-widest text-gray-500">${loadingText}</span></div>`;
+    if (btn) btn.disabled = true;
+
+    try {
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-2.5-flash";
+        const key = aiConfig.keys[currentKeyIndex];
+        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "The Oracle is silent.";
+        
+        if (useMarkdown) {
+            outputEl.innerHTML = renderMD(content);
+        } else {
+            outputEl.innerText = content;
+        }
+        if (btn) btn.disabled = false;
+    } catch (e) {
+        outputEl.innerText = "Connection failed.";
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function generateStory() {
+    const keywords = document.getElementById('storyKeywords').value.trim();
+    if (!keywords) return showToast("Enter some keywords first!", "warning");
+    const prompt = `Write a very short (max 100 words), intriguing, and slightly humorous story based on these keywords: ${keywords}. Return plain text.`;
+    callFunAI(prompt, 'storyOutput', 'storyBtn', "Weaving reality...");
+}
+
+async function createCharacter() {
+    const traits = document.getElementById('charTraits').value.trim();
+    if (!traits) return showToast("Give me some traits!", "warning");
+    const prompt = `Create a brief character profile (Name, Title, Backstory snippet, One signature item) based on these traits: ${traits}. Format in clean Markdown.`;
+    callFunAI(prompt, 'characterOutput', 'charBtn', "Forging soul...", true);
+}
+
+async function getAICompliment() {
+    const prompt = "Generate one unique, deeply uplifting, and cosmic-themed compliment for the user. Keep it to one powerful sentence. Return plain text.";
+    callFunAI(prompt, 'complimentText', 'complimentBtn', "Tuning into your frequency...");
+}
+
+async function getArtPrompt() {
+    const prompt = "Generate a short, evocative textual prompt for an abstract digital painting. Use vivid colors and geometric concepts. Max 20 words. Return plain text.";
+    callFunAI(prompt, 'artPromptText', 'artPromptBtn', "Querying the Matrix...");
+}
+
+async function interpretDream() {
+    const dream = document.getElementById('dreamInput').value.trim();
+    if (!dream) return showToast("What did you see in the void?", "warning");
+    const prompt = `Interpret this dream in a lighthearted, whimsical, and non-serious way: "${dream}". Max 60 words. Return plain text.`;
+    callFunAI(prompt, 'dreamOutput', 'dreamBtn', "Decoding echoes...");
 }
 
 function startReactionTest() {

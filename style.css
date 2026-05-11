@@ -1842,6 +1842,31 @@ textarea:focus, input:focus {
     }
 }
 
+/* --- Memory Matrix & Pulse Styles --- */
+.memory-sq {
+    transition: background-color 0.2s, transform 0.2s;
+}
+.memory-sq.flash {
+    background-color: #3b82f6 !important;
+    box-shadow: 0 0 15px #3b82f6;
+    transform: scale(1.05);
+}
+
+.zen-char {
+    display: inline-block;
+    transition: color 0.1s;
+}
+.zen-char.correct { color: #10b981; }
+.zen-char.wrong { color: #ef4444; }
+.zen-char.current { background: rgba(6, 182, 212, 0.2); border-bottom: 2px solid #06b6d4; }
+
+.emoji-cell {
+    @apply w-full aspect-square flex items-center justify-center text-xl cursor-pointer hover:bg-white/10 rounded-lg transition-all;
+}
+.emoji-cell.selected {
+    @apply bg-rose-500/20 ring-2 ring-rose-500 scale-90;
+}
+
 /* Better Breathing Assistant Visuals */
 #breathCircle {
     transition: transform 4s cubic-bezier(0.45, 0, 0.55, 1), background-color 4s ease, box-shadow 4s ease;
