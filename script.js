@@ -1147,7 +1147,7 @@ function updateAuthUI() {
         document.getElementById('userNameDisplay').innerText = `Hey, ${currentUser.name}`;
         
         // Header Nav
-        authBtn.innerHTML = '<i class="fas fa-power-off md:hidden"></i><span class="hidden md:inline">Logout</span>';
+        authBtn.innerHTML = '<i class="fas fa-power-off xl:hidden"></i><span class="hidden xl:inline">Logout</span>';
         authBtn.onclick = logout;
 
         // Sidebar
@@ -1170,7 +1170,7 @@ function updateAuthUI() {
         document.getElementById('userNameDisplay').innerText = '';
         
         // Header Nav
-        authBtn.innerHTML = '<i class="fas fa-sign-in-alt md:hidden"></i><span class="hidden md:inline">Login</span>';
+        authBtn.innerHTML = '<i class="fas fa-sign-in-alt xl:hidden"></i><span class="hidden xl:inline">Login</span>';
         authBtn.onclick = () => showPage('login');
 
         // Sidebar
