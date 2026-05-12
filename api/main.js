@@ -3,6 +3,7 @@ const { OAuth2Client } = require('google-auth-library');
 const bcrypt = require('bcryptjs');
 const nodemailer = require('nodemailer');
 const ytSearch = require('yt-search');
+const he = require('he');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const Proxifly = require('proxifly');
 const PDFDocument = require('pdfkit');
@@ -751,6 +752,62 @@ export default async function handler(req, res) {
                 return res.status(200).json([]);
             } catch (err) {
                 return res.status(200).json([]);
+            }
+        }
+
+        if (query.route === 'yt_playlist') {
+            const playlistId = query.id;
+            if (!playlistId) return res.status(400).json({ error: "Playlist ID required" });
+
+            let proxyAgent = null;
+            if (process.env.PROXIFLY_API_KEY) {
+                try {
+                    const proxifly = new (Proxifly.default || Proxifly)({ apiKey: process.env.PROXIFLY_API_KEY });
+                    const proxies = await proxifly.getProxy({ quantity: 1, https: true, protocol: ['http', 'https'] }).catch(() => null);
+                    if (proxies && Array.isArray(proxies) && proxies.length > 0) {
+                        const p = proxies[0];
+                        if (p.ip && p.port) proxyAgent = new HttpsProxyAgent(`${p.protocol || 'http'}://${p.ip}:${p.port}`);
+                    }
+                } catch (err) { console.warn("Proxy failed for yt_playlist"); }
+            }
+
+            try {
+                const playlist = await ytSearch({ listId: playlistId, agent: proxyAgent });
+                if (!playlist || !playlist.videos) return res.status(404).json({ error: "Playlist not found." });
+                const videos = playlist.videos.map(v => ({
+                    type: 'youtube', id: v.videoId, name: he.decode(v.title), artist: he.decode(v.author.name), thumbnail: v.thumbnail, duration: v.duration.timestamp
+                }));
+                return res.status(200).json(videos);
+            } catch (error) {
+                return res.status(500).json({ error: error.message });
+            }
+        }
+
+        if (query.route === 'yt_channel') {
+            const channelId = query.id;
+            if (!channelId) return res.status(400).json({ error: "Channel ID or Handle required" });
+
+            let proxyAgent = null;
+            if (process.env.PROXIFLY_API_KEY) {
+                try {
+                    const proxifly = new (Proxifly.default || Proxifly)({ apiKey: process.env.PROXIFLY_API_KEY });
+                    const proxies = await proxifly.getProxy({ quantity: 1, https: true, protocol: ['http', 'https'] }).catch(() => null);
+                    if (proxies && Array.isArray(proxies) && proxies.length > 0) {
+                        const p = proxies[0];
+                        if (p.ip && p.port) proxyAgent = new HttpsProxyAgent(`${p.protocol || 'http'}://${p.ip}:${p.port}`);
+                    }
+                } catch (err) { console.warn("Proxy failed for yt_channel"); }
+            }
+
+            try {
+                const channel = await ytSearch({ channelId, agent: proxyAgent });
+                if (!channel || !channel.videos) return res.status(404).json({ error: "Channel not found." });
+                const videos = channel.videos.map(v => ({
+                    type: 'youtube', id: v.videoId, name: he.decode(v.title), artist: he.decode(channel.name), thumbnail: v.thumbnail, duration: v.duration.timestamp
+                }));
+                return res.status(200).json(videos);
+            } catch (error) {
+                return res.status(500).json({ error: error.message });
             }
         }
 

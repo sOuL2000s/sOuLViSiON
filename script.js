@@ -806,6 +806,7 @@ function showPage(pageId, pushState = true) {
         if (pageId === 'fun') {
             initParticleVoid();
             syncFunLeaderboard();
+            syncFunAIHistory();
             renderAlchemyLog();
         }
         
@@ -1829,16 +1830,34 @@ function handleSearchOrUrl() {
     const input = document.getElementById('ytSearchInput').value.trim();
     if (!input) return;
 
-    // Detect YouTube URL
-    const ytRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
-    const match = input.match(ytRegex);
+    const ytVideoRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i;
+    const ytPlaylistRegex = /youtube\.com\/playlist\?list=([a-zA-Z0-9_-]+)/i;
+    const ytChannelRegex = /(?:youtube\.com\/(?:channel\/|@))([a-zA-Z0-9_-]+)/i;
 
-    if (match) {
-        const videoId = match[1];
+    const playlistMatch = input.match(ytPlaylistRegex);
+    if (playlistMatch) {
+        handlePlaylistUrl(playlistMatch[1]);
+        document.getElementById('ytSearchInput').value = '';
+        return;
+    }
+
+    const channelMatch = input.match(ytChannelRegex);
+    if (channelMatch) {
+        handleChannelUrl(channelMatch[1]);
+        document.getElementById('ytSearchInput').value = '';
+        return;
+    }
+
+    const videoMatch = input.match(ytVideoRegex);
+    if (videoMatch) {
+        const videoId = videoMatch[1];
         const title = prompt("Enter track title:", "YouTube Video") || "YouTube Video";
         addYTTrack(videoId, title, "URL Source");
         document.getElementById('ytSearchInput').value = '';
-    } else if (input.startsWith('http') && (input.toLowerCase().includes('.mp3') || input.toLowerCase().includes('.wav') || input.toLowerCase().includes('.ogg') || input.toLowerCase().includes('.m4a'))) {
+        return;
+    } 
+    
+    if (input.startsWith('http') && (input.toLowerCase().includes('.mp3') || input.toLowerCase().includes('.wav') || input.toLowerCase().includes('.ogg') || input.toLowerCase().includes('.m4a'))) {
         // Direct Audio URL
         const defaultName = input.split('/').pop().split('?')[0] || "Audio Stream";
         const name = prompt("Enter track title:", defaultName) || defaultName;
@@ -1908,6 +1927,49 @@ function addYTTrack(id, title, artist, instant = false) {
     
     showToast(`${title} ${existingIdx === -1 ? 'added to' : 'playing from'} Library`, "success");
     saveMusicPlaylist();
+}
+
+async function handlePlaylistUrl(playlistId) {
+    setLoading(true, "Fetching Playlist...");
+    try {
+        const res = await fetch(`/api/main?route=yt_playlist&id=${encodeURIComponent(playlistId)}`);
+        if (!res.ok) throw new Error("Failed to fetch playlist.");
+        const videos = await res.json();
+        const added = addVideosToPlaylist(videos);
+        showToast(`Added ${added} tracks from playlist!`, "success");
+    } catch (e) {
+        showToast(e.message, "error");
+    } finally { setLoading(false); }
+}
+
+async function handleChannelUrl(channelId) {
+    setLoading(true, "Fetching Channel...");
+    try {
+        const res = await fetch(`/api/main?route=yt_channel&id=${encodeURIComponent(channelId)}`);
+        if (!res.ok) throw new Error("Failed to fetch channel.");
+        const videos = await res.json();
+        const added = addVideosToPlaylist(videos);
+        showToast(`Added ${added} tracks from channel!`, "success");
+    } catch (e) {
+        showToast(e.message, "error");
+    } finally { setLoading(false); }
+}
+
+function addVideosToPlaylist(videos) {
+    let added = 0;
+    videos.forEach(v => {
+        if (!musicList.some(t => t.id === v.id)) {
+            musicList.push(v);
+            added++;
+            if (isShuffle) shuffledIndices.push(musicList.length - 1);
+        }
+    });
+    if (added > 0) {
+        renderPlaylist();
+        saveMusicPlaylist();
+        if (!isMusicPlaying && musicList.length === added) playTrack(0);
+    }
+    return added;
 }
 
 // --- YOUTUBE EXPLORER LOGIC ---
@@ -4228,12 +4290,14 @@ function toggleZenBreath(btn) {
 }
 
 // Emoji Alchemy Implementation
-const alchemyEmojis = ['🔥', '💧', '🌱', '💨', '⚡', '❄️', '🌑', '✨', '💎', '🍄'];
+const alchemyEmojis = ['🔥', '💧', '🌱', '💨', '⚡', '❄️', '🌑', '✨', '💎', '🍄', '🤖', '🦠'];
 const alchemyRecipes = {
     '🔥💧': '☁️', '🔥🌱': '🍂', '💧🌱': '🌸', '💨⚡': '🌩️', '❄️🔥': '💧',
     '🌑✨': '🔮', '🌱🌱': '🌳', '🔥🔥': '🌋', '💧💧': '🌊', '💨💨': '🌪️',
     '💎✨': '👑', '🍄🌑': '🧚', '⚡💧': '🔋', '❄️🌱': '🧊', '✨💎': '💍',
-    '🍄💧': '🧪', '🔥🌑': '☄️', '💨🌱': '🌪️', '⚡✨': '🧬', '❄️💧': '🧊'
+    '🍄💧': '🧪', '🔥🌑': '☄️', '💨🌱': '🌪️', '⚡✨': '🧬', '❄️💧': '🧊',
+    '🤖✨': '🧠', '🤖⚡': '🔌', '🦠🌱': '🍄', '🦠💧': '🧪', '🌑💎': '💍',
+    '🔥🤖': '🚀', '💨💨': '🌪️', '🌱💧': '🎋', '⚡🌑': '🌠', '🤖🌑': '🛸'
 };
 
 function renderAlchemyLog() {
@@ -4266,21 +4330,28 @@ function transmuteEmojis() {
     
     const combo1 = slots[0] + slots[1];
     const combo2 = slots[1] + slots[0];
-    const result = alchemyRecipes[combo1] || alchemyRecipes[combo2] || '💥';
+    const result = alchemyRecipes[combo1] || alchemyRecipes[combo2] || 'fizzle';
     
     const slot1 = document.getElementById('alchemySlot1');
     const slot2 = document.getElementById('alchemySlot2');
     
-    slot1.innerText = '✨';
-    slot2.innerText = '✨';
+    slot1.classList.add('celebrate-flash');
+    slot2.classList.add('celebrate-flash');
     
     setTimeout(() => {
-        slot1.innerText = result;
-        slot2.innerText = result;
-        if (result === '💥') {
-            showToast("Transmutation Failed! Unstable bond.", "error");
+        slot1.classList.remove('celebrate-flash');
+        slot2.classList.remove('celebrate-flash');
+        
+        if (result === 'fizzle') {
+            const failures = ['💨', '🌫️', '🥀', '🕳️'];
+            const res = failures[Math.floor(Math.random() * failures.length)];
+            slot1.innerText = res;
+            slot2.innerText = res;
+            showToast("Transmutation Fumbled! The bond disintegrated.", "warning");
         } else {
-            showToast(`Success! You created ${result}`, "success");
+            slot1.innerText = result;
+            slot2.innerText = result;
+            showToast(`✨ Success! Discovered: ${result} ✨`, "success");
             if (!funState.alchemy.discoveries.has(result)) {
                 funState.alchemy.discoveries.add(result);
                 const discoveriesArray = Array.from(funState.alchemy.discoveries);
@@ -4351,13 +4422,21 @@ function resizeFunCanvas() {
 }
 
 function spawnParticles(x, y) {
+    const colorMode = document.getElementById('particleColorMode')?.value || 'random';
+    
     for (let i = 0; i < 15; i++) {
+        let color;
+        if (colorMode === 'random') color = `hsla(${Math.random() * 360}, 70%, 60%, 0.8)`;
+        else if (colorMode === 'cyan') color = `hsla(180, 70%, 50%, 0.8)`;
+        else if (colorMode === 'pink') color = `hsla(330, 70%, 60%, 0.8)`;
+        else color = `hsla(0, 0%, 100%, 0.8)`;
+
         funState.particles.array.push({
             x, y,
             vx: (Math.random() - 0.5) * 5,
             vy: (Math.random() - 0.5) * 5,
             size: Math.random() * 3 + 1,
-            color: `hsla(${Math.random() * 360}, 70%, 60%, 0.8)`,
+            color,
             life: 1
         });
     }
@@ -4370,13 +4449,16 @@ function animateParticles() {
     
     const ctx = funState.particles.ctx;
     const canvas = funState.particles.canvas;
+    const behavior = document.getElementById('particleBehavior')?.value || 'float';
     
-    // Smooth trail effect
     ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     
     funState.particles.array = funState.particles.array.filter(p => p.life > 0);
     funState.particles.array.forEach(p => {
+        if (behavior === 'fall') p.vy += 0.1;
+        else if (behavior === 'rise') p.vy -= 0.1;
+
         p.x += p.vx; 
         p.y += p.vy; 
         p.life -= 0.015;
@@ -4485,6 +4567,7 @@ async function syncFunStats() {
         return;
     }
     syncFunLeaderboard();
+    syncFunAIHistory();
     try {
         const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
         const data = await res.json();
@@ -4499,6 +4582,72 @@ async function syncFunStats() {
     } catch(e) {
         console.warn("Fun stats sync failed");
         renderAlchemyLog();
+    }
+}
+
+async function syncFunAIHistory() {
+    if (!currentUser) return;
+    try {
+        const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            const aiTypes = ['ai_story', 'ai_character', 'ai_riddle', 'ai_compliment', 'ai_art_prompt', 'ai_dream'];
+            funState.aiHistory = data.filter(d => aiTypes.includes(d.type));
+            renderFunAIHistory();
+        }
+    } catch (e) { console.warn("Failed to sync AI Journal"); }
+}
+
+function renderFunAIHistory() {
+    const list = document.getElementById('aiJournalList');
+    if (!list) return;
+
+    if (funState.aiHistory.length === 0) {
+        list.innerHTML = '<p class="text-[9px] text-gray-600 italic">No entries in your soul journal yet.</p>';
+        return;
+    }
+
+    const typeIcons = {
+        ai_story: 'fa-feather',
+        ai_character: 'fa-user-astronaut',
+        ai_riddle: 'fa-brain',
+        ai_compliment: 'fa-sparkles',
+        ai_art_prompt: 'fa-palette',
+        ai_dream: 'fa-moon'
+    };
+
+    list.innerHTML = funState.aiHistory.slice(0, 15).map(item => `
+        <div class="p-2 bg-white/5 border border-white/5 rounded-lg group hover:border-purple-500/30 transition-all cursor-pointer" onclick="viewJournalEntry(${item.timestamp})">
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-[8px] font-black text-purple-400 uppercase tracking-widest"><i class="fas ${typeIcons[item.type] || 'fa-magic'} mr-1"></i> ${item.type.replace('ai_', '')}</span>
+                <span class="text-[7px] text-gray-500 font-mono">${new Date(item.timestamp).toLocaleDateString()}</span>
+            </div>
+            <p class="text-[10px] text-gray-300 italic truncate line-clamp-1">${item.content.substring(0, 50)}...</p>
+        </div>
+    `).join('');
+}
+
+function viewJournalEntry(ts) {
+    const entry = funState.aiHistory.find(h => h.timestamp === ts);
+    if (!entry) return;
+    
+    const targetMap = {
+        ai_story: 'storyOutput',
+        ai_character: 'characterOutput',
+        ai_riddle: 'riddleText',
+        ai_compliment: 'complimentText',
+        ai_art_prompt: 'artPromptText',
+        ai_dream: 'dreamOutput'
+    };
+
+    const targetId = targetMap[entry.type];
+    const el = document.getElementById(targetId);
+    if (el) {
+        if (entry.type === 'ai_character') el.innerHTML = renderMD(entry.content);
+        else el.innerText = entry.content;
+        
+        showToast(`Restored ${entry.type.replace('ai_', '')} from history.`, "info");
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 }
 
@@ -4973,6 +5122,7 @@ async function syncSnakeLeaderboard() {
 }
 
 function shakeBall() {
+    setFunPageBackground('purple');
     const core = document.getElementById('sphereCore');
     const response = document.getElementById('ballResponse');
     
@@ -4997,6 +5147,7 @@ function shakeBall() {
 
 // --- sOuLFUN Page State & Logic ---
 let funState = {
+    aiHistory: [],
     clicker: { active: false, count: 0, timeLeft: 10, lastTime: 0, interval: null },
     reaction: { timer: null, start: 0, active: false },
     alchemy: { slots: [null, null], discoveries: new Set(JSON.parse(localStorage.getItem('soul_alchemy_discovery')) || []) },
@@ -5296,6 +5447,7 @@ function handleMemoryClick(idx) {
         funState.memory.userIdx++;
         if (funState.memory.userIdx === funState.memory.sequence.length) {
             funState.memory.level++;
+            showToast(`Sequence Matched! Progressing to Level ${funState.memory.level}`, "success", 1000);
             setTimeout(nextMemoryLevel, 800);
         }
     } else {
@@ -5462,7 +5614,7 @@ function startScramble() {
 function checkScramble() {
     const guess = document.getElementById('scrambleInput').value.toUpperCase();
     if (guess === funState.scramble.word) {
-        showToast("Linguistic Lock Opened!", "success");
+        showToast("✨ Linguistic Lock Opened! ✨", "success");
         document.getElementById('scrambledWord').innerText = "SOLVED";
         document.getElementById('scrambleInput').classList.add('hidden');
         document.getElementById('scrambleBtn').innerText = "New Scramble";
@@ -5533,10 +5685,25 @@ async function generateRiddle() {
         const data = await res.json();
         const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
         
+        if (!content.includes('ANSWER:')) throw new Error("Invalid format");
+
         const [riddle, answer] = content.split('ANSWER:');
         funState.riddle.answer = answer.trim().toLowerCase().replace(/[^\w]/g, '');
         text.innerText = riddle.replace('RIDDLE:', '').trim();
         
+        if (currentUser) {
+            fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    type: 'ai_riddle', 
+                    content: text.innerText, 
+                    answer: funState.riddle.answer, 
+                    timestamp: Date.now() 
+                })
+            }).then(() => syncFunAIHistory());
+        }
+
         document.getElementById('riddleInputArea').classList.remove('hidden');
         document.getElementById('riddleInput').value = '';
         btn.innerText = "Check Solution";
@@ -5607,7 +5774,7 @@ async function submitGuess() {
 
 // --- NEW AI FUN FUNCTIONS ---
 
-async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", useMarkdown = false) {
+async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", useMarkdown = false, type = 'ai_generic') {
     const outputEl = document.getElementById(outputElId);
     const btn = document.getElementById(btnId);
     if (isAICooldownActive) return showAICooldownOverlay();
@@ -5625,16 +5792,32 @@ async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", 
             body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
         const data = await res.json();
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "The Oracle is silent.";
+        const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
         
+        if (!content) throw new Error("Empty response");
+
         if (useMarkdown) {
             outputEl.innerHTML = renderMD(content);
         } else {
             outputEl.innerText = content;
         }
+
+        if (currentUser) {
+            fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    type, 
+                    content, 
+                    prompt, 
+                    timestamp: Date.now() 
+                })
+            }).then(() => syncFunAIHistory());
+        }
+
         if (btn) btn.disabled = false;
     } catch (e) {
-        outputEl.innerText = "Connection failed.";
+        outputEl.innerText = "Connection failed. Please try again.";
         if (btn) btn.disabled = false;
     }
 }
@@ -5643,34 +5826,35 @@ async function generateStory() {
     const keywords = document.getElementById('storyKeywords').value.trim();
     if (!keywords) return showToast("Enter some keywords first!", "warning");
     const prompt = `Write a very short (max 100 words), intriguing, and slightly humorous story based on these keywords: ${keywords}. Return plain text.`;
-    callFunAI(prompt, 'storyOutput', 'storyBtn', "Weaving reality...");
+    callFunAI(prompt, 'storyOutput', 'storyBtn', "Weaving reality...", false, 'ai_story');
 }
 
 async function createCharacter() {
     const traits = document.getElementById('charTraits').value.trim();
     if (!traits) return showToast("Give me some traits!", "warning");
     const prompt = `Create a brief character profile (Name, Title, Backstory snippet, One signature item) based on these traits: ${traits}. Format in clean Markdown.`;
-    callFunAI(prompt, 'characterOutput', 'charBtn', "Forging soul...", true);
+    callFunAI(prompt, 'characterOutput', 'charBtn', "Forging soul...", true, 'ai_character');
 }
 
 async function getAICompliment() {
     const prompt = "Generate one unique, deeply uplifting, and cosmic-themed compliment for the user. Keep it to one powerful sentence. Return plain text.";
-    callFunAI(prompt, 'complimentText', 'complimentBtn', "Tuning into your frequency...");
+    callFunAI(prompt, 'complimentText', 'complimentBtn', "Tuning into your frequency...", false, 'ai_compliment');
 }
 
 async function getArtPrompt() {
     const prompt = "Generate a short, evocative textual prompt for an abstract digital painting. Use vivid colors and geometric concepts. Max 20 words. Return plain text.";
-    callFunAI(prompt, 'artPromptText', 'artPromptBtn', "Querying the Matrix...");
+    callFunAI(prompt, 'artPromptText', 'artPromptBtn', "Querying the Matrix...", false, 'ai_art_prompt');
 }
 
 async function interpretDream() {
     const dream = document.getElementById('dreamInput').value.trim();
     if (!dream) return showToast("What did you see in the void?", "warning");
     const prompt = `Interpret this dream in a lighthearted, whimsical, and non-serious way: "${dream}". Max 60 words. Return plain text.`;
-    callFunAI(prompt, 'dreamOutput', 'dreamBtn', "Decoding echoes...");
+    callFunAI(prompt, 'dreamOutput', 'dreamBtn', "Decoding echoes...", false, 'ai_dream');
 }
 
 function startReactionTest() {
+    setFunPageBackground('amber');
     const area = document.getElementById('reactionArea');
     const pulse = document.getElementById('reactionPulse');
     const text = document.getElementById('reactionText');

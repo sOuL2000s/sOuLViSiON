@@ -1046,8 +1046,18 @@
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                    <!-- Sidebar: Hall of Fame -->
+                    <!-- Sidebar: Fun Hub Stats & Journal -->
                     <div class="lg:col-span-3 space-y-6 order-2 lg:order-1">
+                        <!-- AI Journal / History -->
+                        <div class="glass p-6 border-l-4 border-purple-500">
+                            <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                <i class="fas fa-book-open text-purple-400"></i> AI Journal
+                            </h3>
+                            <div id="aiJournalList" class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                                <p class="text-[9px] text-gray-600 italic">No entries in your soul journal yet.</p>
+                            </div>
+                        </div>
+
                         <div class="glass p-6">
                             <h3 class="text-xs font-black text-gray-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
                                 <i class="fas fa-trophy text-yellow-500"></i> Hall of Fame
@@ -1237,14 +1247,25 @@
                             <div class="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity">
                                 <canvas id="funCanvas" class="w-full h-full"></canvas>
                             </div>
-                            <div class="relative z-10 pointer-events-none">
+                            <div class="relative z-10 flex flex-col pointer-events-none">
                                 <h3 class="text-lg font-black uppercase tracking-tighter mb-1">Particle Void</h3>
-                                <p class="text-[10px] text-gray-500 mb-6 uppercase">Touch the canvas to create life</p>
-                                <div class="h-28 flex items-center justify-center">
-                                    <p class="text-[8px] text-indigo-400 font-mono uppercase tracking-[0.3em] animate-pulse">Generative Matrix Active</p>
+                                <p class="text-[10px] text-gray-500 mb-2 uppercase">Create and influence matter</p>
+                                
+                                <div class="flex gap-2 pointer-events-auto mt-2">
+                                    <select id="particleColorMode" class="bg-black/40 text-[8px] font-black uppercase p-1.5 rounded border border-white/10 outline-none">
+                                        <option value="random">Random</option>
+                                        <option value="cyan">Cyan</option>
+                                        <option value="pink">Pink</option>
+                                        <option value="white">White</option>
+                                    </select>
+                                    <select id="particleBehavior" class="bg-black/40 text-[8px] font-black uppercase p-1.5 rounded border border-white/10 outline-none">
+                                        <option value="float">Float</option>
+                                        <option value="fall">Gravity</option>
+                                        <option value="rise">Anti-Grav</option>
+                                    </select>
                                 </div>
                             </div>
-                            <button onclick="clearParticleVoid()" class="bg-indigo-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20 relative z-20 pointer-events-auto">Reset Canvas</button>
+                            <button onclick="clearParticleVoid()" class="bg-indigo-600 w-full py-4 rounded-xl font-black uppercase tracking-widest hover:bg-indigo-500 transition shadow-lg shadow-indigo-600/20 relative z-20 pointer-events-auto mt-4">Reset Canvas</button>
                         </div>
 
                         <!-- Memory Matrix -->
