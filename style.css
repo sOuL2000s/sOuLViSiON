@@ -652,6 +652,7 @@ body {
 
 .nav-link.bg-white\/10 {
     @apply text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 shadow-lg shadow-cyan-900/20;
+    box-shadow: inset 0 0 12px rgba(6, 182, 212, 0.1), 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .nav-dropdown-item {
@@ -662,19 +663,138 @@ nav button:hover {
     color: var(--primary);
 }
 
-/* --- sOuLAI & sOuLSEEK Layouts --- */
+/* --- Immersive AI Workspace Layout --- */
 #ai.active, #seek.active {
-    height: calc(100vh - 140px);
+    height: calc(100dvh - 110px);
     display: flex;
     flex-direction: column;
+    width: 100%;
 }
 
-/* Responsive adjustment for chat-heavy pages */
-@media (max-width: 1024px) {
-    #ai.active, #seek.active { 
-        height: 85vh; 
-        min-height: 450px; 
+/* Force container to expand to full width when in AI or Seek mode */
+body:has(#ai.active) main,
+body:has(#seek.active) main {
+    max-width: 100vw !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    margin-bottom: 0 !important;
+}
+
+@media (min-width: 1024px) {
+    #ai.active, #seek.active {
+        height: calc(100dvh - 90px);
+        margin-top: -10px;
     }
+    
+    body:has(#ai.active) main,
+    body:has(#seek.active) main {
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+    }
+}
+
+/* --- AI Sidebar Refactor --- */
+.ai-sidebar-container {
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(10, 15, 28, 0.4);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (min-width: 1024px) {
+    #aiSidebar.collapsed {
+        width: 0 !important;
+        padding: 0 !important;
+        opacity: 0 !important;
+        pointer-events: none;
+        border-right: none;
+    }
+}
+
+@media (max-width: 1023px) {
+    #aiSidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100dvh;
+        z-index: 2000 !important; /* Ensure it is significantly above the overlay context */
+        background: #0f172a !important;
+        width: 280px !important;
+        transform: translateX(-105%) translateZ(0); /* Use translateZ to force hardware acceleration */
+        display: flex !important;
+        opacity: 1 !important;
+        pointer-events: none;
+        border-right: none;
+        box-shadow: none;
+        transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        visibility: hidden;
+        backdrop-filter: none !important; /* Disable blur to fix mobile stacking context bugs */
+        -webkit-backdrop-filter: none !important;
+    }
+
+    #aiSidebar.show-sidebar {
+        transform: translateX(0) translateZ(0);
+        pointer-events: auto;
+        visibility: visible;
+        box-shadow: 20px 0 60px rgba(0,0,0,1);
+        border-right: 2px solid var(--primary);
+    }
+
+    #aiSidebarOverlay {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 1950 !important; /* Placed immediately under the sidebar */
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        background: rgba(0, 0, 0, 0.85) !important;
+    }
+
+    #aiSidebarOverlay:not(.hidden) {
+        display: block;
+        pointer-events: auto;
+    }
+}
+
+/* --- Intelligent Input Area (Extra Tools) --- */
+.extra-tools-menu {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (max-width: 768px) {
+    .extra-tools-menu {
+        position: absolute;
+        bottom: 100%;
+        left: 0.5rem;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(20px);
+        border: 1px solid var(--glass-border);
+        padding: 0.5rem;
+        border-radius: 1rem;
+        flex-direction: column;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        opacity: 0;
+        transform: translateY(10px) scale(0.9);
+        pointer-events: none;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        z-index: 100;
+    }
+    
+    .extra-tools-menu.active {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        pointer-events: auto;
+    }
+}
+
+#toolToggleBtn i {
+    transition: transform 0.3s ease;
+}
+
+#toolToggleBtn.bg-red-600\/10 i {
+    transform: rotate(135deg);
 }
 
 @media (max-width: 640px) {
@@ -695,39 +815,60 @@ nav button:hover {
 }
 
 .message {
-    max-width: 92%;
+    max-width: 95%; /* Use more width on mobile */
     padding: 0.75rem 1rem;
-    border-radius: 1rem;
+    border-radius: 1.25rem;
     line-height: 1.5;
     position: relative;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     font-size: 0.85rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 @media (min-width: 768px) {
     .message { 
         max-width: 80%; 
-        padding: 1rem 1.25rem;
-        border-radius: 1.25rem;
+        padding: 1.25rem 1.5rem;
+        border-radius: 1.5rem;
         font-size: 0.95rem;
     }
 }
 
+.ai-msg {
+    align-self: flex-start;
+    background: rgba(30, 41, 59, 0.4);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    color: #f1f5f9;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+}
+
 .user-msg {
     align-self: flex-end;
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    background: linear-gradient(135deg, var(--secondary) 0%, #4f46e5 100%);
     color: white;
     border-bottom-right-radius: 4px;
+    box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.3);
+}
+
+.user-msg {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
+    color: white;
+    border-bottom-right-radius: 6px;
+    margin-left: 15%;
+    box-shadow: 0 10px 20px -5px rgba(139, 92, 246, 0.3);
 }
 
 .ai-msg {
     align-self: flex-start;
-    background: rgba(30, 41, 59, 0.7);
-    border: 1px solid rgba(255,255,255,0.08);
-    color: #e2e8f0;
-    border-bottom-left-radius: 4px;
-    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
-    transition: transform 0.2s ease;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    color: #f1f5f9;
+    border-bottom-left-radius: 6px;
+    margin-right: 15%;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
 }
 
 .ai-msg:hover {
@@ -1607,9 +1748,15 @@ textarea, input[type="text"], input[type="number"], select {
 
 #chatInput, #noteInput, #editNoteText, #miniChatInput {
     resize: none !important;
-    min-height: 44px;
+    min-height: 38px;
     height: auto;
     transition: none; /* Removed transition to allow instant height calculation */
+}
+
+@media (min-width: 768px) {
+    #chatInput, #noteInput, #editNoteText, #miniChatInput {
+        min-height: 44px;
+    }
 }
 
 #noteInput, #editNoteText {
@@ -1637,7 +1784,10 @@ textarea:focus, input:focus {
 #aiSidebar {
     border-right: 1px solid rgba(255, 255, 255, 0.05);
     background: rgba(15, 23, 42, 0.3);
+    z-index: 450; /* Ensure it stays above content on mobile */
 }
+
+/* Sidebar collapsed states handled in Refactor block */
 
 #chatHistoryList .group:hover .flex-grow {
     background: rgba(139, 92, 246, 0.1);
@@ -1798,10 +1948,17 @@ textarea:focus, input:focus {
     50% { opacity: 0; }
 }
 
-/* Persistent & Accessible AI Message Actions */
+/* Show AI Message Actions on Hover */
 .msg-copy-group {
-    opacity: 1 !important; /* Always visible */
+    opacity: 0;
     pointer-events: auto;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform: translateY(5px);
+}
+
+.message:hover .msg-copy-group {
+    opacity: 1;
+    transform: translateY(0);
 }
 
 .msg-copy-group button {
@@ -1909,4 +2066,49 @@ textarea:focus, input:focus {
 
 .draw-tool-btn i {
     filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+}
+
+/* AI Chat Area Visual Depth */
+#chatBox, #miniChatBox {
+    background-image: 
+        radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
+    background-size: 24px 24px;
+}
+
+#aiSidebarOverlay:not(.hidden) {
+    display: block;
+}
+
+/* Enhanced AI History Sidebar Items */
+#chatHistoryList .group {
+    margin-bottom: 4px;
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+}
+
+#chatHistoryList .group.bg-purple-600\/20 {
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.1) 0%, transparent 100%);
+    border-left: 4px solid var(--secondary) !important;
+}
+
+/* Command Center Input area */
+#chatInput:focus {
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.1);
+}
+
+@media (max-width: 640px) {
+    #ai .p-3.md\:p-6.border-t {
+        padding: 0.5rem 0.75rem 0.75rem !important;
+        padding-top: 0.5rem !important;
+    }
+}
+
+#aiSendBtn {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#aiSendBtn:hover {
+    transform: scale(1.05) translateY(-1px);
+    box-shadow: 0 8px 25px rgba(124, 58, 237, 0.5);
 }

@@ -2751,7 +2751,11 @@ function loadConversation(id) {
     document.getElementById('currentConvName').innerText = conv.name;
     conv.messages.forEach(m => appendAIMessage(m.role, m.content));
     renderAIHistory();
-    if(window.innerWidth < 1024) document.getElementById('aiSidebar').classList.add('hidden');
+    
+    // Auto-close sidebar on mobile after selection
+    if(window.innerWidth < 1024 && document.getElementById('aiSidebar').classList.contains('show-sidebar')) {
+        toggleAIHistory();
+    }
 }
 
 function renderAIHistory(providedHistory = null) {
@@ -3231,15 +3235,22 @@ let editingAttachmentIdx = -1;
 // Updated Auto-Resize Logic
 function autoResize(textarea) {
     if (!textarea) return;
-    textarea.style.height = '0'; 
+    textarea.style.height = 'auto'; 
     
     const isLargeEditor = textarea.id === 'noteInput' || textarea.id === 'editNoteText';
-    const baseHeight = isLargeEditor ? 120 : 44; 
+    const isChat = textarea.id === 'chatInput' || textarea.id === 'miniChatInput' || textarea.id === 'codeChatInput' || textarea.id === 'solveAIInput';
+    const baseHeight = isLargeEditor ? 120 : (isChat ? 32 : 44); 
     
     let newHeight = textarea.scrollHeight;
     if (newHeight < baseHeight) newHeight = baseHeight;
     
-    const maxHeight = window.innerHeight * 0.6;
+    let maxHeight = 250;
+    if (isChat) {
+        // Limit chat input height on small mobile screens to prevent UI overlap
+        maxHeight = window.innerHeight < 600 ? 120 : 250;
+    } else {
+        maxHeight = window.innerHeight * 0.6;
+    }
     
     if (newHeight > maxHeight) {
         textarea.style.height = maxHeight + 'px';
@@ -4031,8 +4042,105 @@ function copyMiniChatAsMarkdown() {
 
 function toggleAIHistory() {
     const sidebar = document.getElementById('aiSidebar');
-    sidebar.classList.toggle('hidden');
+    const overlay = document.getElementById('aiSidebarOverlay');
+    if (!sidebar) return;
+
+    const isMobile = window.innerWidth < 1024;
+
+    if (!isMobile) {
+        // Desktop Logic: Toggle width-based collapse
+        sidebar.classList.remove('show-sidebar'); 
+        sidebar.classList.toggle('collapsed');
+        if (overlay) {
+            overlay.classList.add('hidden');
+            overlay.style.opacity = '0';
+        }
+    } else {
+        // Mobile Logic: Toggle fixed position translation
+        sidebar.classList.remove('collapsed'); 
+        const isShown = sidebar.classList.toggle('show-sidebar');
+        if (overlay) {
+            if (isShown) {
+                overlay.classList.remove('hidden');
+                // Use requestAnimationFrame for smoother activation
+                requestAnimationFrame(() => {
+                    if (sidebar.classList.contains('show-sidebar')) {
+                        overlay.style.opacity = '1';
+                    }
+                });
+            } else {
+                overlay.style.opacity = '0';
+                // Wait for transition before hiding
+                setTimeout(() => {
+                    if (!sidebar.classList.contains('show-sidebar')) {
+                        overlay.classList.add('hidden');
+                    }
+                }, 400); // Wait for fade out
+            }
+        }
+    }
 }
+
+function toggleExtraTools(btn) {
+    const menu = document.getElementById('extraTools');
+    const icon = btn.querySelector('i');
+    const isActive = menu.classList.toggle('active');
+    
+    if (isActive) {
+        icon.classList.replace('fa-plus-circle', 'fa-times-circle');
+        btn.classList.replace('bg-purple-600/10', 'bg-red-600/10');
+        btn.classList.replace('text-purple-400', 'text-red-400');
+    } else {
+        closeExtraTools();
+    }
+}
+
+function closeExtraTools() {
+    const menu = document.getElementById('extraTools');
+    const btn = document.getElementById('toolToggleBtn');
+    if (!menu || !menu.classList.contains('active')) return;
+    
+    menu.classList.remove('active');
+    if (btn) {
+        const icon = btn.querySelector('i');
+        icon.classList.replace('fa-times-circle', 'fa-plus-circle');
+        btn.classList.replace('bg-red-600/10', 'bg-purple-600/10');
+        btn.classList.replace('text-red-400', 'text-purple-400');
+    }
+}
+
+// Global click handler for closing menus/sidebars
+document.addEventListener('click', (e) => {
+    // 1. sOuLAI History Sidebar handling
+    const aiSidebar = document.getElementById('aiSidebar');
+    if (window.innerWidth < 1024 && aiSidebar && aiSidebar.classList.contains('show-sidebar')) {
+        // Check if the click is on a toggle trigger (prevents immediate close after open)
+        const isTrigger = e.target.closest('[onclick*="toggleAIHistory"]');
+        const isInsideSidebar = aiSidebar.contains(e.target);
+        
+        if (!isInsideSidebar && !isTrigger) {
+            toggleAIHistory();
+        }
+    }
+
+    // 2. Main Mobile Navigation Sidebar handling
+    const mainSidebar = document.getElementById('mobileSidebar');
+    if (mainSidebar && mainSidebar.classList.contains('translate-x-0')) {
+        const isTrigger = e.target.closest('[onclick*="toggleSidebar"]');
+        if (!mainSidebar.contains(e.target) && !isTrigger) {
+            toggleSidebar();
+        }
+    }
+
+    // 3. Extra tools handling
+    const extraTools = document.getElementById('extraTools');
+    const toolToggle = document.getElementById('toolToggleBtn');
+    if (extraTools && extraTools.classList.contains('active')) {
+        if (!extraTools.contains(e.target) && !toolToggle.contains(e.target)) {
+            closeExtraTools();
+        }
+    }
+});
 function toggleMiniChat() { document.getElementById('miniChat').classList.toggle('show'); }
 
 function stopAllSTT() {
