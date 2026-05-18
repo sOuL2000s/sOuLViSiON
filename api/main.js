@@ -276,11 +276,13 @@ export default async function handler(req, res) {
             }
 
             if (method === 'POST') {
-                // Ensure only 'keys' and 'models' are stored (remove any unified model concepts)
+                const { keys, models, groqKeys, groqModels } = body;
                 const updateDoc = {
-                    keys: body.keys,
-                    models: body.models,
-                    type: 'ai_settings' // Always ensure the type is consistent
+                    keys,
+                    models,
+                    groqKeys: groqKeys || [],
+                    groqModels: groqModels || [],
+                    type: 'ai_settings'
                 };
                 await col.updateOne({ type: 'ai_settings' }, { $set: updateDoc }, { upsert: true });
                 return res.status(200).json({ success: true });

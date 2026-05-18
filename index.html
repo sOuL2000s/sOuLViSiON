@@ -3119,19 +3119,31 @@
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <div class="glass p-8 rounded-xl">
-                    <h3 class="text-xl mb-4 font-bold flex justify-between items-center">
-                        <div class="flex items-center gap-2"><i class="fas fa-key"></i> Gemini API Rotation</div>
-                        <button onclick="loadConfig()" class="text-xs bg-white/5 px-3 py-1 rounded-md hover:bg-white/10 transition"><i class="fas fa-sync"></i></button>
-                    </h3>
-                    <p class="text-sm text-gray-400 mb-4">Paste multiple keys separated by commas. The system will auto-switch when quota hits.</p>
-                    <textarea id="apiKeys" class="w-full bg-gray-900 p-4 rounded-xl h-32 mb-6 border border-gray-800 focus:border-red-500" placeholder="AI_KEY_1, AI_KEY_2..."></textarea>
+                <div class="glass p-8 rounded-xl space-y-8">
+                    <div>
+                        <h3 class="text-xl mb-4 font-bold flex justify-between items-center">
+                            <div class="flex items-center gap-2"><i class="fas fa-key"></i> Gemini API Rotation</div>
+                            <button onclick="loadConfig()" class="text-xs bg-white/5 px-3 py-1 rounded-md hover:bg-white/10 transition"><i class="fas fa-sync"></i></button>
+                        </h3>
+                        <p class="text-[10px] text-gray-500 mb-3 uppercase tracking-widest font-black">Comma separated keys</p>
+                        <textarea id="apiKeys" class="w-full bg-gray-900 p-4 rounded-xl h-24 mb-4 border border-gray-800 focus:border-red-500 text-xs font-mono" placeholder="GEMINI_KEY_1, GEMINI_KEY_2..."></textarea>
+                        
+                        <h3 class="text-sm mb-3 font-bold flex items-center gap-2 text-gray-400"><i class="fas fa-cubes"></i> Gemini Models</h3>
+                        <textarea id="modelList" class="w-full bg-gray-900 p-4 rounded-xl h-20 mb-4 border border-gray-800 font-mono text-[10px]" placeholder='[{"name":"Gemini Flash", "id":"gemini-1.5-flash"}]'></textarea>
+                    </div>
+
+                    <div class="pt-6 border-t border-white/5">
+                        <h3 class="text-xl mb-4 font-bold flex items-center gap-2">
+                            <i class="fas fa-bolt text-orange-400"></i> Groq API Rotation
+                        </h3>
+                        <p class="text-[10px] text-gray-500 mb-3 uppercase tracking-widest font-black">Comma separated keys</p>
+                        <textarea id="groqKeys" class="w-full bg-gray-900 p-4 rounded-xl h-24 mb-4 border border-gray-800 focus:border-orange-500 text-xs font-mono" placeholder="GROQ_KEY_1, GROQ_KEY_2..."></textarea>
+                        
+                        <h3 class="text-sm mb-3 font-bold flex items-center gap-2 text-gray-400"><i class="fas fa-cubes"></i> Groq Models</h3>
+                        <textarea id="groqModelList" class="w-full bg-gray-900 p-4 rounded-xl h-20 mb-4 border border-gray-800 font-mono text-[10px]" placeholder='[{"name":"Llama 3 70B", "id":"llama3-70b-8192"}]'></textarea>
+                    </div>
                     
-                    <h3 class="text-xl mb-4 font-bold flex items-center gap-2"><i class="fas fa-cubes"></i> Model Configuration</h3>
-                    <p class="text-sm text-gray-400 mb-4">JSON array of objects: <code>{"name": "Display Name", "id": "model-id"}</code></p>
-                    <textarea id="modelList" class="w-full bg-gray-900 p-4 rounded-xl h-24 mb-4 border border-gray-800 font-mono text-xs" placeholder='[{"name":"Fastest Model", "id":"gemini-2.5-flash"}]'></textarea>
-                    
-                    <button onclick="saveAdminConfig()" class="bg-red-600 w-full py-4 rounded-xl font-bold hover:bg-red-700 transition">Apply Global Config</button>
+                    <button onclick="saveAdminConfig()" class="bg-red-600 w-full py-4 rounded-xl font-bold hover:bg-red-700 transition shadow-lg shadow-red-900/20 uppercase tracking-widest">Apply Intelligence Settings</button>
                 </div>
                 <div class="glass p-8 rounded-xl flex flex-col">
                     <h3 class="text-xl mb-4 font-bold flex items-center justify-between">

@@ -279,8 +279,9 @@ function closeErrorOverlay() {
     const overlay = document.getElementById('errorOverlay');
     if (overlay) overlay.classList.add('hidden');
 }
-let aiConfig = { keys: [], models: [] };
+let aiConfig = { keys: [], models: [], groqKeys: [], groqModels: [] };
 let currentKeyIndex = 0;
+let currentGroqKeyIndex = 0;
 let pendingFiles = [];
 let miniChatHistory = [];
 
@@ -2657,16 +2658,38 @@ async function loadConfig() {
     if(data) {
         aiConfig.keys = data.keys || [];
         aiConfig.models = data.models || [];
+        aiConfig.groqKeys = data.groqKeys || [];
+        aiConfig.groqModels = data.groqModels || [];
         aiConfig.razorpayKey = data.razorpayKey;
+        
         updateAIUI();
-        if (document.getElementById('statKeys')) document.getElementById('statKeys').innerText = aiConfig.keys.length;
-        if (document.getElementById('apiKeys')) document.getElementById('apiKeys').value = aiConfig.keys.join(', ');
-        if (document.getElementById('modelList')) document.getElementById('modelList').value = JSON.stringify(aiConfig.models);
+        
+        if (document.getElementById('statKeys')) document.getElementById('statKeys').innerText = aiConfig.keys.length + aiConfig.groqKeys.length;
+        
+        const elKeys = document.getElementById('apiKeys');
+        const elModels = document.getElementById('modelList');
+        const elGroqKeys = document.getElementById('groqKeys');
+        const elGroqModels = document.getElementById('groqModelList');
+        
+        if (elKeys) elKeys.value = aiConfig.keys.join(', ');
+        if (elModels) elModels.value = JSON.stringify(aiConfig.models);
+        if (elGroqKeys) elGroqKeys.value = aiConfig.groqKeys.join(', ');
+        if (elGroqModels) elGroqModels.value = JSON.stringify(aiConfig.groqModels);
     }
 }
 
 function updateAIUI() {
-    const options = aiConfig.models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    let html = "";
+    if (aiConfig.models.length > 0) {
+        html += `<optgroup label="Gemini Core">`;
+        html += aiConfig.models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+        html += `</optgroup>`;
+    }
+    if (aiConfig.groqModels.length > 0) {
+        html += `<optgroup label="Groq Turbo">`;
+        html += aiConfig.groqModels.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+        html += `</optgroup>`;
+    }
 
     const modelSelects = [
         document.getElementById('modelSelect'),
@@ -2680,12 +2703,13 @@ function updateAIUI() {
 
     modelSelects.forEach(select => {
         if (select) {
-            const currentSelected = select.value; // Preserve current selection if possible
-            select.innerHTML = options;
+            const currentSelected = select.value;
+            select.innerHTML = html;
             if (currentSelected && select.querySelector(`option[value="${currentSelected}"]`)) {
                 select.value = currentSelected;
-            } else if (aiConfig.models.length > 0) {
-                select.value = aiConfig.models[0].id; // Default to first available model
+            } else {
+                const first = select.querySelector('option');
+                if (first) select.value = first.value;
             }
         }
     });
@@ -3597,7 +3621,7 @@ async function askAI() {
     const attachmentsForApi = [...pendingFiles];
     pendingFiles = [];
     
-    await callGeminiAPI(input, 'chatBox', conv ? conv.messages : [], attachmentsForApi, model); // Pass selected model
+    await callAIAPI(input, 'chatBox', conv ? conv.messages : [], attachmentsForApi, model); // Pass selected model
     if (isCodePage) isStreamingMode = savedStreamMode;
 }
 
@@ -3668,7 +3692,7 @@ async function askCodeAI() {
     // Force non-streaming for Code AI
     const originalStreamMode = isStreamingMode;
     isStreamingMode = false;
-    await callGeminiAPI(query, 'codeChatBox', history, attachmentsForApi, model);
+    await callAIAPI(query, 'codeChatBox', history, attachmentsForApi, model);
     isStreamingMode = originalStreamMode;
 }
 
@@ -3699,21 +3723,28 @@ async function askMiniAI() {
     const attachmentsForApi = [...pendingFiles];
     pendingFiles = [];
     
-    await callGeminiAPI(txt, 'miniChatBox', miniChatHistory, attachmentsForApi, model); // Pass selected model
+    await callAIAPI(txt, 'miniChatBox', miniChatHistory, attachmentsForApi, model); // Pass selected model
 }
 
-async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attachments = [], model = null) {
+async function callAIAPI(text, targetBoxId = 'chatBox', history = [], attachments = [], model = null) {
     document.title = '● AI is thinking...';
     
+    let provider = "gemini";
+    if (model) {
+        const groqCheck = aiConfig.groqModels.find(m => m.id === model);
+        if (groqCheck) provider = "groq";
+    }
+
     if (!model) {
-        if (aiConfig.models.length > 0) {
-            model = aiConfig.models[0].id;
-        } else {
-            return alert("No AI models configured. Please ask admin to set them up.");
-        }
+        if (aiConfig.models.length > 0) { model = aiConfig.models[0].id; provider = "gemini"; }
+        else if (aiConfig.groqModels.length > 0) { model = aiConfig.groqModels[0].id; provider = "groq"; }
+        else return alert("No AI models configured.");
     }
     
-    if(!aiConfig.keys.length) return alert("Please configure API Keys in Admin panel.");
+    const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+    let keyIndex = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+    
+    if(!keys || !keys.length) return alert(`Please configure ${provider.toUpperCase()} API Keys in Admin panel.`);
 
     let type = 'main';
     if (targetBoxId === 'miniChatBox') type = 'mini';
@@ -3722,20 +3753,12 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
 
     const statusEl = document.getElementById(type === 'mini' ? 'miniAiStatus' : (type === 'code' ? 'codeAIStatus' : (type === 'solve' ? 'solveAIStatus' : 'aiStatus')));
     
-    const loadingPhrases = isStreamingMode ? [
-        "Establishing neural stream...",
-        "Buffering consciousness...",
-        "Decoding tokenized reality...",
-        "Synapsing response nodes...",
-        "Venturing into latent space..."
-    ] : [
+    const loadingPhrases = [
         "Analyzing intent vectors...",
         "Querying sOuL-Core matrix...",
-        "Synthesizing multi-dimensional context...",
-        "Optimizing synaptic weights...",
-        "Decrypting intelligence protocols...",
-        "Resolving probabilistic outputs...",
-        "Formulating definitive response..."
+        "Synthesizing context...",
+        "Optimizing weights...",
+        "Resolving outputs..."
     ];
     let phraseIdx = 0;
     let loadingInterval = null;
@@ -3744,23 +3767,13 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         toggleSendButton(type, true);
         statusEl.innerHTML = `
             <div class="neural-loader">
-                <div class="neural-grid">
-                    <div class="grid-dot"></div>
-                    <div class="grid-dot"></div>
-                    <div class="grid-dot"></div>
-                    <div class="grid-dot"></div>
-                </div>
+                <div class="neural-grid"><div class="grid-dot"></div><div class="grid-dot"></div><div class="grid-dot"></div><div class="grid-dot"></div></div>
                 <div class="flex flex-col">
                     <span class="text-[9px] font-black tracking-[0.2em] text-purple-400 uppercase flex items-center gap-2">
                         <span class="status-dot"></span>
-                        ${isStreamingMode ? 'Streaming Core Active' : 'Static Computation'}
+                        ${provider.toUpperCase()} Core Uplink
                     </span>
                     <span class="neural-text text-[8px] text-gray-500 font-mono mt-0.5">Initializing uplink...</span>
-                </div>
-                <div class="ml-auto flex gap-1">
-                    <div class="pulse-bar"></div>
-                    <div class="pulse-bar"></div>
-                    <div class="pulse-bar"></div>
                 </div>
             </div>`; 
         statusEl.classList.remove('hidden'); 
@@ -3768,26 +3781,52 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         toggleSendButton(type, true);
     }
 
-    const contents = history.map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: m.parts || [{ text: m.content }]
-    }));
-
-    if (contents.length === 0 || contents[contents.length-1].role === 'model') {
-        const currentParts = [{ text: text }];
-        attachments.forEach(a => currentParts.push({ inline_data: { mime_type: a.mime_type, data: a.data } }));
-        contents.push({ role: 'user', parts: currentParts });
-    }
-
     currentAbortController = new AbortController();
     try {
-        const endpoint = isStreamingMode ? 'streamGenerateContent' : 'generateContent';
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${aiConfig.keys[currentKeyIndex]}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents }),
-            signal: currentAbortController.signal
-        });
+        let response;
+        if (provider === "gemini") {
+            const contents = history.map(m => ({
+                role: m.role === 'user' ? 'user' : 'model',
+                parts: m.parts || [{ text: m.content }]
+            }));
+            if (contents.length === 0 || contents[contents.length-1].role === 'model') {
+                const currentParts = [{ text: text }];
+                attachments.forEach(a => currentParts.push({ inline_data: { mime_type: a.mime_type, data: a.data } }));
+                contents.push({ role: 'user', parts: currentParts });
+            }
+
+            const endpoint = isStreamingMode ? 'streamGenerateContent' : 'generateContent';
+            response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${endpoint}?key=${keys[keyIndex]}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents }),
+                signal: currentAbortController.signal
+            });
+        } else {
+            const messages = history.map(m => ({
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: m.content
+            }));
+            if (messages.length === 0 || messages[messages.length-1].role === 'assistant') {
+                let userText = text;
+                if (attachments.length) userText += `\n\n[Attachments not supported on Groq Turbo interface]`;
+                messages.push({ role: 'user', content: userText });
+            }
+
+            response = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${keys[keyIndex]}`
+                },
+                body: JSON.stringify({ 
+                    model: model,
+                    messages: messages,
+                    stream: isStreamingMode
+                }),
+                signal: currentAbortController.signal
+            });
+        }
         
         if (!response.ok) {
             const errData = await response.json();
@@ -3799,7 +3838,6 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
             loadingInterval = setInterval(() => {
                 if(neuralText) neuralText.innerText = loadingPhrases[phraseIdx] + "...";
                 phraseIdx = (phraseIdx + 1) % loadingPhrases.length;
-                // Keep scrolling so status stays visible
                 const box = document.getElementById(targetBoxId);
                 if(box) box.scrollTop = box.scrollHeight;
             }, 1200);
@@ -3814,68 +3852,56 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
             
             let buffer = "";
             let lastUIUpdate = 0;
-            const UI_UPDATE_INTERVAL = 32; // ~30fps throttled UI updates for peak performance
 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-                
-                // decoder.decode with {stream: true} correctly handles multi-byte characters split across chunks
                 buffer += decoder.decode(value, { stream: true });
                 
-                let startIdx;
-                // Improved JSON Stream Buffer: Accumulates fragments until valid objects are resolved
-                while ((startIdx = buffer.indexOf('{')) !== -1) {
-                    let braceCount = 0;
-                    let endIdx = -1;
-                    for (let i = startIdx; i < buffer.length; i++) {
-                        if (buffer[i] === '{') braceCount++;
-                        else if (buffer[i] === '}') braceCount--;
-                        
-                        if (braceCount === 0) {
-                            endIdx = i;
-                            break;
+                if (provider === "gemini") {
+                    let startIdx;
+                    while ((startIdx = buffer.indexOf('{')) !== -1) {
+                        let braceCount = 0; let endIdx = -1;
+                        for (let i = startIdx; i < buffer.length; i++) {
+                            if (buffer[i] === '{') braceCount++;
+                            else if (buffer[i] === '}') braceCount--;
+                            if (braceCount === 0) { endIdx = i; break; }
                         }
-                    }
-
-                    if (endIdx !== -1) {
-                        const chunkStr = buffer.substring(startIdx, endIdx + 1);
-                        try {
-                            const chunk = JSON.parse(chunkStr);
-                            const textPart = chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                            if (textPart) {
-                                fullContent += textPart;
-                                
-                                // Throttled UI Update logic (Max ~30fps)
-                                const now = Date.now();
-                                if (now - lastUIUpdate > UI_UPDATE_INTERVAL) {
-                                    let displayContent = fullContent;
-                                    
-                                    // Markdown fragment protection: close open tags for stable preview
-                                    const codeBlockCount = (displayContent.match(/```/g) || []).length;
-                                    if (codeBlockCount % 2 !== 0) displayContent += "\n```";
-                                    const boldCount = (displayContent.match(/\*\*/g) || []).length;
-                                    if (boldCount % 2 !== 0) displayContent += "**";
-                                    
-                                    appendAIMessage('ai', displayContent, targetBoxId, true);
-                                    lastUIUpdate = now;
+                        if (endIdx !== -1) {
+                            try {
+                                const chunk = JSON.parse(buffer.substring(startIdx, endIdx + 1));
+                                fullContent += chunk.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                                if (Date.now() - lastUIUpdate > 32) {
+                                    appendAIMessage('ai', fullContent, targetBoxId, true);
+                                    lastUIUpdate = Date.now();
                                 }
-                            }
+                            } catch (e) {}
                             buffer = buffer.substring(endIdx + 1);
-                        } catch (e) {
-                            // If parsing fails despite matched braces, consume opening char to recover
-                            buffer = buffer.substring(startIdx + 1);
-                        }
-                    } else {
-                        break; // Incomplete object in buffer, wait for next stream chunk
+                        } else break;
+                    }
+                } else {
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); 
+                    for (const line of lines) {
+                        const message = line.replace(/^data: /, "").trim();
+                        if (message === "" || message === "[DONE]") continue;
+                        try {
+                            const parsed = JSON.parse(message);
+                            const delta = parsed.choices[0].delta?.content || "";
+                            fullContent += delta;
+                            if (Date.now() - lastUIUpdate > 32) {
+                                appendAIMessage('ai', fullContent, targetBoxId, true);
+                                lastUIUpdate = Date.now();
+                            }
+                        } catch (e) {}
                     }
                 }
             }
-            // Final render pass to ensure any remaining buffered content is displayed
             appendAIMessage('ai', fullContent, targetBoxId, true);
         } else {
             const data = await response.json();
-            fullContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+            if (provider === "gemini") fullContent = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            else fullContent = data.choices[0].message?.content || "";
         }
 
         if (loadingInterval) clearInterval(loadingInterval);
@@ -3884,14 +3910,9 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
              const commentary = fullContent.split('CODE_START')[0].replace('COMMENTARY:', '').trim();
              const newContent = fullContent.split('CODE_START')[1].split('CODE_END')[0].trim();
              appendAIMessage('ai', commentary + "\n\n**Proposed changes are ready for review.**", targetBoxId, false);
-             
              let activeFile = projectFiles.find(f => f.id === activeFileId);
              if (activeFile) {
-                 aiProposedChange = {
-                     fileId: activeFile.id,
-                     originalContent: activeFile.content,
-                     newContent: newContent
-                 };
+                 aiProposedChange = { fileId: activeFile.id, originalContent: activeFile.content, newContent: newContent };
                  showDiffOverlay();
              }
         } else {
@@ -3900,80 +3921,35 @@ async function callGeminiAPI(text, targetBoxId = 'chatBox', history = [], attach
         
         toggleSendButton(type, false);
         currentAbortController = null;
-        
-        if(statusEl) {
-            statusEl.innerHTML = `
-                <div class="flex items-center gap-2 animate-fadeOut">
-                    <i class="fas fa-check-circle text-green-500 text-xs"></i>
-                    <span class="text-[9px] font-black tracking-widest text-green-500/80 uppercase">Intelligence Received</span>
-                </div>`;
-            setTimeout(() => statusEl.classList.add('hidden'), 1500);
-        }
+        if(statusEl) statusEl.classList.add('hidden');
 
         if (targetBoxId === 'chatBox' && currentChatId) {
             const conv = aiConversations.find(c => c.id === currentChatId);
-            if (conv) {
-                conv.messages.push({ role: 'ai', content: fullContent });
-                await saveAIHistory(conv);
-            }
+            if (conv) { conv.messages.push({ role: 'ai', content: fullContent }); await saveAIHistory(conv); }
         } else if (targetBoxId === 'miniChatBox') {
             miniChatHistory.push({ role: 'ai', content: fullContent });
         }
         document.title = 'sOuLViSiON | Digital Sanctuary';
-        // Reset failures on success
         consecutiveApiFailures = 0;
     } catch (err) {
         if (loadingInterval) clearInterval(loadingInterval);
         toggleSendButton(type, false);
-        currentAbortController = null; // Always nullify the controller on error
-        
-        // Clear any pending files display as they won't be sent now
-        pendingFiles = []; // Ensure internal state is clean (it should already be if call started)
-        renderAttachmentChips(); // Clear attachments from UI
-
-        if (err.name === 'AbortError') {
-            if (statusEl) statusEl.classList.add('hidden');
-            document.title = 'sOuLViSiON | Digital Sanctuary';
-            // Do not increment failure count for aborts
-            return;
-        }
-        
-        console.warn(`Key ${currentKeyIndex} error: ${err.message}.`);
-        
-        // Increment failure count for actual API errors
-        consecutiveApiFailures++;
-
-        if (aiConfig.keys.length > 1 && consecutiveApiFailures < 3) { // Retry only if failures less than threshold
-            currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
-            showToast(`API key failed, switching to next key. Retrying... (${consecutiveApiFailures} failures)`, "warning");
-            // Recursive call for retry, this path does not need to hide statusEl explicitly,
-            // as it will be re-shown by the new callGeminiAPI invocation.
-            return await callGeminiAPI(text, targetBoxId, history, attachments, model); // Pass model for retry
-        }
-        
-        // If failures exceed threshold or only one key exists, activate cooldown
-        if (consecutiveApiFailures >= 3 || aiConfig.keys.length === 1) { 
-            isAICooldownActive = true;
-            showAICooldownOverlay();
-            // Start a timer to automatically clear cooldown after some time (e.g., 5 minutes)
-            aiCooldownTimer = setTimeout(() => {
-                isAICooldownActive = false;
-                consecutiveApiFailures = 0;
-                hideAICooldownOverlay();
-                showToast("AI Cooldown lifted! Try again.", "info");
-            }, 5 * 60 * 1000); // 5 minutes
-            showToast("AI is on cooldown due to repeated failures. Please wait or support.", "warning");
-        }
-
-        // Always hide the status element if we're not retrying
+        currentAbortController = null;
         if(statusEl) statusEl.classList.add('hidden');
+
+        if (err.name === 'AbortError') { document.title = 'sOuLViSiON'; return; }
         
-        if (err.message.includes("quota") || err.message.includes("API key")) {
-            showBetterError("The Intelligence Core is exhausted or misconfigured. Admin attention required.");
-        } else {
-            appendAIMessage('ai', `**System Failure:** ${err.message}`, targetBoxId);
+        consecutiveApiFailures++;
+        if (keys.length > 1 && consecutiveApiFailures < 3) {
+            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+            showToast(`Key rotation triggered. Retrying...`, "warning");
+            return await callAIAPI(text, targetBoxId, history, attachments, model);
         }
-        document.title = 'sOuLViSiON | Digital Sanctuary';
+        
+        if (consecutiveApiFailures >= 3) { isAICooldownActive = true; showAICooldownOverlay(); }
+        appendAIMessage('ai', `**System Failure:** ${err.message}`, targetBoxId);
+        document.title = 'sOuLViSiON';
     }
 }
 
@@ -7721,18 +7697,23 @@ function setTheme(theme) {
 }
 
 async function saveAdminConfig() {
-    const keys = document.getElementById('apiKeys').value.split(',').map(k => k.trim());
-    const models = JSON.parse(document.getElementById('modelList').value);
     const adminEmail = currentUser ? currentUser.email : '';
+    const keys = document.getElementById('apiKeys').value.split(',').map(k => k.trim()).filter(k => k);
+    const groqKeys = document.getElementById('groqKeys').value.split(',').map(k => k.trim()).filter(k => k);
     
-    setLoading(true, "Applying Admin Settings");
     try {
+        const models = JSON.parse(document.getElementById('modelList').value || "[]");
+        const groqModels = JSON.parse(document.getElementById('groqModelList').value || "[]");
+        
+        setLoading(true, "Applying Admin Settings");
         const res = await fetch(`/api/main?route=admin_config&adminEmail=${encodeURIComponent(adminEmail)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'ai_settings', keys, models }) // Removed unifiedModel
+            body: JSON.stringify({ type: 'ai_settings', keys, models, groqKeys, groqModels })
         });
-        if(res.ok) { alert("Config Updated!"); loadConfig(); }
+        if(res.ok) { showToast("Config Updated!", "success"); loadConfig(); }
+    } catch(e) {
+        alert("JSON Format Error in Model Lists. Please ensure valid JSON arrays.");
     } finally {
         setLoading(false);
     }
@@ -9594,7 +9575,7 @@ async function askSolveAI(customPrompt = null) {
     const userMsg = query + (pendingFiles.length ? `\n\n[Attached ${pendingFiles.length} files]` : "");
     appendAIMessage('user', userMsg, 'solveAIChat');
     inputEl.value = '';
-    autoResize(inputEl); // Reset height after sending
+    autoResize(inputEl); 
     [document.getElementById('aiAttachmentPreview'), document.getElementById('miniChatAttachmentPreview'), document.getElementById('codeAttachmentPreview'), document.getElementById('solveAttachmentPreview')].forEach(p => { if(p) p.innerHTML = ''; });
 
     const model = document.getElementById('solveModelSelect').value;
@@ -9606,7 +9587,7 @@ async function askSolveAI(customPrompt = null) {
     const attachmentsForApi = [...pendingFiles];
     pendingFiles = [];
 
-    await callGeminiAPI(query, 'solveAIChat', history, attachmentsForApi, model);
+    await callAIAPI(query, 'solveAIChat', history, attachmentsForApi, model);
 }
 
 // Global functions for AI cooldown
@@ -9896,7 +9877,7 @@ async function askCodeAI() {
     // Force non-streaming for Code AI
     const originalStreamMode = isStreamingMode;
     isStreamingMode = false;
-    await callGeminiAPI(query, 'codeChatBox', history, attachmentsForApi, model);
+    await callAIAPI(query, 'codeChatBox', history, attachmentsForApi, model);
     isStreamingMode = originalStreamMode;
 }
 
