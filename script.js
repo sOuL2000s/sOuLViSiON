@@ -2681,12 +2681,12 @@ async function loadConfig() {
 function updateAIUI() {
     let html = "";
     if (aiConfig.models.length > 0) {
-        html += `<optgroup label="Gemini Core">`;
+        html += `<optgroup label="Gemini Core (Best & Reliable)">`;
         html += aiConfig.models.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
         html += `</optgroup>`;
     }
     if (aiConfig.groqModels.length > 0) {
-        html += `<optgroup label="Groq Turbo">`;
+        html += `<optgroup label="Groq Turbo (Fastest & Quick)">`;
         html += aiConfig.groqModels.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
         html += `</optgroup>`;
     }
