@@ -854,6 +854,29 @@
                 </div>
             </div>
 
+            <!-- AI Action Bar -->
+            <div id="noteAiBar" class="bg-purple-900/10 border-b border-purple-500/20 px-4 py-3 flex flex-wrap items-center gap-3 shrink-0">
+                <div class="flex items-center gap-2 mr-2">
+                    <i class="fas fa-sparkles text-purple-400 text-xs animate-pulse"></i>
+                    <select id="noteAiModelSelect" class="bg-black/40 border border-white/10 rounded-lg p-1.5 text-[10px] font-black text-purple-300 outline-none cursor-pointer hover:border-purple-500/50 transition-all">
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+                <div class="flex-grow relative group">
+                    <input id="noteAiPrompt" type="text" placeholder="Tell AI to write or edit... (e.g. 'Summarize this', 'Write a poem about rain')" 
+                        class="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-purple-500 transition-all placeholder:text-gray-600"
+                        onkeydown="if(event.key==='Enter') executeNoteAiAction()">
+                    <button onclick="executeNoteAiAction()" class="absolute right-2 top-1/2 -translate-y-1/2 text-purple-400 hover:text-white transition">
+                        <i class="fas fa-paper-plane text-xs"></i>
+                    </button>
+                </div>
+                <div class="flex gap-1">
+                    <button onclick="triggerNoteAi('rewrite')" class="note-ai-btn" title="Rewrite Content">Rewrite</button>
+                    <button onclick="triggerNoteAi('summarize')" class="note-ai-btn" title="Summarize Note">Summarize</button>
+                    <button onclick="triggerNoteAi('fix')" class="note-ai-btn" title="Fix Grammar/Spelling">Fix Errors</button>
+                </div>
+            </div>
+
             <!-- Toolbar -->
             <div class="bg-black/20 px-4 md:px-6 py-2 flex gap-3 md:gap-4 overflow-x-auto no-scrollbar border-b border-white/5 shrink-0 whitespace-nowrap immersive-toolbar">
                 <button onclick="wrapText('editNoteText', '**', '**')" class="text-xs text-gray-400 hover:text-cyan-400 p-2"><i class="fas fa-bold"></i></button>
@@ -875,7 +898,44 @@
             </div>
 
             <!-- Editor Body -->
-            <div class="flex-grow flex flex-col lg:flex-row overflow-hidden theme-bg-primary">
+            <div class="flex-grow flex flex-col lg:flex-row overflow-hidden theme-bg-primary relative">
+                <!-- Floating Contextual AI Toolbar -->
+                <div id="noteContextToolbar" class="hidden absolute z-[110] bg-gray-900/95 backdrop-blur-xl border border-purple-500/30 rounded-xl shadow-2xl p-1.5 flex gap-1 items-center animate-fadeIn">
+                    <button onclick="executeContextAction('improve')" class="context-btn" title="Improve Writing"><i class="fas fa-magic"></i></button>
+                    <button onclick="executeContextAction('expand')" class="context-btn" title="Expand Paragraph"><i class="fas fa-plus"></i></button>
+                    <button onclick="executeContextAction('shorten')" class="context-btn" title="Shorten Text"><i class="fas fa-compress-alt"></i></button>
+                    <div class="w-px h-4 bg-white/10 mx-1"></div>
+                    <button onclick="executeContextAction('check')" class="context-btn" title="To Checklist"><i class="fas fa-tasks"></i></button>
+                    <button onclick="executeContextAction('translate')" class="context-btn" title="Translate to English"><i class="fas fa-language"></i></button>
+                </div>
+
+                <!-- AI Diff Preview Overlay -->
+                <div id="noteDiffOverlay" class="hidden absolute inset-0 z-[120] bg-[#0f172a]/98 flex flex-col animate-fadeIn">
+                    <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-900/10">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center"><i class="fas fa-code-compare text-white"></i></div>
+                            <div>
+                                <h4 class="text-sm font-black text-white uppercase tracking-tighter">Review AI Suggestions</h4>
+                                <p class="text-[9px] text-purple-400 font-mono">Changes detected in document stream</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="rejectNoteChanges()" class="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold hover:bg-red-600/20 hover:text-red-400 transition">Discard</button>
+                            <button onclick="acceptNoteChanges()" class="px-6 py-2 rounded-xl bg-purple-600 text-white text-xs font-black shadow-lg shadow-purple-900/40 hover:bg-purple-500 transition">Apply Changes</button>
+                        </div>
+                    </div>
+                    <div class="flex-grow grid grid-cols-1 md:grid-cols-2 overflow-hidden bg-black/40">
+                        <div class="flex flex-col border-r border-white/5">
+                            <span class="text-[9px] font-black text-gray-500 uppercase p-3 bg-white/5">Original Path</span>
+                            <div id="noteDiffOriginal" class="flex-grow p-6 font-mono text-sm text-gray-500 overflow-auto custom-scrollbar whitespace-pre-wrap"></div>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[9px] font-black text-purple-400 uppercase p-3 bg-purple-500/5">AI Manifestation</span>
+                            <div id="noteDiffProposed" class="flex-grow p-6 font-mono text-sm text-purple-100 overflow-auto custom-scrollbar whitespace-pre-wrap"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <input id="editNoteId" type="hidden">
                 <div class="w-full lg:w-1/2 flex flex-col border-b lg:border-b-0 lg:border-r border-white/5 relative h-1/2 lg:h-full">
                     <div class="p-3 md:p-4 bg-black/10 border-b border-white/5 flex items-center justify-between shrink-0">

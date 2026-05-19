@@ -1996,6 +1996,40 @@ textarea:focus, input:focus {
     @apply w-full flex items-center p-3 rounded-xl bg-white/5 border border-white/5 text-[10px] font-bold uppercase tracking-wider hover:bg-white/10 transition-all text-gray-300;
 }
 
+/* --- Soul Notes AI Integration --- */
+.note-ai-btn {
+    @apply px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-[9px] font-black uppercase tracking-widest text-purple-300 hover:bg-purple-600 hover:text-white transition-all duration-300;
+}
+
+.context-btn {
+    @apply w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-purple-600 hover:text-white transition-all text-xs;
+}
+
+#noteDiffProposed ins {
+    @apply bg-green-900/40 text-green-200 no-underline border-b border-green-500;
+}
+
+#noteDiffOriginal del {
+    @apply bg-red-900/40 text-red-200 no-underline border-b border-red-500;
+}
+
+/* AI Stream Effect in Editor */
+.ai-stream-active {
+    box-shadow: inset 0 0 20px rgba(139, 92, 246, 0.2);
+    border-color: rgba(139, 92, 246, 0.5) !important;
+}
+
+.ai-cursor-blink::after {
+    content: '|';
+    animation: cursorBlink 1s infinite;
+    color: #a855f7;
+}
+
+@keyframes cursorBlink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+}
+
 /* Fix for fun page grid on very small screens */
 @media (max-width: 480px) {
     #fun .lg\:col-span-9 {

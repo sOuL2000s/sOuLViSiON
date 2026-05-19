@@ -303,6 +303,14 @@ let selectedConversations = new Set();
 let currentChatId = null;
 let seekHistory = [];
 
+let notesAIState = {
+    isWorking: false,
+    originalContent: "",
+    proposedContent: "",
+    selection: { start: 0, end: 0, text: "" },
+    memory: [] // Session memory for the specific note
+};
+
 let suggestState = {
     type: 'movie',
     history: []
@@ -1376,6 +1384,195 @@ function handleDiffProposedScroll(e) {
     requestAnimationFrame(() => { isDiffSyncScrolling = false; });
 }
 
+function setupNoteAiListeners() {
+    const editor = document.getElementById('editNoteText');
+    if (!editor) return;
+
+    editor.addEventListener('mouseup', handleNoteSelection);
+    editor.addEventListener('keyup', (e) => {
+        handleNoteSelection();
+        // Slash Command Detection
+        const val = editor.value;
+        const cursor = editor.selectionStart;
+        const lastSlash = val.lastIndexOf('/', cursor);
+        if (lastSlash !== -1 && val.slice(lastSlash, cursor) === '/ai') {
+            document.getElementById('noteAiPrompt').focus();
+            showToast("AI Command triggered. Enter your prompt.", "info");
+        }
+    });
+
+    // Close contextual toolbar on scroll or outside click
+    editor.addEventListener('scroll', () => document.getElementById('noteContextToolbar').classList.add('hidden'));
+}
+
+function handleNoteSelection() {
+    const editor = document.getElementById('editNoteText');
+    const toolbar = document.getElementById('noteContextToolbar');
+    const selection = editor.value.substring(editor.selectionStart, editor.selectionEnd);
+
+    if (selection && selection.trim().length > 2) {
+        const rect = editor.getBoundingClientRect();
+        // Basic positioning near the selection end - approximate for textarea
+        // In a real contenteditable it would be precise, for textarea we show it at top-right of the box
+        toolbar.style.top = '10px';
+        toolbar.style.right = '10px';
+        toolbar.classList.remove('hidden');
+        notesAIState.selection = {
+            start: editor.selectionStart,
+            end: editor.selectionEnd,
+            text: selection
+        };
+    } else {
+        toolbar.classList.add('hidden');
+    }
+}
+
+async function executeNoteAiAction() {
+    const promptInput = document.getElementById('noteAiPrompt');
+    const query = promptInput.value.trim();
+    if (!query) return;
+
+    promptInput.value = '';
+    await triggerNoteAi('custom', query);
+}
+
+async function executeContextAction(action) {
+    document.getElementById('noteContextToolbar').classList.add('hidden');
+    const queryMap = {
+        improve: "Improve the writing quality and flow of this selected text while keeping the meaning identical.",
+        expand: "Expand upon this text with more details and depth.",
+        shorten: "Shorten this text to be concise and punchy.",
+        check: "Convert this text into a markdown task list.",
+        translate: "Translate this text into clear, professional English."
+    };
+    await triggerNoteAi('context', queryMap[action] || action);
+}
+
+async function triggerNoteAi(type, customQuery = null) {
+    if (notesAIState.isWorking) return;
+    if (isAICooldownActive) return showAICooldownOverlay();
+
+    const editor = document.getElementById('editNoteText');
+    const model = document.getElementById('noteAiModelSelect').value;
+    const fullContent = editor.value;
+    
+    let targetText = fullContent;
+    let contextPrompt = "";
+
+    if (type === 'context' && notesAIState.selection.text) {
+        targetText = notesAIState.selection.text;
+        contextPrompt = `Selected Text to Edit: "${targetText}"\n\nInstruction: ${customQuery}`;
+    } else {
+        const prompts = {
+            rewrite: "Rewrite the following note to be more professional, clear, and well-structured.",
+            summarize: "Create a concise summary of the following note, highlighting key takeaways and action items.",
+            fix: "Fix all grammar, spelling, and punctuation errors in the following note without changing the style.",
+            custom: customQuery
+        };
+        contextPrompt = prompts[type] || customQuery;
+    }
+
+    const systemPrompt = `You are a professional AI Writing Assistant for sOuLNOTES.
+    YOUR MISSION: Transform the user's content based on their instructions.
+    
+    RULES:
+    1. If editing selected text, return ONLY the improved version of that text.
+    2. If writing/editing a full note, maintain the existing formatting style (Markdown).
+    3. Be intelligent, insightful, and helpful.
+    4. Do not include conversational filler like "Here is your rewrite".
+    5. Context of previous edits: ${JSON.stringify(notesAIState.memory.slice(-3))}
+
+    NOTE_CONTENT_FOR_CONTEXT:
+    ${fullContent}
+
+    CURRENT_INSTRUCTION:
+    ${contextPrompt}`;
+
+    notesAIState.isWorking = true;
+    notesAIState.originalContent = fullContent;
+    editor.classList.add('ai-stream-active');
+    setLoading(true, "AI is drafting...");
+
+    try {
+        const key = aiConfig.keys[currentKeyIndex];
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
+        });
+        
+        const data = await res.json();
+        const result = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        
+        if (!result) throw new Error("The Oracle provided an empty manifestation.");
+
+        if (type === 'context') {
+            const before = fullContent.substring(0, notesAIState.selection.start);
+            const after = fullContent.substring(notesAIState.selection.end);
+            notesAIState.proposedContent = before + result + after;
+        } else {
+            notesAIState.proposedContent = result;
+        }
+
+        notesAIState.memory.push({ type, prompt: contextPrompt, timestamp: Date.now() });
+        showNoteDiff();
+
+    } catch (e) {
+        showToast("AI manifestation failed: " + e.message, "error");
+    } finally {
+        notesAIState.isWorking = false;
+        editor.classList.remove('ai-stream-active');
+        setLoading(false);
+    }
+}
+
+function showNoteDiff() {
+    const overlay = document.getElementById('noteDiffOverlay');
+    const orig = document.getElementById('noteDiffOriginal');
+    const prop = document.getElementById('noteDiffProposed');
+
+    // Simple diff highlighting using a basic line comparison for visualization
+    const oldLines = notesAIState.originalContent.split('\n');
+    const newLines = notesAIState.proposedContent.split('\n');
+
+    let oldHtml = "", newHtml = "";
+    const max = Math.max(oldLines.length, newLines.length);
+
+    for (let i = 0; i < max; i++) {
+        const oldL = oldLines[i] || "";
+        const newL = newLines[i] || "";
+
+        if (oldL === newL) {
+            oldHtml += `<div>${escapeHtml(oldL) || '&nbsp;'}</div>`;
+            newHtml += `<div>${escapeHtml(newL) || '&nbsp;'}</div>`;
+        } else {
+            if (oldL) oldHtml += `<div class="bg-red-500/20"><del>${escapeHtml(oldL)}</del></div>`;
+            else oldHtml += `<div>&nbsp;</div>`;
+            
+            if (newL) newHtml += `<div class="bg-green-500/20"><ins>${escapeHtml(newL)}</ins></div>`;
+            else newHtml += `<div>&nbsp;</div>`;
+        }
+    }
+
+    orig.innerHTML = oldHtml;
+    prop.innerHTML = newHtml;
+    overlay.classList.remove('hidden');
+}
+
+function acceptNoteChanges() {
+    const editor = document.getElementById('editNoteText');
+    editor.value = notesAIState.proposedContent;
+    updateEditorStats(editor);
+    document.getElementById('noteDiffOverlay').classList.add('hidden');
+    showToast("Manifestation integrated into document.", "success");
+    saveEditedNote(true);
+}
+
+function rejectNoteChanges() {
+    document.getElementById('noteDiffOverlay').classList.add('hidden');
+    showToast("AI suggestions discarded.", "warning");
+}
+
 function openNote(id) {
     id = Number(id);
     const note = notes.find(n => n.id === id);
@@ -1411,6 +1608,7 @@ function openNote(id) {
     
     document.getElementById('noteModal').classList.remove('hidden');
     document.body.style.overflow = 'hidden'; // Lock background scroll
+    setupNoteAiListeners();
 }
 
 function closeNoteModal() {
@@ -2698,7 +2896,8 @@ function updateAIUI() {
         document.getElementById('seekModelSelect'),
         document.getElementById('quizModelSelect'),
         document.getElementById('miniModelSelect'),
-        document.getElementById('solveModelSelect')
+        document.getElementById('solveModelSelect'),
+        document.getElementById('noteAiModelSelect')
     ];
 
     modelSelects.forEach(select => {
