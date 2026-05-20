@@ -782,6 +782,28 @@
                     </div>
                 </div>
                 
+                <!-- AI Action Bar for Creation -->
+                <div id="newNoteAiBar" class="bg-purple-900/10 border border-purple-500/20 rounded-xl mb-4 px-3 py-2 flex flex-wrap items-center gap-2 animate-fadeIn">
+                    <div class="flex items-center gap-1.5 mr-1">
+                        <i class="fas fa-sparkles text-purple-400 text-[10px] animate-pulse"></i>
+                        <select id="newNoteAiModelSelect" class="bg-black/40 border border-white/10 rounded-lg p-1 text-[9px] font-black text-purple-300 outline-none cursor-pointer hover:border-purple-500/50 transition-all">
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+                    <div class="flex-grow relative">
+                        <input id="newNoteAiPrompt" type="text" placeholder="AI help for this note..." 
+                            class="w-full bg-black/60 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] text-white outline-none focus:border-purple-500 transition-all placeholder:text-gray-600"
+                            onkeydown="if(event.key==='Enter') triggerNoteAi('custom', this.value, true)">
+                        <button onclick="triggerNoteAi('custom', document.getElementById('newNoteAiPrompt').value, true)" class="absolute right-2 top-1/2 -translate-y-1/2 text-purple-400 hover:text-white transition">
+                            <i class="fas fa-paper-plane text-[10px]"></i>
+                        </button>
+                    </div>
+                    <div class="flex gap-1">
+                        <button onclick="triggerNoteAi('rewrite', null, true)" class="note-ai-btn !py-1 !text-[8px]" title="Rewrite Content">Rewrite</button>
+                        <button onclick="triggerNoteAi('summarize', null, true)" class="note-ai-btn !py-1 !text-[8px]" title="Summarize">Sum</button>
+                    </div>
+                </div>
+
                 <div id="noteToolbar" class="flex gap-2 mb-2 pb-2 border-b border-white/10 overflow-x-auto no-scrollbar text-xs items-center justify-between shrink-0 whitespace-nowrap">
                     <div class="flex gap-2 items-center">
                         <button onclick="wrapText('noteInput', '**', '**')" title="Bold" class="hover:text-cyan-400 p-1"><i class="fas fa-bold"></i></button>
@@ -910,8 +932,8 @@
                 </div>
 
                 <!-- AI Diff Preview Overlay -->
-                <div id="noteDiffOverlay" class="hidden absolute inset-0 z-[120] bg-[#0f172a]/98 flex flex-col animate-fadeIn">
-                    <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-900/10">
+                <div id="noteDiffOverlay" class="hidden absolute inset-0 z-[120] theme-bg-primary flex flex-col animate-fadeIn backdrop-blur-2xl">
+                    <div class="p-4 border-b border-white/10 flex justify-between items-center bg-purple-900/10 backdrop-blur-md">
                         <div class="flex items-center gap-3">
                             <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center"><i class="fas fa-code-compare text-white"></i></div>
                             <div>
@@ -924,13 +946,13 @@
                             <button onclick="acceptNoteChanges()" class="px-6 py-2 rounded-xl bg-purple-600 text-white text-xs font-black shadow-lg shadow-purple-900/40 hover:bg-purple-500 transition">Apply Changes</button>
                         </div>
                     </div>
-                    <div class="flex-grow grid grid-cols-1 md:grid-cols-2 overflow-hidden bg-black/40">
-                        <div class="flex flex-col border-r border-white/5">
-                            <span class="text-[9px] font-black text-gray-500 uppercase p-3 bg-white/5">Original Path</span>
+                    <div class="flex-grow grid grid-cols-1 md:grid-cols-2 overflow-hidden">
+                        <div class="flex flex-col border-r border-white/5 bg-black/20">
+                            <span class="text-[9px] font-black text-gray-500 uppercase p-3 bg-white/5 border-b border-white/5">Original Version</span>
                             <div id="noteDiffOriginal" class="flex-grow p-6 font-mono text-sm text-gray-500 overflow-auto custom-scrollbar whitespace-pre-wrap"></div>
                         </div>
-                        <div class="flex flex-col">
-                            <span class="text-[9px] font-black text-purple-400 uppercase p-3 bg-purple-500/5">AI Manifestation</span>
+                        <div class="flex flex-col bg-purple-950/5">
+                            <span class="text-[9px] font-black text-purple-400 uppercase p-3 bg-purple-500/5 border-b border-white/5">AI Manifestation</span>
                             <div id="noteDiffProposed" class="flex-grow p-6 font-mono text-sm text-purple-100 overflow-auto custom-scrollbar whitespace-pre-wrap"></div>
                         </div>
                     </div>

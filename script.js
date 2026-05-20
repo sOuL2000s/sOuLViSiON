@@ -1448,12 +1448,16 @@ async function executeContextAction(action) {
     await triggerNoteAi('context', queryMap[action] || action);
 }
 
-async function triggerNoteAi(type, customQuery = null) {
+async function triggerNoteAi(type, customQuery = null, isCreationMode = false, retryCount = 0) {
     if (notesAIState.isWorking) return;
     if (isAICooldownActive) return showAICooldownOverlay();
 
-    const editor = document.getElementById('editNoteText');
-    const model = document.getElementById('noteAiModelSelect').value;
+    const editorId = isCreationMode ? 'noteInput' : 'editNoteText';
+    const modelId = isCreationMode ? 'newNoteAiModelSelect' : 'noteAiModelSelect';
+    const promptInputId = isCreationMode ? 'newNoteAiPrompt' : 'noteAiPrompt';
+    
+    const editor = document.getElementById(editorId);
+    const model = document.getElementById(modelId).value;
     const fullContent = editor.value;
     
     let targetText = fullContent;
@@ -1464,26 +1468,28 @@ async function triggerNoteAi(type, customQuery = null) {
         contextPrompt = `Selected Text to Edit: "${targetText}"\n\nInstruction: ${customQuery}`;
     } else {
         const prompts = {
-            rewrite: "Rewrite the following note to be more professional, clear, and well-structured.",
-            summarize: "Create a concise summary of the following note, highlighting key takeaways and action items.",
-            fix: "Fix all grammar, spelling, and punctuation errors in the following note without changing the style.",
+            rewrite: "Rewrite the following content to be more professional, clear, and well-structured.",
+            summarize: "Create a concise summary of the following content, highlighting key takeaways.",
+            fix: "Fix all grammar, spelling, and punctuation errors in the following content.",
             custom: customQuery
         };
         contextPrompt = prompts[type] || customQuery;
     }
+
+    if (!contextPrompt && type === 'custom') return;
 
     const systemPrompt = `You are a professional AI Writing Assistant for sOuLNOTES.
     YOUR MISSION: Transform the user's content based on their instructions.
     
     RULES:
     1. If editing selected text, return ONLY the improved version of that text.
-    2. If writing/editing a full note, maintain the existing formatting style (Markdown).
+    2. If writing/editing full content, maintain the existing formatting style (Markdown).
     3. Be intelligent, insightful, and helpful.
     4. Do not include conversational filler like "Here is your rewrite".
     5. Context of previous edits: ${JSON.stringify(notesAIState.memory.slice(-3))}
 
-    NOTE_CONTENT_FOR_CONTEXT:
-    ${fullContent}
+    CONTENT_FOR_CONTEXT:
+    ${fullContent || "[Empty - Generating from scratch]"}
 
     CURRENT_INSTRUCTION:
     ${contextPrompt}`;
@@ -1494,17 +1500,32 @@ async function triggerNoteAi(type, customQuery = null) {
     setLoading(true, "AI is drafting...");
 
     try {
-        const key = aiConfig.keys[currentKeyIndex];
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
-        });
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+        const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+        const key = keys[keyIdx];
+
+        let res;
+        if (provider === "gemini") {
+            res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
+            });
+        } else {
+            res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }] })
+            });
+        }
         
+        if (!res.ok) throw new Error("API_ERROR");
+
         const data = await res.json();
-        const result = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const result = (provider === "gemini" ? data.candidates?.[0]?.content?.parts?.[0]?.text : data.choices?.[0]?.message?.content) || "";
         
-        if (!result) throw new Error("The Oracle provided an empty manifestation.");
+        if (!result) throw new Error("Empty manifestation.");
 
         if (type === 'context') {
             const before = fullContent.substring(0, notesAIState.selection.start);
@@ -1515,10 +1536,29 @@ async function triggerNoteAi(type, customQuery = null) {
         }
 
         notesAIState.memory.push({ type, prompt: contextPrompt, timestamp: Date.now() });
-        showNoteDiff();
+        
+        if (isCreationMode) {
+            // In creation mode, we apply directly to input instead of diff
+            editor.value = notesAIState.proposedContent;
+            updateEditorStats(editor);
+            document.getElementById(promptInputId).value = '';
+            showToast("Content updated by AI.", "success");
+        } else {
+            showNoteDiff();
+        }
 
     } catch (e) {
-        showToast("AI manifestation failed: " + e.message, "error");
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+        
+        if (retryCount < 2 && keys.length > 1) {
+            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+            
+            notesAIState.isWorking = false; // Reset to allow retry
+            return await triggerNoteAi(type, customQuery, isCreationMode, retryCount + 1);
+        }
+        showToast("AI manifestation failed.", "error");
     } finally {
         notesAIState.isWorking = false;
         editor.classList.remove('ai-stream-active');
@@ -2897,7 +2937,8 @@ function updateAIUI() {
         document.getElementById('quizModelSelect'),
         document.getElementById('miniModelSelect'),
         document.getElementById('solveModelSelect'),
-        document.getElementById('noteAiModelSelect')
+        document.getElementById('noteAiModelSelect'),
+        document.getElementById('newNoteAiModelSelect')
     ];
 
     modelSelects.forEach(select => {
@@ -3510,6 +3551,27 @@ function addTextAsAttachment(content, name = null) {
     renderAttachmentChips();
 }
 
+function handleAttachmentToText(idx) {
+    const file = pendingFiles[idx];
+    if (!file || file.raw === undefined) return;
+    
+    // Determine active input based on current page
+    let inputId = 'chatInput';
+    if (document.getElementById('ai').classList.contains('active')) inputId = 'chatInput';
+    else if (document.getElementById('code').classList.contains('active')) inputId = 'codeChatInput';
+    else if (document.getElementById('solve').classList.contains('active')) inputId = 'solveAIInput';
+    else if (document.getElementById('miniChat').classList.contains('show')) inputId = 'miniChatInput';
+
+    const input = document.getElementById(inputId);
+    if (input) {
+        const separator = input.value.trim() ? "\n\n" : "";
+        input.value = input.value + separator + file.raw;
+        autoResize(input);
+        removeAttachment(idx);
+        showToast("Content restored to input area.", "success");
+    }
+}
+
 function renderAttachmentChips() {
     const preview = document.getElementById('aiAttachmentPreview');
     const miniPreview = document.getElementById('miniAttachmentPreview');
@@ -3522,19 +3584,21 @@ function renderAttachmentChips() {
         chip.className = "bg-purple-600/20 text-purple-400 text-[10px] px-2 py-1 rounded flex items-center gap-2 border border-purple-500/30 group animate-fadeIn";
         
         let icon = '<i class="fas fa-file-alt"></i>';
-        let editBtn = '';
+        let actions = '';
         
         if (file.mime_type.startsWith('image/')) {
             icon = `<img src="data:${file.mime_type};base64,${file.data}" class="w-4 h-4 rounded object-cover">`;
         } else if (file.raw !== undefined) {
-            editBtn = `<button onclick="toggleLargeEditor(null, ${idx})" class="hover:text-cyan-400 transition" title="Edit text"><i class="fas fa-edit"></i></button>`;
+            actions = `
+                <button onclick="handleAttachmentToText(${idx})" class="hover:text-cyan-400 transition" title="Convert back to text"><i class="fas fa-arrow-up-from-bracket"></i></button>
+                <button onclick="toggleLargeEditor(null, ${idx})" class="hover:text-cyan-400 transition" title="Edit text"><i class="fas fa-edit"></i></button>`;
         }
 
         chip.innerHTML = `
             ${icon}
             <span class="max-w-[100px] truncate">${file.name}</span>
             <div class="flex items-center gap-1.5 ml-1">
-                ${editBtn}
+                ${actions}
                 <button onclick="removeAttachment(${idx})" class="hover:text-red-400 transition"><i class="fas fa-times"></i></button>
             </div>
         `;
@@ -4349,7 +4413,7 @@ async function syncSeekHistory() {
     } catch (e) { console.warn("Seek history sync failed", e); }
 }
 
-async function askSoulSeekAI() {
+async function askSoulSeekAI(customPrompt = null, retryCount = 0) {
     stopAllSTT();
     if (isAICooldownActive) {
         showAICooldownOverlay();
@@ -4386,17 +4450,32 @@ async function askSoulSeekAI() {
     const statusEl = document.getElementById('seekAiStatus');
     statusEl.classList.remove('hidden');
     
-    const model = document.getElementById('seekModelSelect').value; // Get model from seek dropdown
-    const key = aiConfig.keys[currentKeyIndex];
+    const model = document.getElementById('seekModelSelect').value; 
+    const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+    const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+    const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+    const key = keys[keyIdx];
 
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: messages })
-        });
+        let res;
+        if (provider === "gemini") {
+            res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: messages })
+            });
+        } else {
+            const groqMessages = messages.map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.parts[0].text }));
+            res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({ model, messages: groqMessages })
+            });
+        }
+        
+        if (!res.ok) throw new Error("API_ERROR");
         const data = await res.json();
-        const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "The numbers are clouded. Try again.";
+        const aiResponse = (provider === "gemini" ? data.candidates?.[0]?.content?.parts?.[0]?.text : data.choices?.[0]?.message?.content) || "The numbers are clouded. Try again.";
         
         appendAIMessage('ai', aiResponse, 'seekChatBox');
         seekHistory.push({ role: 'ai', content: aiResponse });
@@ -4409,6 +4488,11 @@ async function askSoulSeekAI() {
             });
         }
     } catch (e) {
+        if (retryCount < 2 && keys.length > 1) {
+            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+            return await askSoulSeekAI(customPrompt, retryCount + 1);
+        }
         showToast("Oracle connection failed.", "error");
     } finally {
         statusEl.classList.add('hidden');
@@ -4935,7 +5019,7 @@ function viewJournalEntry(ts) {
 }
 
 // --- sOuLQUIZ LOGIC ---
-async function startQuiz(category) {
+async function startQuiz(category, retryCount = 0) {
     if (!currentUser) return showPage('login');
     
     quizState = {
@@ -4959,16 +5043,29 @@ async function startQuiz(category) {
         Return ONLY a JSON array of objects with keys: "q" (the question), "o" (array of 4 options), "a" (index of correct option 0-3). 
         Do not include markdown blocks or any text other than the JSON. Ensure questions are challenging and diverse.`;
         
-        const model = document.getElementById('quizModelSelect').value; // Get model from quiz dropdown
-        quizState.model = model; // Store model in quizState
-        const key = aiConfig.keys[currentKeyIndex];
+        const model = document.getElementById('quizModelSelect').value; 
+        quizState.model = model;
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+        const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+        const key = keys[keyIdx];
+
+        let res;
+        if (provider === "gemini") {
+            res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+        } else {
+            res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] })
+            });
+        }
         
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-        
+        if (!res.ok) throw new Error("API_ERROR");
         const data = await res.json();
         let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
         // Clean markdown if AI insisted
@@ -4981,7 +5078,15 @@ async function startQuiz(category) {
         document.getElementById('quizQuestionBox').classList.remove('hidden');
         renderQuizQuestion();
     } catch (e) {
-        console.error(e);
+        const model = document.getElementById('quizModelSelect').value;
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+
+        if (retryCount < 2 && keys.length > 1) {
+            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+            return await startQuiz(category, retryCount + 1);
+        }
         showToast("The Oracle failed to generate questions. Try another category.", "error");
         resetQuiz();
     }
@@ -6057,7 +6162,7 @@ async function submitGuess() {
 
 // --- NEW AI FUN FUNCTIONS ---
 
-async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", useMarkdown = false, type = 'ai_generic') {
+async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", useMarkdown = false, type = 'ai_generic', retryCount = 0) {
     const outputEl = document.getElementById(outputElId);
     const btn = document.getElementById(btnId);
     if (isAICooldownActive) return showAICooldownOverlay();
@@ -6066,16 +6171,30 @@ async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", 
     if (btn) btn.disabled = true;
 
     try {
-        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-2.5-flash";
-        const key = aiConfig.keys[currentKeyIndex];
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+        const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+        const key = keys[keyIdx];
+
+        let res;
+        if (provider === "gemini") {
+            res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+        } else {
+            res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] })
+            });
+        }
         
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
+        if (!res.ok) throw new Error("API_ERROR");
         const data = await res.json();
-        const content = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const content = (provider === "gemini" ? data.candidates?.[0]?.content?.parts?.[0]?.text : data.choices?.[0]?.message?.content) || "";
         
         if (!content) throw new Error("Empty response");
 
@@ -6100,6 +6219,15 @@ async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", 
 
         if (btn) btn.disabled = false;
     } catch (e) {
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+
+        if (retryCount < 2 && keys.length > 1) {
+            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+            return await callFunAI(prompt, outputElId, btnId, loadingText, useMarkdown, type, retryCount + 1);
+        }
         outputEl.innerText = "Connection failed. Please try again.";
         if (btn) btn.disabled = false;
     }
@@ -6707,7 +6835,7 @@ function updateMetric(type, delta) {
     }
 }
 
-async function getSpiritualAdvice() {
+async function getSpiritualAdvice(retryCount = 0) {
     if (!currentUser) return showToast("Login to access the Soul Oracle.", "warning");
     
     const adviceEl = document.getElementById('soulAdviceContent');
@@ -6722,19 +6850,41 @@ async function getSpiritualAdvice() {
 
         const prompt = `Based on these recent soul journals: "${journals}" and my metrics (Health: ${health}, Wealth: ${wealth}), give me one sentence of deep spiritual wisdom and one specific actionable advice for my day. Be concise.`;
         
-        const model = aiConfig.unifiedModel || "gemini-2.5-flash";
-        const key = aiConfig.keys[currentKeyIndex];
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+        const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+        const key = keys[keyIdx];
+
+        let aiRes;
+        if (provider === "gemini") {
+            aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+        } else {
+            aiRes = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] })
+            });
+        }
         
-        const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-        
+        if (!aiRes.ok) throw new Error("API_ERROR");
         const data = await aiRes.json();
-        const advice = data.candidates?.[0]?.content?.parts?.[0]?.text || "The Oracle is silent. Try again later.";
+        const advice = (provider === "gemini" ? data.candidates?.[0]?.content?.parts?.[0]?.text : data.choices?.[0]?.message?.content) || "The Oracle is silent. Try again later.";
         adviceEl.innerText = advice;
     } catch (e) {
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+
+        if (retryCount < 2 && keys.length > 1) {
+            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+            return await getSpiritualAdvice(retryCount + 1);
+        }
         adviceEl.innerText = "Connection to the Oracle lost.";
     }
 }
@@ -6745,36 +6895,61 @@ let reportSteps = {
     answers: []
 };
 
-async function startReportQuestionnaire() {
+async function startReportQuestionnaire(retryCount = 0) {
     if (!currentUser) return showToast("Login to generate reports.", "warning");
     
-    reportSteps = { current: 0, questions: [], answers: [] };
-    document.getElementById('reportModal').classList.remove('hidden');
-    document.getElementById('reportQuestContainer').classList.remove('hidden');
-    document.getElementById('reportGenerating').classList.add('hidden');
-    document.getElementById('reportAnswer').value = '';
+    if (retryCount === 0) {
+        reportSteps = { current: 0, questions: [], answers: [] };
+        document.getElementById('reportModal').classList.remove('hidden');
+        document.getElementById('reportQuestContainer').classList.remove('hidden');
+        document.getElementById('reportGenerating').classList.add('hidden');
+        document.getElementById('reportAnswer').value = '';
+    }
     
     const questionEl = document.getElementById('reportQuestion');
     questionEl.innerText = "Generating reflection path...";
 
     try {
         const prompt = "Act as a spiritual guide. Generate 3 deep, philosophical questions for a self-actualization report. Return them as a simple numbered list. Do not include any other text.";
-        const model = document.getElementById('focusModelSelect').value; // Get model from focus dropdown
-        const key = aiConfig.keys[currentKeyIndex];
-        
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
+        const model = document.getElementById('focusModelSelect').value; 
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+        const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+        const key = keys[keyIdx];
+
+        let res;
+        if (provider === "gemini") {
+            res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+        } else {
+            res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] })
+            });
+        }
+
+        if (!res.ok) throw new Error("API_ERROR");
         const data = await res.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        const text = (provider === "gemini" ? data.candidates?.[0]?.content?.parts?.[0]?.text : data.choices?.[0]?.message?.content) || "";
         reportSteps.questions = text.split('\n').filter(q => q.trim()).map(q => q.replace(/^\d+\.\s+/, ''));
         
         if (reportSteps.questions.length < 3) throw new Error("Oracle failed to speak.");
         
         renderReportQuestion();
     } catch (e) {
+        const model = document.getElementById('focusModelSelect').value;
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+
+        if (retryCount < 2 && keys.length > 1) {
+            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+            return await startReportQuestionnaire(retryCount + 1);
+        }
         questionEl.innerText = "The path is blocked. Check your connection.";
     }
 }
@@ -6804,14 +6979,17 @@ async function nextReportQuestion() {
     }
 }
 
-async function finishReport() {
+async function finishReport(retryCount = 0) {
     document.getElementById('reportQuestContainer').classList.add('hidden');
     document.getElementById('reportGenerating').classList.remove('hidden');
 
     try {
-        // AI Analysis Generation
-        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-2.5-flash";
-        const key = aiConfig.keys[currentKeyIndex];
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+        const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+        const key = keys[keyIdx];
+
         const analysisPrompt = `Act as a high-level psychological and spiritual analyst. 
         Based on the following reflections and metrics, provide a deep, insightful, and constructive analysis of the user's current state of soul and productivity. 
         METRICS: Health=${document.getElementById('metricHealth').innerText}, Wealth=${document.getElementById('metricWealth').innerText}
@@ -6820,13 +6998,24 @@ async function finishReport() {
         
         Provide the analysis in structured Markdown with sections for "Core Strengths", "Mental Blocks", and "Path Forward".`;
 
-        const analysisRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: analysisPrompt }] }] })
-        });
+        let analysisRes;
+        if (provider === "gemini") {
+            analysisRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: analysisPrompt }] }] })
+            });
+        } else {
+            analysisRes = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({ model, messages: [{ role: 'user', content: analysisPrompt }] })
+            });
+        }
+        
+        if (!analysisRes.ok) throw new Error("API_ERROR");
         const analysisData = await analysisRes.json();
-        const aiAnalysis = analysisData.candidates?.[0]?.content?.parts?.[0]?.text || "The Oracle remains silent on this path.";
+        const aiAnalysis = (provider === "gemini" ? analysisData.candidates?.[0]?.content?.parts?.[0]?.text : analysisData.choices?.[0]?.message?.content) || "The Oracle remains silent on this path.";
 
         // Save answers to persistence
         await fetch(`/api/main?route=user_reports&userId=${encodeURIComponent(currentUser.email)}`, {
@@ -6865,8 +7054,16 @@ async function finishReport() {
         showToast("Soul Report Transferred Successfully.", "success");
         closeReportModal();
     } catch (e) {
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+
+        if (retryCount < 2 && keys.length > 1) {
+            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+            return await finishReport(retryCount + 1);
+        }
         showToast("Report construction failed.", "error");
-        console.error(e);
     }
 }
 
@@ -7297,7 +7494,7 @@ function startSecondInnings() {
     updateCricketUI();
 }
 
-async function generateAIMatchSummary(t1, t2, result) {
+async function generateAIMatchSummary(t1, t2, result, retryCount = 0) {
     if (!aiConfig.keys.length) return "A thrilling encounter concluded.";
     
     const prompt = `Generate a one-sentence dramatic sports headline for this cricket match: 
@@ -7307,15 +7504,40 @@ async function generateAIMatchSummary(t1, t2, result) {
     Keep it punchy and exciting.`;
 
     try {
-        const model = aiConfig.models[0]?.id || "gemini-2.5-flash";
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${aiConfig.keys[currentKeyIndex]}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
+        const model = aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+        const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+        const key = keys[keyIdx];
+
+        let res;
+        if (provider === "gemini") {
+            res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+            });
+        } else {
+            res = await fetch(`https://api.groq.com/openai/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] })
+            });
+        }
+
+        if (!res.ok) throw new Error("API_ERROR");
         const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "A classic battle of nerves!";
+        return (provider === "gemini" ? data.candidates?.[0]?.content?.parts?.[0]?.text : data.choices?.[0]?.message?.content)?.trim() || "A classic battle of nerves!";
     } catch (e) {
+        const model = aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
+        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
+
+        if (retryCount < 2 && keys.length > 1) {
+            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+            return await generateAIMatchSummary(t1, t2, result, retryCount + 1);
+        }
         return "An unforgettable match for the archives.";
     }
 }
