@@ -276,12 +276,13 @@ export default async function handler(req, res) {
             }
 
             if (method === 'POST') {
-                const { keys, models, groqKeys, groqModels } = body;
+                const { keys, models, groqKeys, groqModels, defaultModel } = body;
                 const updateDoc = {
                     keys,
                     models,
                     groqKeys: groqKeys || [],
                     groqModels: groqModels || [],
+                    defaultModel: defaultModel || null,
                     type: 'ai_settings'
                 };
                 await col.updateOne({ type: 'ai_settings' }, { $set: updateDoc }, { upsert: true });

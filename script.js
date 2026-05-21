@@ -279,7 +279,7 @@ function closeErrorOverlay() {
     const overlay = document.getElementById('errorOverlay');
     if (overlay) overlay.classList.add('hidden');
 }
-let aiConfig = { keys: [], models: [], groqKeys: [], groqModels: [] };
+let aiConfig = { keys: [], models: [], groqKeys: [], groqModels: [], defaultModel: null };
 let currentKeyIndex = 0;
 let currentGroqKeyIndex = 0;
 let pendingFiles = [];
@@ -815,8 +815,8 @@ function showPage(pageId, pushState = true) {
         if (pageId === 'fun') {
             initParticleVoid();
             syncFunLeaderboard();
-            syncFunAIHistory();
             renderAlchemyLog();
+            generateFunAIQuote();
         }
         
         // Close sidebar on navigation (mobile)
@@ -2898,6 +2898,7 @@ async function loadConfig() {
         aiConfig.models = data.models || [];
         aiConfig.groqKeys = data.groqKeys || [];
         aiConfig.groqModels = data.groqModels || [];
+        aiConfig.defaultModel = data.defaultModel || null;
         aiConfig.razorpayKey = data.razorpayKey;
         
         updateAIUI();
@@ -2913,6 +2914,12 @@ async function loadConfig() {
         if (elModels) elModels.value = JSON.stringify(aiConfig.models);
         if (elGroqKeys) elGroqKeys.value = aiConfig.groqKeys.join(', ');
         if (elGroqModels) elGroqModels.value = JSON.stringify(aiConfig.groqModels);
+
+        const elDefault = document.getElementById('adminDefaultModel');
+        if (elDefault) {
+            // updateAIUI handles innerHTML now
+            elDefault.value = aiConfig.defaultModel || "";
+        }
     }
 }
 
@@ -2938,7 +2945,9 @@ function updateAIUI() {
         document.getElementById('miniModelSelect'),
         document.getElementById('solveModelSelect'),
         document.getElementById('noteAiModelSelect'),
-        document.getElementById('newNoteAiModelSelect')
+        document.getElementById('newNoteAiModelSelect'),
+        document.getElementById('funModelSelect'),
+        document.getElementById('adminDefaultModel')
     ];
 
     modelSelects.forEach(select => {
@@ -2947,6 +2956,8 @@ function updateAIUI() {
             select.innerHTML = html;
             if (currentSelected && select.querySelector(`option[value="${currentSelected}"]`)) {
                 select.value = currentSelected;
+            } else if (aiConfig.defaultModel && select.querySelector(`option[value="${aiConfig.defaultModel}"]`)) {
+                select.value = aiConfig.defaultModel;
             } else {
                 const first = select.querySelector('option');
                 if (first) select.value = first.value;
@@ -3991,17 +4002,23 @@ async function askMiniAI() {
 
 async function callAIAPI(text, targetBoxId = 'chatBox', history = [], attachments = [], model = null) {
     document.title = '● AI is thinking...';
+
+    if (!model) {
+        if (aiConfig.defaultModel) {
+            model = aiConfig.defaultModel;
+        } else if (aiConfig.models.length > 0) {
+            model = aiConfig.models[0].id;
+        } else if (aiConfig.groqModels.length > 0) {
+            model = aiConfig.groqModels[0].id;
+        } else {
+            return alert("No AI models configured.");
+        }
+    }
     
     let provider = "gemini";
     if (model) {
         const groqCheck = aiConfig.groqModels.find(m => m.id === model);
         if (groqCheck) provider = "groq";
-    }
-
-    if (!model) {
-        if (aiConfig.models.length > 0) { model = aiConfig.models[0].id; provider = "gemini"; }
-        else if (aiConfig.groqModels.length > 0) { model = aiConfig.groqModels[0].id; provider = "groq"; }
-        else return alert("No AI models configured.");
     }
     
     const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
@@ -4589,10 +4606,17 @@ function startClicker() {
         if (s.timeLeft <= 0) {
             clearInterval(s.interval);
             s.active = false;
+            document.getElementById('clickBtn').disabled = true;
+            document.getElementById('clickBtn').innerText = "CONCLUDED";
             const cps = s.count / 10;
             combo.style.opacity = '0';
             showToast(`Session Ended. Score: ${cps} CPS`, "success");
             
+            setTimeout(() => {
+                document.getElementById('clickBtn').disabled = false;
+                document.getElementById('clickBtn').innerText = "Engage";
+            }, 3000);
+
             if (currentUser) {
                 try {
                     const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
@@ -4856,33 +4880,8 @@ function flipCoinFun() {
 }
 
 async function generateSoulQuote() {
-    const quoteEl = document.getElementById('quoteText');
-    if (!quoteEl) return;
-    quoteEl.innerHTML = '<i class="fas fa-spinner fa-spin text-indigo-400"></i>';
-    
-    const fallbackQuotes = [
-        { c: "The only way to do great work is to love what you do.", a: "Steve Jobs" },
-        { c: "Innovation distinguishes between a leader and a follower.", a: "Steve Jobs" },
-        { c: "Stay hungry, stay foolish.", a: "Whole Earth Catalog" },
-        { c: "Silence is a source of great strength.", a: "Lao Tzu" },
-        { c: "The journey of a thousand miles begins with a single step.", a: "Lao Tzu" },
-        { c: "Quality is not an act, it is a habit.", a: "Aristotle" }
-    ];
-
-    try {
-        const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://zenquotes.io/api/random'), { priority: 'low' });
-        if (!res.ok) throw new Error();
-        const wrapper = await res.json();
-        const data = JSON.parse(wrapper.contents);
-        if (data && data[0]) {
-            quoteEl.innerText = `"${data[0].q}" — ${data[0].a}`;
-        } else {
-            throw new Error();
-        }
-    } catch (e) {
-        const q = fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
-        quoteEl.innerText = `"${q.c}" — ${q.a}`;
-    }
+    const prompt = "Generate a single, profound, deeply spiritual and mystical quote about life and the universe. Keep it under 25 words. Return ONLY the quote text, no author name.";
+    await callFunAI(prompt, 'quoteText', null, "Hearing echoes...", false, 'ai_soul_quote');
 }
 
 async function syncFunLeaderboard() {
@@ -5509,28 +5508,26 @@ async function syncSnakeLeaderboard() {
     } catch (e) { console.error(e); }
 }
 
-function shakeBall() {
-    setFunPageBackground('purple');
+async function shakeBall() {
     const core = document.getElementById('sphereCore');
     const response = document.getElementById('ballResponse');
     
     core.style.animation = 'none';
     void core.offsetWidth;
-    core.style.animation = 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both';
+    core.style.animation = 'shake 0.8s cubic-bezier(.36,.07,.19,.97) both';
     
     response.style.opacity = '0';
+    response.innerText = "...";
     
-    const answers = [
-        "IT IS CERTAIN", "WITHOUT A DOUBT", "DECRYPTING... YES", 
-        "VOID SAYS NO", "SYSTEM UNCERTAIN", "QUERY LATER",
-        "SOURCE CODE REVEALS YES", "LOGIC ERROR: NO", "UNLIKELY",
-        "CONCENTRATE ON SOUL", "THE PATH IS CLEAR"
-    ];
+    const prompt = "Act as a mystical magic 8-ball but with a soul-searching, slightly cryptic, and wise personality. Give a short 2-5 word answer to a hidden question. Return ONLY the answer text.";
     
-    setTimeout(() => {
-        response.innerText = answers[Math.floor(Math.random() * answers.length)];
+    try {
+        await callFunAI(prompt, 'ballResponse', null, "CONSULTING...", false, 'ai_mystic_ball');
         response.style.opacity = '1';
-    }, 500);
+    } catch (e) {
+        response.innerText = "VOID ERROR";
+        response.style.opacity = '1';
+    }
 }
 
 // --- sOuLFUN Page State & Logic ---
@@ -5545,14 +5542,14 @@ let funState = {
     mixer: { active: false, target: {r:0,g:0,b:0}, current: {r:127,g:127,b:127} },
     zenTyping: { active: false, text: "", index: 0, start: 0 },
     scramble: { active: false, word: "" },
-    emojiMatch: { grid: [], selected: null },
+    emojiMatch: { grid: [], selected: null, score: 0, level: 1, target: 500, isBusy: false },
     guess: { active: false, target: 0, tries: 0 },
     riddle: { active: false, answer: "" },
     ambient: { 
-        rain: { audio: new Audio('https://www.soundjay.com/nature/sounds/rain-03.mp3'), active: false },
-        forest: { audio: new Audio('https://www.soundjay.com/nature/sounds/forest-birds-01.mp3'), active: false },
-        ocean: { audio: new Audio('https://www.soundjay.com/nature/sounds/ocean-waves-1.mp3'), active: false },
-        fire: { audio: new Audio('https://www.soundjay.com/nature/sounds/fire-1.mp3'), active: false }
+        rain: { audio: new Audio('https://assets.mixkit.co/active_storage/sfx/2437/2437-preview.mp3'), active: false },
+        forest: { audio: new Audio('https://assets.mixkit.co/active_storage/sfx/2436/2436-preview.mp3'), active: false },
+        ocean: { audio: new Audio('https://assets.mixkit.co/active_storage/sfx/2438/2438-preview.mp3'), active: false },
+        fire: { audio: new Audio('https://assets.mixkit.co/active_storage/sfx/2439/2439-preview.mp3'), active: false }
     }
 };
 
@@ -5572,13 +5569,22 @@ function toggleAmbientSound(type, btn) {
         btn.classList.remove('bg-cyan-600/20', 'border-cyan-500/30', 'text-cyan-400', 'bg-emerald-600/20', 'border-emerald-500/30', 'text-emerald-400', 'bg-blue-600/20', 'border-blue-500/30', 'text-blue-400', 'bg-orange-600/20', 'border-orange-500/30', 'text-orange-400');
         btn.classList.add('bg-white/5', 'text-gray-500');
     } else {
-        sound.audio.play().catch(e => showToast("Interaction required for audio play.", "info"));
-        sound.active = true;
-        btn.classList.remove('bg-white/5', 'text-gray-500');
+        // Essential: Standardize audio restart and catch block
+        sound.audio.currentTime = 0;
+        const playPromise = sound.audio.play();
         
-        const colors = { rain: 'cyan', forest: 'emerald', ocean: 'blue', fire: 'orange' };
-        const c = colors[type];
-        btn.classList.add(`bg-${c}-600/20`, `border-${c}-500/30`, `text-${c}-400`);
+        if (playPromise !== undefined) {
+            playPromise.then(_ => {
+                sound.active = true;
+                btn.classList.remove('bg-white/5', 'text-gray-500');
+                const colors = { rain: 'cyan', forest: 'emerald', ocean: 'blue', fire: 'orange' };
+                const c = colors[type];
+                btn.classList.add(`bg-${c}-600/20`, `border-${c}-500/30`, `text-${c}-400`);
+            }).catch(error => {
+                console.error("Audio playback failed:", error);
+                showToast("System blocked audio. Please click anywhere on the page then try again.", "warning");
+            });
+        }
     }
 }
 
@@ -5941,20 +5947,43 @@ const ZEN_PHRASES = [
     "The quieter you become, the more you are able to hear."
 ];
 
-function startZenTyping() {
-    funState.zenTyping.active = true;
-    funState.zenTyping.index = 0;
-    funState.zenTyping.text = ZEN_PHRASES[Math.floor(Math.random() * ZEN_PHRASES.length)];
-    funState.zenTyping.start = Date.now();
-    
+async function startZenTyping() {
     const area = document.getElementById('zenSentence');
-    area.innerHTML = funState.zenTyping.text.split('').map(c => `<span class="zen-char">${c}</span>`).join('');
+    const btn = document.getElementById('zenTypingBtn');
     
-    const input = document.getElementById('zenTypingInput');
-    input.classList.remove('hidden');
-    input.value = '';
-    input.focus();
-    document.getElementById('zenTypingBtn').classList.add('hidden');
+    area.innerHTML = '<i class="fas fa-spinner fa-spin text-cyan-400"></i>';
+    btn.disabled = true;
+
+    try {
+        const model = document.getElementById('funModelSelect')?.value || aiConfig.models[0]?.id;
+        const key = aiConfig.keys[currentKeyIndex];
+        const prompt = "Generate a single, peaceful, short sentence (max 12 words) for a typing test. Return only the text.";
+        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "The breath is the path to the soul.";
+
+        funState.zenTyping.active = true;
+        funState.zenTyping.index = 0;
+        funState.zenTyping.text = text.trim();
+        funState.zenTyping.start = Date.now();
+        
+        area.innerHTML = funState.zenTyping.text.split('').map(c => `<span class="zen-char">${c}</span>`).join('');
+        
+        const input = document.getElementById('zenTypingInput');
+        input.classList.remove('hidden');
+        input.value = '';
+        input.focus();
+        btn.classList.add('hidden');
+    } catch (e) {
+        area.innerText = "Connection lost. Try again.";
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 function checkZenTyping(val) {
@@ -5983,20 +6012,41 @@ function checkZenTyping(val) {
 // 5. Word Scramble
 const SCRAMBLE_POOL = ["QUANTUM", "SYNAPSE", "ORACLE", "MYSTIC", "NEURAL", "ECLIPSE", "ZENITH", "COSMOS"];
 
-function startScramble() {
-    const word = SCRAMBLE_POOL[Math.floor(Math.random() * SCRAMBLE_POOL.length)];
-    funState.scramble.word = word;
-    const scrambled = word.split('').sort(() => Math.random() - 0.5).join('');
-    
-    document.getElementById('scrambledWord').innerText = scrambled;
-    const input = document.getElementById('scrambleInput');
-    input.classList.remove('hidden');
-    input.value = '';
-    input.focus();
-    
+async function startScramble() {
+    const wordEl = document.getElementById('scrambledWord');
     const btn = document.getElementById('scrambleBtn');
-    btn.innerText = "Check Answer";
-    btn.onclick = checkScramble;
+    wordEl.innerHTML = '<i class="fas fa-spinner fa-spin text-yellow-400"></i>';
+    btn.disabled = true;
+
+    try {
+        const model = document.getElementById('funModelSelect')?.value || aiConfig.models[0]?.id;
+        const key = aiConfig.keys[currentKeyIndex];
+        const prompt = "Generate a single English word (7-10 letters) that is related to technology, space, or mysticism. Return ONLY the word in uppercase.";
+        
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        const data = await res.json();
+        const word = (data.candidates?.[0]?.content?.parts?.[0]?.text || "QUANTUM").trim().toUpperCase();
+
+        funState.scramble.word = word;
+        const scrambled = word.split('').sort(() => Math.random() - 0.5).join('');
+        
+        wordEl.innerText = scrambled;
+        const input = document.getElementById('scrambleInput');
+        input.classList.remove('hidden');
+        input.value = '';
+        input.focus();
+        
+        btn.innerText = "Check Answer";
+        btn.onclick = checkScramble;
+    } catch (e) {
+        wordEl.innerText = "ERROR";
+    } finally {
+        btn.disabled = false;
+    }
 }
 
 function checkScramble() {
@@ -6012,25 +6062,56 @@ function checkScramble() {
     }
 }
 
-// 6. Emoji Match-3
+// 6. Emoji Match-3 (Candy Crush Style)
+const MATCH_EMOJIS = ['🌟', '💎', '🔥', '💧', '🍀', '🟣'];
+
 function initEmojiMatch() {
     const grid = document.getElementById('emojiGrid');
-    const emojis = ['🌟', '💎', '🔥', '💧', '🍀'];
     funState.emojiMatch.grid = [];
+    funState.emojiMatch.score = 0;
+    funState.emojiMatch.level = 1;
+    funState.emojiMatch.target = 500;
+    funState.emojiMatch.isBusy = false;
     grid.innerHTML = '';
     
     for (let i = 0; i < 25; i++) {
-        const emo = emojis[Math.floor(Math.random() * emojis.length)];
+        let emo;
+        do {
+            emo = MATCH_EMOJIS[Math.floor(Math.random() * MATCH_EMOJIS.length)];
+        } while (willCreateMatch(i, emo));
+        
         funState.emojiMatch.grid.push(emo);
-        const cell = document.createElement('div');
-        cell.className = "emoji-cell bg-white/5 border border-white/5";
-        cell.innerText = emo;
-        cell.onclick = () => handleEmojiClick(i, cell);
-        grid.appendChild(cell);
     }
+    renderEmojiGrid();
 }
 
-function handleEmojiClick(idx, el) {
+function willCreateMatch(idx, emo) {
+    const g = funState.emojiMatch.grid;
+    // Check horizontal
+    if (idx % 5 >= 2 && g[idx - 1] === emo && g[idx - 2] === emo) return true;
+    // Check vertical
+    if (idx >= 10 && g[idx - 5] === emo && g[idx - 10] === emo) return true;
+    return false;
+}
+
+function renderEmojiGrid() {
+    const grid = document.getElementById('emojiGrid');
+    const scoreEl = document.getElementById('emojiScore');
+    if (scoreEl) scoreEl.innerText = funState.emojiMatch.score.toString().padStart(4, '0');
+    
+    grid.innerHTML = '';
+    funState.emojiMatch.grid.forEach((emo, i) => {
+        const cell = document.createElement('div');
+        cell.className = "emoji-cell bg-white/5 border border-white/5 text-lg";
+        cell.innerText = emo || '';
+        cell.onclick = () => handleEmojiClick(i, cell);
+        grid.appendChild(cell);
+    });
+}
+
+async function handleEmojiClick(idx, el) {
+    if (funState.emojiMatch.isBusy) return;
+    
     if (funState.emojiMatch.selected === null) {
         funState.emojiMatch.selected = idx;
         el.classList.add('selected');
@@ -6039,18 +6120,92 @@ function handleEmojiClick(idx, el) {
         const cells = document.querySelectorAll('.emoji-cell');
         cells[prevIdx].classList.remove('selected');
         
-        // Check if adjacent
         const isAdj = [1, -1, 5, -5].includes(idx - prevIdx);
         if (isAdj) {
-            const temp = funState.emojiMatch.grid[idx];
-            funState.emojiMatch.grid[idx] = funState.emojiMatch.grid[prevIdx];
-            funState.emojiMatch.grid[prevIdx] = temp;
-            cells[idx].innerText = funState.emojiMatch.grid[idx];
-            cells[prevIdx].innerText = funState.emojiMatch.grid[prevIdx];
-            showToast("Swapped!", "info", 500);
+            funState.emojiMatch.isBusy = true;
+            swapEmojis(idx, prevIdx);
+            renderEmojiGrid();
+            
+            await new Promise(r => setTimeout(r, 300));
+            
+            if (!checkAndClearMatches()) {
+                // No match, swap back
+                swapEmojis(idx, prevIdx);
+                renderEmojiGrid();
+            }
+            funState.emojiMatch.isBusy = false;
         }
         funState.emojiMatch.selected = null;
     }
+}
+
+function swapEmojis(i1, i2) {
+    const temp = funState.emojiMatch.grid[i1];
+    funState.emojiMatch.grid[i1] = funState.emojiMatch.grid[i2];
+    funState.emojiMatch.grid[i2] = temp;
+}
+
+async function checkAndClearMatches() {
+    const g = funState.emojiMatch.grid;
+    let matches = new Set();
+
+    // Horizontal check
+    for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 3; c++) {
+            let i = r * 5 + c;
+            if (g[i] && g[i] === g[i+1] && g[i] === g[i+2]) {
+                matches.add(i); matches.add(i+1); matches.add(i+2);
+            }
+        }
+    }
+    // Vertical check
+    for (let c = 0; c < 5; c++) {
+        for (let r = 0; r < 3; r++) {
+            let i = r * 5 + c;
+            if (g[i] && g[i] === g[i+5] && g[i] === g[i+10]) {
+                matches.add(i); matches.add(i+5); matches.add(i+10);
+            }
+        }
+    }
+
+    if (matches.size > 0) {
+        if (window.navigator.vibrate) window.navigator.vibrate(20);
+        funState.emojiMatch.score += matches.size * 10;
+        matches.forEach(i => g[i] = null);
+        renderEmojiGrid();
+        
+        await new Promise(r => setTimeout(r, 400));
+        dropEmojis();
+        
+        if (funState.emojiMatch.score >= funState.emojiMatch.target) {
+            funState.emojiMatch.target += 500;
+            showToast(`Target Achieved: ${funState.emojiMatch.score} / ${funState.emojiMatch.target}`, "success");
+        }
+        
+        setTimeout(checkAndClearMatches, 500);
+        return true;
+    }
+    return false;
+}
+
+function dropEmojis() {
+    const g = funState.emojiMatch.grid;
+    for (let c = 0; c < 5; c++) {
+        let emptyCount = 0;
+        for (let r = 4; r >= 0; r--) {
+            let i = r * 5 + c;
+            if (g[i] === null) {
+                emptyCount++;
+            } else if (emptyCount > 0) {
+                g[i + emptyCount * 5] = g[i];
+                g[i] = null;
+            }
+        }
+        for (let r = 0; r < emptyCount; r++) {
+            g[r * 5 + c] = MATCH_EMOJIS[Math.floor(Math.random() * MATCH_EMOJIS.length)];
+        }
+    }
+    renderEmojiGrid();
 }
 
 // 7. AI Riddle
@@ -6162,16 +6317,26 @@ async function submitGuess() {
 
 // --- NEW AI FUN FUNCTIONS ---
 
+async function generateFunAIQuote() {
+    const box = document.getElementById('funAIQuoteBox');
+    if (!box) return;
+    
+    const prompt = "Generate a single, short, witty, and funny quote about technology, productivity, or the soul. Keep it under 20 words. No attribution or quotes needed, just the text.";
+    await callFunAI(prompt, 'funAIQuoteBox', null, "Channeling humor...", false, 'ai_fun_quote');
+}
+
 async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", useMarkdown = false, type = 'ai_generic', retryCount = 0) {
     const outputEl = document.getElementById(outputElId);
-    const btn = document.getElementById(btnId);
+    const btn = btnId ? document.getElementById(btnId) : null;
     if (isAICooldownActive) return showAICooldownOverlay();
 
-    outputEl.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-center gap-2"><i class="fas fa-spinner fa-spin text-purple-400"></i><span class="animate-pulse text-[8px] uppercase tracking-widest text-gray-500">${loadingText}</span></div>`;
+    outputEl.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-center gap-2 py-4"><i class="fas fa-spinner fa-spin text-pink-400"></i><span class="animate-pulse text-[8px] uppercase tracking-widest text-gray-500">${loadingText}</span></div>`;
     if (btn) btn.disabled = true;
 
     try {
-        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const model = document.getElementById('funModelSelect')?.value || aiConfig.models[0]?.id;
+        if (!model) throw new Error("No model selected.");
+        
         const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
         const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
         const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
@@ -6228,7 +6393,7 @@ async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", 
             else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
             return await callFunAI(prompt, outputElId, btnId, loadingText, useMarkdown, type, retryCount + 1);
         }
-        outputEl.innerText = "Connection failed. Please try again.";
+        outputEl.innerHTML = `<p class="text-[10px] text-red-400 italic">The Oracle is currently unresponsive.</p>`;
         if (btn) btn.disabled = false;
     }
 }
@@ -8121,6 +8286,7 @@ async function saveAdminConfig() {
     const adminEmail = currentUser ? currentUser.email : '';
     const keys = document.getElementById('apiKeys').value.split(',').map(k => k.trim()).filter(k => k);
     const groqKeys = document.getElementById('groqKeys').value.split(',').map(k => k.trim()).filter(k => k);
+    const defaultModel = document.getElementById('adminDefaultModel').value;
     
     try {
         const models = JSON.parse(document.getElementById('modelList').value || "[]");
@@ -8130,7 +8296,7 @@ async function saveAdminConfig() {
         const res = await fetch(`/api/main?route=admin_config&adminEmail=${encodeURIComponent(adminEmail)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ type: 'ai_settings', keys, models, groqKeys, groqModels })
+            body: JSON.stringify({ type: 'ai_settings', keys, models, groqKeys, groqModels, defaultModel })
         });
         if(res.ok) { showToast("Config Updated!", "success"); loadConfig(); }
     } catch(e) {
