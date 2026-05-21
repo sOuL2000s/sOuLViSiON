@@ -8758,19 +8758,37 @@ function initGoogleLogin() {
     );
 }
 
-// --- CUSTOM CURSOR LOGIC ---
+// --- INTELLIGENT CUSTOM CURSOR LOGIC ---
 function initCustomCursor() {
     const cursor = document.getElementById('custom-cursor');
+    const status = cursor?.querySelector('.cursor-status');
+    const dot = cursor?.querySelector('.cursor-dot');
+    const ring = cursor?.querySelector('.cursor-ring');
+    
     if (!cursor) return;
+    
     document.body.classList.add('cursor-active');
 
     let mouseX = 0, mouseY = 0;
+    let ballX = 0, ballY = 0; // For smoothing
     let isHidden = true;
 
-    // Movement using top/left for cleaner combined scale transforms in CSS
     const updateCursorPosition = () => {
-        cursor.style.left = `${mouseX}px`;
-        cursor.style.top = `${mouseY}px`;
+        // Main container follows mouse instantly (precision)
+        cursor.style.transform = `translate3d(${mouseX}px, ${mouseY}px, 0)`;
+        
+        // Ring follows with liquid lerp for premium feel
+        const lerp = 0.18;
+        ballX += (mouseX - ballX) * lerp;
+        ballY += (mouseY - ballY) * lerp;
+        
+        if (ring) {
+            const dx = ballX - mouseX;
+            const dy = ballY - mouseY;
+            // The ring is translated relative to the cursor container which is already at mouse position
+            ring.style.transform = `translate3d(${dx}px, ${dy}px, 0)`;
+        }
+
         requestAnimationFrame(updateCursorPosition);
     };
     requestAnimationFrame(updateCursorPosition);
@@ -8784,48 +8802,64 @@ function initCustomCursor() {
         }
     });
 
-    document.addEventListener('mouseleave', () => {
-        cursor.style.opacity = '0';
-        isHidden = true;
-    });
+    // Handle Adaptive Appearance based on Application State
+    const updateCursorContext = () => {
+        const activePage = document.querySelector('.page.active')?.id;
+        cursor.classList.remove('ai-mode', 'draw-mode', 'music-mode', 'game-mode');
+        
+        if (activePage === 'ai' || activePage === 'seek' || activePage === 'code') {
+            cursor.classList.add('ai-mode');
+            if(status) status.innerHTML = '<i class="fas fa-microchip"></i>';
+        } else if (activePage === 'draw') {
+            cursor.classList.add('draw-mode');
+            if(status) status.innerHTML = '<i class="fas fa-pen-nib"></i>';
+        } else if (activePage === 'play' && isMusicPlaying) {
+            cursor.classList.add('music-mode');
+            if(status) status.innerHTML = '<i class="fas fa-wave-square"></i>';
+        } else if (['snake', 'cricket', 'quiz', 'fun'].includes(activePage)) {
+            cursor.classList.add('game-mode');
+            if(status) status.innerHTML = '<i class="fas fa-bolt"></i>';
+        } else {
+            if(status) status.innerHTML = '';
+        }
+    };
 
-    document.addEventListener('mouseenter', () => {
-        cursor.style.opacity = '1';
-        isHidden = false;
-    });
+    // Intercept showPage to trigger cursor context update
+    const originalShowPage = window.showPage;
+    window.showPage = function(pageId, pushState) {
+        const result = originalShowPage.apply(this, arguments);
+        updateCursorContext();
+        return result;
+    };
 
-    const interactiveSelectors = 'a, button, input[type="submit"], input[type="button"], [role="button"], .cursor-pointer, [onclick], .note-checkbox, select';
+    document.addEventListener('mouseleave', () => { cursor.style.opacity = '0'; isHidden = true; });
+    document.addEventListener('mouseenter', () => { cursor.style.opacity = '1'; isHidden = false; });
+
+    const interactiveSelectors = 'a, button, input[type="submit"], input[type="button"], [role="button"], .cursor-pointer, [onclick], .note-checkbox, select, .draw-tool-item, .template-card';
     const textSelectors = 'input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="date"], textarea, [contenteditable="true"]';
 
     document.addEventListener('mouseover', (e) => {
         const target = e.target;
-        if (target.closest(interactiveSelectors)) {
+        const interactive = target.closest(interactiveSelectors);
+        const textInput = target.closest(textSelectors);
+
+        if (interactive) {
             cursor.classList.add('active');
-        } else if (target.closest(textSelectors)) {
+            if (status) cursor.classList.add('has-status');
+        } else if (textInput) {
             cursor.classList.add('text-mode');
         }
     });
 
     document.addEventListener('mouseout', (e) => {
-        cursor.classList.remove('active');
-        cursor.classList.remove('text-mode');
+        cursor.classList.remove('active', 'text-mode', 'has-status');
     });
 
-    document.addEventListener('mousedown', () => {
-        cursor.classList.add('clicking');
-    });
-
-    document.addEventListener('mouseup', () => {
-        cursor.classList.remove('clicking');
-    });
+    document.addEventListener('mousedown', () => cursor.classList.add('clicking'));
+    document.addEventListener('mouseup', () => cursor.classList.remove('clicking'));
     
-    // Ensure cursor stays visible when dragging
-    document.addEventListener('dragstart', (e) => {
-        cursor.style.opacity = '0.5';
-    });
-    document.addEventListener('dragend', (e) => {
-        cursor.style.opacity = '1';
-    });
+    // Initial call
+    updateCursorContext();
 }
 
 // --- sOuLNOTES NEW FEATURES ---

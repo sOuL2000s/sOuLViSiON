@@ -357,83 +357,131 @@ body {
 }
 
 .custom-cursor {
-    width: 18px;
-    height: 18px;
-    background: transparent;
-    border: 1.5px solid var(--primary);
-    border-radius: 50%;
     position: fixed;
     top: 0;
     left: 0;
     pointer-events: none;
-    z-index: 99999;
-    /* transition: Position handled by JS, Scale/Colors handled here */
-    transition: width 0.2s ease, 
-                height 0.2s ease, 
-                background 0.2s, 
-                border-color 0.2s, 
-                opacity 0.15s ease, 
-                transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    box-shadow: 0 0 12px rgba(6, 182, 212, 0.4);
-    transform: translate(-50%, -50%) scale(1);
-    mix-blend-mode: screen;
-    will-change: transform, top, left;
+    z-index: 999999;
+    mix-blend-mode: normal;
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
+    transition: opacity 0.3s ease;
+    will-change: transform;
 }
 
-/* Precision Center Dot */
-.custom-cursor::after {
-    content: '';
-    width: 3px;
-    height: 3px;
+.cursor-dot {
+    width: 6px;
+    height: 6px;
     background: #fff;
     border-radius: 50%;
-    box-shadow: 0 0 4px #fff;
-    transition: all 0.2s ease;
+    position: absolute;
+    box-shadow: 0 0 10px #fff;
+    z-index: 2;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.3s;
 }
 
-.custom-cursor.active {
-    width: 40px;
-    height: 40px;
+.cursor-ring {
+    width: 30px;
+    height: 30px;
+    border: 1.5px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    position: absolute;
+    z-index: 1;
+    transition: width 0.4s cubic-bezier(0.075, 0.82, 0.165, 1), 
+                height 0.4s cubic-bezier(0.075, 0.82, 0.165, 1), 
+                border 0.3s ease,
+                background 0.3s ease,
+                border-radius 0.4s ease;
+}
+
+.cursor-status {
+    position: absolute;
+    right: -24px;
+    top: -24px;
+    font-size: 12px;
+    color: var(--primary);
+    opacity: 0;
+    transform: scale(0.5) rotate(-20deg);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    text-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+    font-weight: 900;
+}
+
+/* --- Dynamic States --- */
+
+.custom-cursor.clicking .cursor-dot {
+    transform: scale(0.5);
+}
+
+.custom-cursor.clicking .cursor-ring {
+    transform: scale(0.85);
+    border-width: 3px;
+}
+
+/* Hovering buttons/links */
+.custom-cursor.active .cursor-ring {
+    width: 54px;
+    height: 54px;
+    border-color: var(--primary);
     background: rgba(6, 182, 212, 0.1);
-    border-color: var(--secondary);
-    box-shadow: 0 0 20px var(--secondary);
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
 }
 
-.custom-cursor.active::after {
-    width: 5px;
-    height: 5px;
-    background: var(--secondary);
-}
-
-.custom-cursor.clicking {
-    transform: translate(-50%, -50%) scale(0.7);
-}
-
-/* I-Beam Precision for text inputs */
-.custom-cursor.text-mode {
-    width: 8px;
-    height: 22px;
-    border-radius: 1px;
-    background: transparent;
-    border-top: 2px solid var(--primary);
-    border-bottom: 2px solid var(--primary);
-    border-left: none;
-    border-right: none;
-    box-shadow: none;
-}
-
-.custom-cursor.text-mode::after {
-    content: '';
-    display: block;
-    width: 2px;
-    height: 100%;
+.custom-cursor.active .cursor-dot {
     background: var(--primary);
-    box-shadow: 0 0 8px var(--primary);
+    transform: scale(1.4);
 }
+
+/* Text Mode */
+.custom-cursor.text-mode .cursor-ring {
+    width: 4px;
+    height: 24px;
+    border-radius: 2px;
+    background: var(--primary);
+    border: none;
+    box-shadow: 0 0 10px var(--primary);
+}
+
+.custom-cursor.text-mode .cursor-dot {
+    opacity: 0;
+}
+
+/* Special State Indicator */
+.custom-cursor.has-status .cursor-status {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+}
+
+/* Specialized Page States */
+.custom-cursor.ai-mode .cursor-ring {
+    border-color: var(--secondary);
+    border-style: dashed;
+    animation: spin 6s linear infinite;
+}
+
+.custom-cursor.draw-mode .cursor-ring {
+    border-radius: 4px;
+    transform: rotate(45deg);
+    border-color: #ec4899;
+}
+
+.custom-cursor.music-mode .cursor-ring {
+    border-width: 3px;
+    border-color: #06b6d4;
+    animation: cursorPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes cursorPulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.2); opacity: 1; }
+}
+
+/* Minimalist Overrides */
+[data-theme="minimalist"] .cursor-ring { border-color: rgba(0, 0, 0, 0.2); }
+[data-theme="minimalist"] .cursor-dot { background: #000; box-shadow: none; }
+[data-theme="minimalist"] .custom-cursor.active .cursor-ring { background: rgba(37, 99, 235, 0.05); }
 
 /* --- Custom Scrollbar --- */
 ::-webkit-scrollbar {
