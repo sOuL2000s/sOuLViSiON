@@ -815,64 +815,49 @@ body:has(#seek.active) main {
 }
 
 .message {
-    max-width: 95%; /* Use more width on mobile */
-    padding: 0.75rem 1rem;
+    max-width: 95%;
+    padding: 0.85rem 1.15rem;
     border-radius: 1.25rem;
-    line-height: 1.5;
+    line-height: 1.6;
     position: relative;
     font-size: 0.85rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    display: flex;
+    flex-direction: column;
 }
 
 @media (min-width: 768px) {
     .message { 
-        max-width: 80%; 
-        padding: 1.25rem 1.5rem;
-        border-radius: 1.5rem;
+        max-width: 82%; 
+        padding: 1.25rem 1.75rem;
+        border-radius: 1.75rem;
         font-size: 0.95rem;
     }
 }
 
 .ai-msg {
     align-self: flex-start;
-    background: rgba(30, 41, 59, 0.4);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: #f1f5f9;
     border-bottom-left-radius: 4px;
-    box-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+    margin-right: 8%;
+    box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.4);
 }
 
 .user-msg {
     align-self: flex-end;
-    background: linear-gradient(135deg, var(--secondary) 0%, #4f46e5 100%);
+    background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
     color: white;
     border-bottom-right-radius: 4px;
-    box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.3);
-}
-
-.user-msg {
-    align-self: flex-end;
-    background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);
-    color: white;
-    border-bottom-right-radius: 6px;
-    margin-left: 15%;
-    box-shadow: 0 10px 20px -5px rgba(139, 92, 246, 0.3);
-}
-
-.ai-msg {
-    align-self: flex-start;
-    background: rgba(15, 23, 42, 0.85);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(139, 92, 246, 0.2);
-    color: #f1f5f9;
-    border-bottom-left-radius: 6px;
-    margin-right: 15%;
-    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.5);
+    margin-left: 8%;
+    box-shadow: 0 12px 25px -5px rgba(124, 58, 237, 0.25);
 }
 
 .ai-msg:hover {
-    transform: translateX(2px);
+    background: rgba(15, 23, 42, 0.95);
+    border-color: rgba(6, 182, 212, 0.2);
 }
 
 /* Markdown Styling */
@@ -882,6 +867,7 @@ body:has(#seek.active) main {
     color: #e2e8f0;
     word-break: break-word;
     overflow-wrap: break-word;
+    width: 100%;
 }
 
 @media (max-width: 640px) {
@@ -1948,27 +1934,45 @@ textarea:focus, input:focus {
     50% { opacity: 0; }
 }
 
-/* Show AI Message Actions on Hover */
+/* Message Actions Tooltip Positioning */
 .msg-copy-group {
     opacity: 0;
-    pointer-events: auto;
-    transition: opacity 0.2s ease, transform 0.2s ease;
-    transform: translateY(5px);
+    pointer-events: none;
+    transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateY(-8px);
+    position: sticky;
+    top: 10px; /* Stays at top of viewport when message is long and scrolling */
+    align-self: flex-end;
+    margin-top: -12px;
+    margin-bottom: -18px; /* Negative margin pulls text content up to float behind buttons */
+    margin-right: 5px;
+    z-index: 45;
+    display: flex;
+    gap: 4px;
+    height: 30px;
 }
 
 .message:hover .msg-copy-group {
     opacity: 1;
     transform: translateY(0);
+    pointer-events: auto;
 }
 
 .msg-copy-group button {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: #1e293b;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    pointer-events: auto;
 }
 
-/* Adjust message padding to accommodate sticky buttons if floated */
-.ai-msg, .user-msg {
-    display: block !important; /* Ensure block for float/sticky behavior */
+.user-msg .msg-copy-group button {
+    background: #4338ca;
+}
+
+[data-theme="minimalist"] .msg-copy-group button {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 /* --- sOuLDRAW Styles --- */
@@ -2163,4 +2167,75 @@ textarea:focus, input:focus {
 #aiSendBtn:hover {
     transform: scale(1.05) translateY(-1px);
     box-shadow: 0 8px 25px rgba(124, 58, 237, 0.5);
+}
+
+/* --- Prompt Architect & Template Grid Refinement --- */
+#promptTemplateBelt {
+    scrollbar-width: thin;
+    max-height: 420px;
+    overflow-y: auto;
+    width: 360px;
+    transform-origin: bottom left;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+}
+
+#templateBeltContent {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    padding: 2px;
+}
+
+@media (max-width: 768px) {
+    #promptTemplateBelt {
+        width: calc(100vw - 48px);
+        left: 0;
+        max-height: 380px;
+    }
+    #templateBeltContent {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 440px) {
+    #templateBeltContent {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.template-card {
+    @apply flex flex-col items-center justify-center p-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-purple-600/20 hover:border-purple-500/40 transition-all shrink-0 aspect-square group/t text-center relative overflow-hidden;
+    box-shadow: inset 0 0 15px rgba(255,255,255,0.02);
+}
+
+.template-card::before {
+    content: '';
+    @apply absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover/t:opacity-100 transition-opacity;
+}
+
+.template-card i {
+    @apply text-2xl mb-2.5 text-gray-400 group-hover/t:text-purple-400 group-hover/t:scale-110 transition-all duration-300 relative z-10;
+}
+
+.template-card span {
+    @apply text-[8px] font-black uppercase tracking-widest text-gray-500 group-hover/t:text-white leading-tight line-clamp-2 relative z-10 transition-colors;
+}
+
+/* Modal Inner Layout */
+#promptArchitectModal .glass {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+    box-shadow: 0 0 80px rgba(0,0,0,0.8), 0 0 20px rgba(139, 92, 246, 0.1);
+}
+
+#promptArchitectModal label {
+    @apply transition-colors duration-300;
+}
+
+#promptArchitectModal div:focus-within label {
+    @apply text-purple-400;
+}
+
+#promptArchitectModal input, #promptArchitectModal textarea {
+    @apply bg-black/40 border-white/5 focus:border-purple-500/50 focus:ring-4 focus:ring-purple-500/5 rounded-2xl !important;
 }

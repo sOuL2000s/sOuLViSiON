@@ -1856,9 +1856,17 @@
                                     <button id="sttBtn" onclick="toggleSpeechToText('chatInput', 'sttBtn', false, false); closeExtraTools();" class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-purple-400 transition-all flex items-center justify-center" title="Voice Recognition">
                                         <i class="fas fa-microphone text-xs md:text-sm"></i>
                                     </button>
-                                    <button onclick="togglePromptArchitect(); closeExtraTools();" class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-purple-400 transition-all flex items-center justify-center" title="Prompt Architect">
-                                        <i class="fas fa-wand-magic-sparkles text-xs md:text-sm"></i>
-                                    </button>
+                                    <div class="relative">
+                                        <button onclick="togglePromptLibrary(); closeExtraTools();" class="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-purple-400 transition-all flex items-center justify-center" title="Prompt Architect">
+                                            <i class="fas fa-wand-magic-sparkles text-xs md:text-sm"></i>
+                                        </button>
+                                        <!-- Responsive Template Grid -->
+                                        <div id="promptTemplateBelt" class="hidden absolute bottom-full left-0 mb-4 p-3 glass border border-purple-500/30 shadow-2xl animate-fadeIn z-[110] custom-scrollbar">
+                                            <p class="text-[9px] font-black text-gray-500 uppercase tracking-[0.2em] mb-3 px-1 border-b border-white/5 pb-1">Cognitive Templates</p>
+                                            <div id="templateBeltContent"></div>
+                                            <button onclick="togglePromptArchitect(); document.getElementById('promptTemplateBelt').classList.add('hidden');" class="w-full mt-3 py-2 bg-white/5 hover:bg-purple-600/20 text-[9px] font-black uppercase tracking-widest rounded-lg border border-white/10 transition-all">Manual Architect</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -3616,46 +3624,61 @@
     </div>
 
     <!-- Prompt Architect Modal -->
-    <div id="promptArchitectModal" class="fixed inset-0 bg-black/90 z-[550] hidden flex items-center justify-center p-4 backdrop-blur-md">
-        <div class="glass w-full max-w-2xl p-6 md:p-8 border-t-4 border-purple-500 max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div class="flex justify-between items-start mb-6">
-                <div>
-                    <h3 class="text-2xl font-black text-white tracking-tighter uppercase">Prompt Architect</h3>
-                    <p class="text-[10px] text-purple-400 font-mono uppercase tracking-[0.2em] mt-1">Cognitive Framework Generator</p>
+    <div id="promptArchitectModal" class="fixed inset-0 bg-black/90 z-[550] hidden flex items-center justify-center p-4 backdrop-blur-xl transition-all duration-500">
+        <div class="glass w-full max-w-2xl p-6 md:p-10 border-t-4 border-purple-500 max-h-[90vh] overflow-y-auto custom-scrollbar relative">
+            <!-- Decorative corner accent -->
+            <div class="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 blur-3xl pointer-events-none rounded-full"></div>
+            
+            <div class="flex justify-between items-start mb-8 relative z-10">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-purple-600/20 flex items-center justify-center border border-purple-500/30">
+                        <i class="fas fa-microchip text-purple-400 text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-2xl md:text-3xl font-black text-white tracking-tighter uppercase leading-none">Prompt Architect</h3>
+                        <p class="text-[10px] text-purple-400 font-mono uppercase tracking-[0.3em] mt-1.5">Cognitive Structural Logic</p>
+                    </div>
                 </div>
-                <button onclick="togglePromptArchitect()" class="text-gray-500 hover:text-white"><i class="fas fa-times text-xl"></i></button>
+                <button onclick="togglePromptArchitect()" class="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center text-gray-500 hover:text-white transition-all hover:bg-red-500/20"><i class="fas fa-times"></i></button>
             </div>
             
-            <div class="space-y-5">
-                <div>
-                    <label class="block text-[10px] text-gray-500 font-black uppercase mb-1.5 ml-1">The Persona</label>
-                    <input id="archPersona" type="text" placeholder="e.g. Master Software Architect, World-Class Creative Director..." class="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-purple-500 transition">
+            <div class="grid grid-cols-1 gap-6 relative z-10">
+                <div class="group">
+                    <label class="block text-[9px] text-gray-500 font-black uppercase tracking-[0.2em] mb-2 ml-1">Architectural Persona</label>
+                    <input id="archPersona" type="text" placeholder="e.g. Lead Cybersecurity Auditor, Visionary Screenwriter..." 
+                        class="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-sm text-white outline-none focus:border-purple-500 transition-all placeholder:text-gray-700">
                 </div>
                 
-                <div>
-                    <label class="block text-[10px] text-gray-500 font-black uppercase mb-1.5 ml-1">The Objective</label>
-                    <textarea id="archObjective" placeholder="Be as detailed as possible about what you want to achieve..." class="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-purple-500 h-32 resize-none custom-scrollbar transition"></textarea>
+                <div class="group">
+                    <label class="block text-[9px] text-gray-500 font-black uppercase tracking-[0.2em] mb-2 ml-1">The Core Objective</label>
+                    <textarea id="archObjective" placeholder="What is the final manifestation you require? Be specific..." 
+                        class="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-sm text-white outline-none focus:border-purple-500 h-36 resize-none custom-scrollbar transition-all placeholder:text-gray-700"></textarea>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-[10px] text-gray-500 font-black uppercase mb-1.5 ml-1">Tone / Style</label>
-                        <input id="archTone" type="text" placeholder="e.g. Sophisticated, punchy, visionary..." class="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-purple-500 transition">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="group">
+                        <label class="block text-[9px] text-gray-500 font-black uppercase tracking-[0.2em] mb-2 ml-1">Nuance & Tone</label>
+                        <input id="archTone" type="text" placeholder="e.g. Lyrical, Brutalist, Clinical..." 
+                            class="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-sm text-white outline-none focus:border-purple-500 transition-all placeholder:text-gray-700">
                     </div>
-                    <div>
-                        <label class="block text-[10px] text-gray-500 font-black uppercase mb-1.5 ml-1">Output Format</label>
-                        <input id="archFormat" type="text" placeholder="e.g. Structured markdown list, technical guide..." class="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-purple-500 transition">
+                    <div class="group">
+                        <label class="block text-[9px] text-gray-500 font-black uppercase tracking-[0.2em] mb-2 ml-1">Structural Format</label>
+                        <input id="archFormat" type="text" placeholder="e.g. Executable Python, Valid Markdown..." 
+                            class="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-sm text-white outline-none focus:border-purple-500 transition-all placeholder:text-gray-700">
                     </div>
                 </div>
 
-                <div>
-                    <label class="block text-[10px] text-gray-500 font-black uppercase mb-1.5 ml-1">Exclusions (Optional)</label>
-                    <input id="archExclusions" type="text" placeholder="Things you do NOT want to see..." class="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white outline-none focus:border-purple-500 transition">
+                <div class="group">
+                    <label class="block text-[9px] text-gray-500 font-black uppercase tracking-[0.2em] mb-2 ml-1">Cognitive Exclusions</label>
+                    <input id="archExclusions" type="text" placeholder="Define boundaries: what should be avoided?" 
+                        class="w-full bg-black/40 border border-white/5 rounded-2xl p-4 text-sm text-white outline-none focus:border-purple-500 transition-all placeholder:text-gray-700">
                 </div>
 
-                <div class="pt-4 flex gap-4">
-                    <button onclick="togglePromptArchitect()" class="flex-grow bg-white/5 border border-white/10 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-white/10 transition">Cancel</button>
-                    <button onclick="applyArchitectPrompt()" class="flex-grow bg-purple-600 hover:bg-purple-500 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] transition-all active:scale-95 shadow-xl shadow-purple-600/20">Forge Prompt</button>
+                <div class="pt-6 flex flex-col sm:flex-row gap-4">
+                    <button onclick="togglePromptArchitect()" class="flex-1 order-2 sm:order-1 bg-white/5 border border-white/5 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] text-gray-400 hover:bg-white/10 hover:text-white transition-all">Abort Design</button>
+                    <button onclick="applyArchitectPrompt()" class="flex-[2] order-1 sm:order-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 py-4 rounded-2xl font-black uppercase tracking-widest text-xs text-white transition-all active:scale-[0.98] shadow-xl shadow-purple-900/30 flex items-center justify-center gap-3">
+                        <i class="fas fa-bolt"></i> MATERIALIZE PROMPT
+                    </button>
                 </div>
             </div>
         </div>

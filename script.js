@@ -3173,9 +3173,15 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
         msgDiv = document.createElement('div');
         msgDiv.className = `message ${role === 'user' ? 'user-msg' : 'ai-msg'} relative group ${isStreaming ? 'streaming-msg' : ''}`;
         
+        // Sticky actions container (added before content for sticky top behavior)
+        const copyGroup = document.createElement('div');
+        copyGroup.className = "msg-copy-group";
+        msgDiv.appendChild(copyGroup);
+
         const contentDiv = document.createElement('div');
-        contentDiv.className = "markdown-body";
+        contentDiv.className = "markdown-body w-full";
         msgDiv.appendChild(contentDiv);
+        
         box.appendChild(msgDiv);
     }
 
@@ -3189,7 +3195,6 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
     const contentDiv = msgDiv.querySelector('.markdown-body');
     
     // Check scroll position before content update for accurate auto-scroll intent
-    // We stick to bottom only if the user is already there (or very close)
     const threshold = 150;
     const isAtBottom = (box.scrollHeight - box.scrollTop) <= (box.clientHeight + threshold);
 
@@ -3212,22 +3217,17 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
 
     // If finished, add copy buttons (both Markdown and Plain Text)
     if (!isStreaming) {
-        let copyGroup = msgDiv.querySelector('.msg-copy-group');
-        if (!copyGroup) {
-            copyGroup = document.createElement('div');
-            copyGroup.className = "msg-copy-group sticky top-0 float-right flex gap-1 z-20 ml-4 mb-2 -mr-1 md:-mr-2";
-            // Prepend so it doesn't get pushed down by markdown content
-            msgDiv.insertBefore(copyGroup, msgDiv.firstChild);
-        }
+        const copyGroup = msgDiv.querySelector('.msg-copy-group');
+        if (!copyGroup) return; 
         
         copyGroup.innerHTML = ''; // Clear previous
 
-        const btnClass = "bg-black/40 backdrop-blur-sm p-1.5 rounded-lg border border-white/10 hover:bg-white/10 text-gray-400 transition-all flex items-center justify-center min-w-[28px]";
+        const btnClass = "backdrop-blur-md p-1.5 rounded-lg border border-white/10 hover:border-cyan-500/50 text-gray-400 hover:text-cyan-400 transition-all flex items-center justify-center min-w-[30px] h-[30px]";
         
-        // Markdown Copy Button (Rawest form)
+        // Markdown Copy Button
         const copyMD = document.createElement('button');
         copyMD.className = btnClass;
-        copyMD.title = "Copy Raw Markdown";
+        copyMD.title = "Copy Markdown";
         copyMD.innerHTML = '<i class="fas fa-file-code text-[10px]"></i>';
         copyMD.onclick = () => {
             navigator.clipboard.writeText(content);
@@ -3235,10 +3235,10 @@ function appendAIMessage(role, content, targetBoxId = 'chatBox', isStreaming = f
             setTimeout(() => copyMD.innerHTML = '<i class="fas fa-file-code text-[10px]"></i>', 2000);
         };
         
-        // Plain Text Copy Button (Rendered form)
+        // Plain Text Copy Button
         const copyText = document.createElement('button');
         copyText.className = btnClass;
-        copyText.title = "Copy Plain Text";
+        copyText.title = "Copy Text";
         copyText.innerHTML = '<i class="far fa-copy text-[10px]"></i>';
         copyText.onclick = () => {
             navigator.clipboard.writeText(contentDiv.innerText);
@@ -4394,6 +4394,15 @@ document.addEventListener('click', (e) => {
     if (extraTools && extraTools.classList.contains('active')) {
         if (!extraTools.contains(e.target) && !toolToggle.contains(e.target)) {
             closeExtraTools();
+        }
+    }
+
+    // 4. Prompt Template Grid handling
+    const templateBelt = document.getElementById('promptTemplateBelt');
+    if (templateBelt && !templateBelt.classList.contains('hidden')) {
+        const isTrigger = e.target.closest('[onclick*="togglePromptLibrary"]');
+        if (!templateBelt.contains(e.target) && !isTrigger) {
+            templateBelt.classList.add('hidden');
         }
     }
 });
@@ -9616,9 +9625,70 @@ function goToSupportPage() {
     showPage('support');
 }
 
-// --- PROMPT ARCHITECT LOGIC ---
+// --- PROMPT ARCHITECT LOGIC & TEMPLATES ---
+const PROMPT_TEMPLATES = [
+    { id: 'dev-master', icon: 'fa-microchip', name: 'Dev Master', desc: 'Full-scale app blueprint from scratch.', persona: 'Senior Software Architect', objective: 'Plan and execute a comprehensive project from architecture to final implementation.', tone: 'Highly technical and modular', format: 'Structured project roadmap with code snippets', excl: 'Basic hello world examples' },
+    { id: 'app-forge', icon: 'fa-laptop-code', name: 'App Forge', desc: 'Build complete features/modules.', persona: 'Senior Full-Stack Developer', objective: 'Create a fully functional module or component with clean, maintainable code.', tone: 'Efficient and professional', format: 'Complete source code and logic explanation', excl: 'Placeholders or pseudo-code' },
+    { id: 'writer-pro', icon: 'fa-pen-fancy', name: 'Writer Pro', desc: 'Narratives and world-building.', persona: 'Bestselling Novelist', objective: 'Craft compelling narratives, character arcs, or deep world-building elements.', tone: 'Evocative and descriptive', format: 'Markdown story blocks', excl: 'Clichés and generic plots' },
+    { id: 'analyst-core', icon: 'fa-chart-pie', name: 'Data Analyst', desc: 'Pattern and data synthesis.', persona: 'Lead Data Scientist', objective: 'Analyze complex information sets to find patterns and provide strategic insights.', tone: 'Analytical and objective', format: 'Executive summary with data breakdown', excl: 'Unsupported assumptions' },
+    { id: 'designer-ux', icon: 'fa-vials', name: 'UX Designer', desc: 'Design logic and systems.', persona: 'Principal Product Designer', objective: 'Solve user experience problems through logical design frameworks and systems thinking.', tone: 'User-centric and practical', format: 'UX flow and design system specifications', excl: 'Vague design jargon' },
+    { id: 'critic-logic', icon: 'fa-microscope', name: 'Logic Critic', desc: 'Vulnerability and logic audit.', persona: 'Security & Logic Auditor', objective: 'Identify weaknesses, vulnerabilities, or logical fallacies in the provided content/code.', tone: 'Critical and meticulous', format: 'Detailed audit report with remediation steps', excl: 'Surface-level praise' },
+    { id: 'marketer-guru', icon: 'fa-bullhorn', name: 'Growth Guru', desc: 'Sales and marketing loops.', persona: 'CMO & Marketing Strategist', objective: 'Develop high-conversion sales copy or growth-focused marketing strategies.', tone: 'Persuasive and energetic', format: 'Marketing plan or conversion-optimized copy', excl: 'Passive voice' },
+    { id: 'coach-zen', icon: 'fa-spa', name: 'Zen Coach', desc: 'Performance and mindset.', persona: 'High-Performance Executive Coach', objective: 'Provide actionable advice to optimize mindset, productivity, and internal clarity.', tone: 'Empowering and focused', format: 'Step-by-step guidance', excl: 'Toxic positivity' },
+    { id: 'philosopher', icon: 'fa-om', name: 'Philosopher', desc: 'Deep thought and ethics.', persona: 'Modern Existential Philosopher', objective: 'Explore deep ethical dilemmas or philosophical concepts through a first-principles lens.', tone: 'Profound and reflective', format: 'Socratic dialogue or essay style', excl: 'Shallow summaries' },
+    { id: 'tutor-simple', icon: 'fa-graduation-cap', name: 'Clear Tutor', desc: 'Complex topics made simple.', persona: 'World-Class Educator', objective: 'Explain complex concepts in a way that is intuitively easy to understand for anyone.', tone: 'Simple and encouraging', format: 'Analogy-based explanation', excl: 'Academic jargon' },
+    { id: 'hacker-sec', icon: 'fa-user-secret', name: 'Security Pro', desc: 'Hardening and exploit info.', persona: 'Cybersecurity Expert', objective: 'Analyze systems for security risks and provide hardening protocols.', tone: 'Strict and alert', format: 'Security implementation guide', excl: 'Insecure practices' },
+    { id: 'lawyer-brief', icon: 'fa-scale-balanced', name: 'Legal Mind', desc: 'Document review and logic.', persona: 'Senior Legal Consultant', objective: 'Analyze documents for inconsistencies, risks, and logical cohesion.', tone: 'Precise and analytical', format: 'Legal analysis brief', excl: 'Emotional bias' },
+    { id: 'copy-ninja', icon: 'fa-bolt', name: 'Copy Ninja', desc: 'Conversion sales copy.', persona: 'Copywriting Specialist', objective: 'Turn features into benefits and create compelling calls to action.', tone: 'Punchy and direct', format: 'Conversion-ready text', excl: 'Filler words' },
+    { id: 'script-writer', icon: 'fa-film', name: 'Script Smith', desc: 'Dialogue and screenplays.', persona: 'Hollywood Screenwriter', objective: 'Draft dynamic dialogue and structured scenes with high emotional resonance.', tone: 'Cinematic and rhythmic', format: 'Standard screenplay format', excl: 'Stilted dialogue' },
+    { id: 'translator', icon: 'fa-language', name: 'Nuance Link', desc: 'Cultural nuanced translation.', persona: 'Expert Polyglot Translator', objective: 'Translate text while preserving cultural nuances, humor, and underlying tone.', tone: 'Nuanced and culturally aware', format: 'Comparison or direct translation', excl: 'Literal/Machine translation feel' },
+    { id: 'business-pro', icon: 'fa-briefcase', name: 'Biz Email', desc: 'Professional communication.', persona: 'Corporate Communications Expert', objective: 'Draft professional emails, memos, or proposals that command respect and clarity.', tone: 'Formal and concise', format: 'Ready-to-send draft', excl: 'Unprofessional slang' },
+    { id: 'prep-coach', icon: 'fa-user-tie', name: 'Interview Prep', desc: 'Career and interview coaching.', persona: 'Career Strategy Expert', objective: 'Simulate high-stakes interviews and provide feedback on responses.', tone: 'Professional and constructive', format: 'Question/Answer simulation with feedback', excl: 'Generic advice' },
+    { id: 'poet-soul', icon: 'fa-feather-pointed', name: 'Poet Soul', desc: 'Rhymes and evocative lyrics.', persona: 'Mystical Poet & Lyricist', objective: 'Compose evocative verses or lyrics that resonate with the depths of the human spirit.', tone: 'Lyrical and visionary', format: 'Stanza-based poetry/lyrics', excl: 'Simple nursery rhymes' },
+    { id: 'engineer-meta', icon: 'fa-gears', name: 'Prompt Eng', desc: 'Optimize AI performance.', persona: 'Lead Prompt Engineer', objective: 'Optimize and refine a given instruction for maximum AI output quality.', tone: 'Logical and iterative', format: 'Refined prompt with explanation', excl: 'Sub-optimal phrasing' },
+    { id: 'futurist', icon: 'fa-rocket', name: 'Futurist', desc: 'Long-term tech implications.', persona: 'Visionary Futurist', objective: 'Speculate on the long-term impact of current technological and social trends.', tone: 'Speculative and visionary', format: 'Future-casting scenario', excl: 'Pessimistic bias' }
+];
+
+function showPromptBelt() {
+    const belt = document.getElementById('promptTemplateBelt');
+    const content = document.getElementById('templateBeltContent');
+    if (!content || !belt) return;
+    
+    if (!content.innerHTML) {
+        content.innerHTML = PROMPT_TEMPLATES.map(t => `
+            <button onclick="applyTemplate('${t.id}')" class="template-card" title="${t.desc}">
+                <i class="fas ${t.icon}"></i>
+                <span>${t.name}</span>
+            </button>
+        `).join('');
+    }
+    belt.classList.toggle('hidden');
+}
+
+function applyTemplate(id) {
+    const t = PROMPT_TEMPLATES.find(x => x.id === id);
+    if (!t) return;
+    
+    document.getElementById('archPersona').value = t.persona;
+    document.getElementById('archObjective').value = t.objective;
+    document.getElementById('archTone').value = t.tone;
+    document.getElementById('archFormat').value = t.format;
+    document.getElementById('archExclusions').value = t.excl;
+    
+    const belt = document.getElementById('promptTemplateBelt');
+    if (belt) belt.classList.add('hidden');
+    
+    togglePromptArchitect();
+    showToast(`Template "${t.name}" loaded.`, "success");
+}
+
+function togglePromptLibrary() {
+    showPromptBelt();
+}
+
 function togglePromptArchitect() {
     const modal = document.getElementById('promptArchitectModal');
+    if (!modal) return;
     if (modal.classList.contains('hidden')) {
         modal.classList.remove('hidden');
         document.getElementById('archPersona').focus();
