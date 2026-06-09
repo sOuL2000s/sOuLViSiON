@@ -4650,22 +4650,18 @@ function toggleZenBreath(btn) {
     const text = document.getElementById('breathText');
     const ring = document.getElementById('zenRing');
     
-    if (breathingState.active) {
-        clearInterval(breathingState.interval);
-        breathingState.interval = null;
-        breathingState.active = false;
-        
+    if (zenInterval) {
+        clearInterval(zenInterval);
+        zenInterval = null;
         circle.style.transform = 'scale(1)';
         if (ring) ring.style.opacity = '0';
         text.innerText = 'IDLE';
         btn.innerText = 'BEGIN CYCLE';
         btn.classList.replace('bg-red-600', 'bg-teal-600');
-        
         if (breathingState.audioCtx) breathingState.audioCtx.suspend();
         return;
     }
 
-    breathingState.active = true;
     btn.innerText = 'END CYCLE';
     btn.classList.replace('bg-teal-600', 'bg-red-600');
     if (ring) ring.style.opacity = '1';
@@ -4675,18 +4671,19 @@ function toggleZenBreath(btn) {
         { text: 'EXHALE', scale: 1.0, color: 'rgba(20, 184, 166, 0.1)', freq: 330 }
     ];
 
+    let phaseIdx = 0;
     const run = () => {
-        const p = phases[breathingState.phase % 2];
+        const p = phases[phaseIdx % 2];
         text.innerText = p.text;
         circle.style.transform = `scale(${p.scale})`;
         circle.style.backgroundColor = p.color;
         
         if (breathingState.soundEnabled) playBreathingPulse(p.freq, 1.5);
-        breathingState.phase = (breathingState.phase + 1) % 2;
+        phaseIdx++;
     };
 
     run();
-    breathingState.interval = setInterval(run, 4000);
+    zenInterval = setInterval(run, 4000);
 }
 
 // Emoji Alchemy Implementation
@@ -5761,42 +5758,7 @@ async function toggleBreathingSession() {
     breathingState.interval = setInterval(runPhase, 4000);
 }
 
-function toggleZenBreath(btn) {
-    // Legacy fun page version, updated to use sound if enabled
-    const circle = document.getElementById('breathCircle');
-    const text = document.getElementById('breathText');
-    
-    if (zenInterval) {
-        clearInterval(zenInterval);
-        zenInterval = null;
-        circle.style.transform = 'scale(1)';
-        text.innerText = 'INHALE';
-        btn.innerText = 'START SESSION';
-        btn.classList.replace('bg-red-600', 'bg-teal-600');
-        return;
-    }
 
-    btn.innerText = 'END SESSION';
-    btn.classList.replace('bg-teal-600', 'bg-red-600');
-    
-    let stage = 0;
-    const animate = () => {
-        if (stage === 0) { // Inhale
-            circle.style.transform = 'scale(1.5)';
-            text.innerText = 'INHALE';
-            if (breathingState.soundEnabled) playBreathingPulse(440, 1);
-            stage = 1;
-        } else { // Exhale
-            circle.style.transform = 'scale(1)';
-            text.innerText = 'EXHALE';
-            if (breathingState.soundEnabled) playBreathingPulse(330, 1);
-            stage = 0;
-        }
-    };
-    
-    animate();
-    zenInterval = setInterval(animate, 4000);
-}
 
 // --- NEW FUN GAMES LOGIC ---
 
@@ -6339,17 +6301,19 @@ async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", 
     const btn = btnId ? document.getElementById(btnId) : null;
     if (isAICooldownActive) return showAICooldownOverlay();
 
+    if (!outputEl) return;
     outputEl.innerHTML = `<div class="flex flex-col items-center justify-center h-full text-center gap-2 py-4"><i class="fas fa-spinner fa-spin text-pink-400"></i><span class="animate-pulse text-[8px] uppercase tracking-widest text-gray-500">${loadingText}</span></div>`;
     if (btn) btn.disabled = true;
 
     try {
-        const model = document.getElementById('funModelSelect')?.value || aiConfig.models[0]?.id;
-        if (!model) throw new Error("No model selected.");
+        const model = document.getElementById('funModelSelect')?.value || (aiConfig.models.length > 0 ? aiConfig.models[0].id : "gemini-2.5-flash");
         
         const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
         const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
-        const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
+        const keyIdx = provider === "gemini" ? (currentKeyIndex % keys.length) : (currentGroqKeyIndex % keys.length);
         const key = keys[keyIdx];
+
+        if (!key) throw new Error("No API key available");
 
         let res;
         if (provider === "gemini") {
@@ -6382,27 +6346,17 @@ async function callFunAI(prompt, outputElId, btnId, loadingText = "Syncing...", 
             fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    type, 
-                    content, 
-                    prompt, 
-                    timestamp: Date.now() 
-                })
+                body: JSON.stringify({ type, content, prompt, timestamp: Date.now() })
             }).then(() => syncFunAIHistory());
         }
-
-        if (btn) btn.disabled = false;
     } catch (e) {
-        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
-        const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
-        const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
-
-        if (retryCount < 2 && keys.length > 1) {
-            if (provider === "gemini") currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
-            else currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
+        if (retryCount < 2) {
+            if (aiConfig.keys.length > 1) currentKeyIndex = (currentKeyIndex + 1) % aiConfig.keys.length;
+            if (aiConfig.groqKeys.length > 1) currentGroqKeyIndex = (currentGroqKeyIndex + 1) % aiConfig.groqKeys.length;
             return await callFunAI(prompt, outputElId, btnId, loadingText, useMarkdown, type, retryCount + 1);
         }
-        outputEl.innerHTML = `<p class="text-[10px] text-red-400 italic">The Oracle is currently unresponsive.</p>`;
+        outputEl.innerHTML = `<p class="text-[10px] text-red-400 italic text-center p-4">The Oracle is silent. Check your connection or API rotation settings.</p>`;
+    } finally {
         if (btn) btn.disabled = false;
     }
 }
@@ -6439,7 +6393,6 @@ async function interpretDream() {
 }
 
 function startReactionTest() {
-    setFunPageBackground('amber');
     const area = document.getElementById('reactionArea');
     const pulse = document.getElementById('reactionPulse');
     const text = document.getElementById('reactionText');
@@ -6458,51 +6411,55 @@ function startReactionTest() {
     
     const delay = Math.random() * 4000 + 1500;
     
-    s.timer = setTimeout(() => {
-        pulse.style.backgroundColor = '#10b981';
-        text.innerText = 'STRIKE!';
-        s.start = Date.now();
+    const handleHit = async (e) => {
+        if (e) e.preventDefault();
+        const diff = Date.now() - s.start;
+        let rank = diff < 150 ? "AI Core" : (diff < 220 ? "Ninja" : "Human");
+
+        text.innerText = `RANK: ${rank}`;
+        result.innerText = `${diff}ms`;
+        result.classList.remove('hidden');
+        pulse.style.backgroundColor = 'transparent';
         
-        area.onclick = async () => {
-            const diff = Date.now() - s.start;
-            let rank = diff < 150 ? "AI Core" : (diff < 220 ? "Ninja" : "Human");
-
-            text.innerText = `RANK: ${rank}`;
-            result.innerText = `${diff}ms`;
-            result.classList.remove('hidden');
-            pulse.style.backgroundColor = 'transparent';
-            area.onclick = null;
-            btn.disabled = false;
-            btn.classList.remove('opacity-50');
-            s.active = false;
-            
-            if (currentUser) {
-                try {
-                    const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ type: 'reaction', score: diff })
-                    });
-                    if (res.ok) {
-                        showToast(`Latency record synced: ${diff}ms`, "success");
-                        syncFunLeaderboard();
-                    } else throw new Error();
-                } catch (e) {
-                    showToast("Failed to sync reaction time.", "error");
+        area.onpointerdown = null;
+        btn.disabled = false;
+        btn.classList.remove('opacity-50');
+        s.active = false;
+        
+        if (currentUser) {
+            try {
+                const res = await fetch(`/api/main?route=fun_stats&userId=${encodeURIComponent(currentUser.email)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type: 'reaction', score: diff })
+                });
+                if (res.ok) {
+                    showToast(`Latency record synced: ${diff}ms`, "success");
+                    syncFunLeaderboard();
                 }
-            }
-        };
-    }, delay);
+            } catch (e) { console.warn("Failed to sync reaction time."); }
+        }
+    };
 
-    area.onclick = () => {
+    const handleFalseStart = (e) => {
+        if (e) e.preventDefault();
         clearTimeout(s.timer);
         text.innerText = 'FALSE START';
-        pulse.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
-        area.onclick = null;
+        pulse.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+        area.onpointerdown = null;
         btn.disabled = false;
         btn.classList.remove('opacity-50');
         s.active = false;
     };
+
+    s.timer = setTimeout(() => {
+        pulse.style.backgroundColor = '#10b981';
+        text.innerText = 'STRIKE!';
+        s.start = Date.now();
+        area.onpointerdown = handleHit;
+    }, delay);
+
+    area.onpointerdown = handleFalseStart;
 }
 
 
@@ -7024,7 +6981,7 @@ async function getSpiritualAdvice(retryCount = 0) {
 
         const prompt = `Based on these recent soul journals: "${journals}" and my metrics (Health: ${health}, Wealth: ${wealth}), give me one sentence of deep spiritual wisdom and one specific actionable advice for my day. Be concise.`;
         
-        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-2.5-flash";
         const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
         const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
         const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
@@ -7050,7 +7007,7 @@ async function getSpiritualAdvice(retryCount = 0) {
         const advice = (provider === "gemini" ? data.candidates?.[0]?.content?.parts?.[0]?.text : data.choices?.[0]?.message?.content) || "The Oracle is silent. Try again later.";
         adviceEl.innerText = advice;
     } catch (e) {
-        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-2.5-flash";
         const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
         const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
 
@@ -7158,7 +7115,7 @@ async function finishReport(retryCount = 0) {
     document.getElementById('reportGenerating').classList.remove('hidden');
 
     try {
-        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-2.5-flash";
         const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
         const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
         const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
@@ -7228,7 +7185,7 @@ async function finishReport(retryCount = 0) {
         showToast("Soul Report Transferred Successfully.", "success");
         closeReportModal();
     } catch (e) {
-        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const model = document.getElementById('focusModelSelect')?.value || aiConfig.models[0]?.id || "gemini-2.5-flash";
         const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
         const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
 
@@ -7678,7 +7635,7 @@ async function generateAIMatchSummary(t1, t2, result, retryCount = 0) {
     Keep it punchy and exciting.`;
 
     try {
-        const model = aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const model = aiConfig.models[0]?.id || "gemini-2.5-flash";
         const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
         const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
         const keyIdx = provider === "gemini" ? currentKeyIndex : currentGroqKeyIndex;
@@ -7703,7 +7660,7 @@ async function generateAIMatchSummary(t1, t2, result, retryCount = 0) {
         const data = await res.json();
         return (provider === "gemini" ? data.candidates?.[0]?.content?.parts?.[0]?.text : data.choices?.[0]?.message?.content)?.trim() || "A classic battle of nerves!";
     } catch (e) {
-        const model = aiConfig.models[0]?.id || "gemini-1.5-flash";
+        const model = aiConfig.models[0]?.id || "gemini-2.5-flash";
         const provider = aiConfig.groqModels.find(m => m.id === model) ? "groq" : "gemini";
         const keys = provider === "gemini" ? aiConfig.keys : aiConfig.groqKeys;
 
